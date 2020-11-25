@@ -2,6 +2,8 @@
 
 # {{{ Settings
 export TERM=xterm-256color # 色空間
+export WORDCHARS="*?_-.[]~=&;!#$%^(){}<>" # 区切り文字
+
 autoload -Uz compinit && compinit # 補完機能を有効にして、実行する
 autoload -Uz colors && colors # 色を有効にして、実行する
 
@@ -194,6 +196,12 @@ bindkey '^]' peco-src
 if [ ! -f $HOME/.zshrc.zwc -o $HOME/.zshrc -nt $HOME/.zshrc.zwc ]; then
    zcompile $HOME/.zshrc
 fi
+# }}}
+
+# {{{ HOME, DELETE, ENDキーを有効にする
+bindkey "^[[1~" beginning-of-line
+bindkey "^[[3~" delete-char
+bindkey "^[[4~" end-of-line
 # }}}
 
 # {{{
