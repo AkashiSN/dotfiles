@@ -65,7 +65,7 @@ SAVEHIST=1000000 # ヒストリーサイズ設定
 HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい形に変更
 # }}}
 
-# {{{ Alias
+# {{{ ls
 case "${OSTYPE}" in
 darwin*)
   alias ls="ls -G"
@@ -152,9 +152,9 @@ if ! [[ -x $(command -v ghq) ]]; then
   command mkdir -p $GOPATH/bin
   command mkdir -p $GOPATH/src
   print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
-  if [[ "$OSTYPE" == "linux-gnu" ]]; then
+  if [[ "$(uname)" == "Linux" ]]; then
     command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+  elif [[ "$(uname)" == "Darwin" ]]; then
     command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
   fi
   command unzip /tmp/ghq.zip -d /tmp/ && \
@@ -167,9 +167,9 @@ fi
 # Peco
 if ! [[ -x $(command -v peco) ]]; then
   print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
-  if [[ "$OSTYPE" == "linux-gnu" ]]; then
+  if [[ "$(uname)" == "Linux" ]]; then
     command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz
-  elif [[ "$OSTYPE" == "darwin"* ]]; then
+  elif [[ "$(uname)" == "Darwin" ]]; then
     command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.tar.gz
   fi
   command tar xzvf /tmp/peco.tar.gz -C /tmp && \
@@ -202,6 +202,15 @@ fi
 bindkey "^[[1~" beginning-of-line
 bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
+# }}}
+
+# {{{ WSL 用の調整
+if [[ "$(uname -r)" == *microsoft* ]]; then
+  export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
+  export PATH_TO_FX=/usr/share/openjfx/lib/
+  alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
+  alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
+fi
 # }}}
 
 # {{{
