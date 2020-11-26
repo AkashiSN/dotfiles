@@ -115,6 +115,21 @@ if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
 fi
 
 #
+# Nodenv
+#
+
+if [[ ! -f $HOME/.anyenv/envs/nodenv/bin/nodenv ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app’s Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
+	command anyenv install nodenv && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	command mkdir -p "$ANYENV_ROOT/envs/nodenv/plugins" && \
+		git clone https://github.com/pine/nodenv-yarn-install.git "$ANYENV_ROOT/envs/nodenv/plugins/nodenv-yarn-install" && \
+		print -P "%F{33}▓▒░ %F{34}Installation yarn plugin successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
+
+#
 # clone dotfiles
 #
 
