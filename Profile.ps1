@@ -30,7 +30,7 @@ function tmux {
     wsl -e tmux
 }
 
-function conda {
+function anaconda {
     & "$env:HOME/anaconda3/shell/condabin/conda-hook.ps1"
     conda activate "$env:HOME/anaconda3"
 }
