@@ -1,0 +1,13 @@
+[core]
+	autocrlf = input
+	editor = vim
+	excludesfile = ~/.gitignore_global
+
+[color]
+	ui = true
+
+[ghq]
+	root = ~/Project/src
+
+[pull]
+	rebase = false

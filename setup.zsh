@@ -96,7 +96,6 @@ if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 			print -P "%F{160}▓▒░ The installation has failed.%f%b"
 		command rm -rf /tmp/ghq*
-		command git config --global ghq.root $GOPATH/src
 	fi
 
 	# Peco
@@ -120,10 +119,12 @@ fi
 #
 
 print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
-command ghq get git@github.com:AkashiSN/dotfiles.git && \
+command ghq get https://github.com/AkashiSN/dotfiles.git && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
+	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
+	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
 	print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 	print -P "%F{160}▓▒░ The clone has failed.%f%b"
 
