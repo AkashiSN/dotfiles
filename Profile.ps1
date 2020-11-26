@@ -1,5 +1,5 @@
 # Start location
-Set-Location $env:HOME
+Set-Location $env:USERPROFILE
 
 if (Get-Module -ListAvailable -Name posh-git) {
     # Git module import
@@ -31,12 +31,12 @@ function tmux {
 }
 
 function anaconda {
-    & "$env:HOME/anaconda3/shell/condabin/conda-hook.ps1"
-    conda activate "$env:HOME/anaconda3"
+    & "$env:USERPROFILE/anaconda3/shell/condabin/conda-hook.ps1"
+    conda activate "$env:USERPROFILE/anaconda3"
 }
 
 function encode {
-    & "$env:HOME/anaconda3/python.exe" "$(Split-Path $profile -Parent)/scripts/encode.py" $Args
+    & "$env:USERPROFILE/anaconda3/python.exe" "$(Split-Path $profile -Parent)/scripts/encode.py" $Args
 }
 
 # Setting for prompt
