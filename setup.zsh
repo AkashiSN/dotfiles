@@ -123,7 +123,7 @@ command ghq get https://github.com/AkashiSN/dotfiles.git && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
-	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
+	\cp -f $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
 	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
 	print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 	print -P "%F{160}▓▒░ The clone has failed.%f%b"
