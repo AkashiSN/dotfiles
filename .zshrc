@@ -122,7 +122,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
-export PATH=$PATH:$GOPATH/bin
+export PATH=$GOPATH/bin:$PATH
 
 # Setting for peco
 function peco-src () {
@@ -135,6 +135,10 @@ function peco-src () {
 }
 zle -N peco-src
 bindkey '^]' peco-src
+# }}}
+
+# {{{ add PATH
+export PATH=$HOME/bin:$PATH
 # }}}
 
 # {{{ zcompile

@@ -6,6 +6,8 @@
 
 mkdir -p $HOME/bin
 export PATH=$HOME/bin:$PATH
+export TERM=xterm-256color
+autoload -Uz colors && colors
 
 #
 # Functions
@@ -30,7 +32,7 @@ command_exists "curl" || exit 1;
 # ARC
 #
 
-if ! command_exists "arc"; then
+if ! [[ -x $(command -v arc) ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}arc%F{220} A cross-platform, multi-format archive utility and Go library (%F{33}mholt/archiver%F{220})…%f"
 	if [[ "$(uname)" == "Linux" ]]; then
 		declare -a FILES=($(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep linux_amd64))
@@ -72,7 +74,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
-export PATH=$PATH:$GOPATH/bin
+export PATH=$GOPATH/bin:$PATH
 
 # Goenv
 if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
@@ -80,7 +82,6 @@ if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
 	command anyenv install goenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	exec $SHELL -l
 
 	# GHQ
 	if ! [[ -x $(command -v ghq) ]]; then
@@ -120,12 +121,14 @@ fi
 
 print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
 command ghq get git@github.com:AkashiSN/dotfiles.git && \
-	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
-	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
-	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
+	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
+	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
+	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
 	print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 	print -P "%F{160}▓▒░ The clone has failed.%f%b"
 
-print -P "%F{33}▓▒░ %F{34}Change login default shell to zsh%f%b"
-command user=$(whoami) && \
-	sudo chsh -s $(which zsh) $user
+print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
+export user=$(whoami) && \
+sudo chsh -s $(which zsh) $user && \
+print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
+print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
