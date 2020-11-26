@@ -1,0 +1,131 @@
+#!/bin/sh
+
+#
+# Setup PATH
+#
+
+mkdir -p $HOME/bin
+export PATH=$HOME/bin:$PATH
+
+#
+# Functions
+#
+
+command_exists () {
+	if ! [[ -x $(command -v "$1") ]]; then
+		print -P "%F{160}▓▒░ %F{220}$1%F{160} not found in PATH.%f%b"
+		return 1
+	fi
+	return 0
+}
+
+#
+# Check command exists
+#
+
+command_exists "git" || exit 1;
+command_exists "curl" || exit 1;
+
+#
+# ARC
+#
+
+if ! command_exists "arc"; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}arc%F{220} A cross-platform, multi-format archive utility and Go library (%F{33}mholt/archiver%F{220})…%f"
+	if [[ "$(uname)" == "Linux" ]]; then
+		declare -a FILES=($(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep linux_amd64))
+		command curl -L -o $HOME/bin/arc https://github.com/mholt/archiver/releases/latest/download/${FILES[2]}
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		declare -a FILES=($(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep mac_amd64))
+		command curl -L -o $HOME/bin/arc https://github.com/mholt/archiver/releases/latest/download/${FILES[2]}
+	fi
+	chmod +x $HOME/bin/arc
+fi
+
+#
+# Anyenv
+#
+
+if [[ ! -f $HOME/.anyenv/bin/anyenv ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}anyenv%F{220} All in one for **env (%F{33}anyenv/anyenv%F{220})…%f"
+	command git clone https://github.com/anyenv/anyenv "$HOME/.anyenv" && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	command mkdir -p $HOME/.anyenv/plugins
+	command git clone https://github.com/znz/anyenv-update.git $HOME/.anyenv/plugins/anyenv-update && \
+		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-update successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	command git clone https://github.com/znz/anyenv-git.git $HOME/.anyenv/plugins/anyenv-git && \
+		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-git successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
+
+# Initial setting of anyenv.
+export PATH="$HOME/.anyenv/bin:$PATH"
+export ANYENV_ROOT="$HOME/.anyenv"
+eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
+
+#
+# Golang
+#
+
+# Add GOPATH
+export GOENV_DISABLE_GOPATH=1
+export GOPATH=$HOME/Project
+export PATH=$PATH:$GOPATH/bin
+
+# Goenv
+if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}goenv%F{220} Go Version Management (%F{33}syndbg/goenv%F{220})…%f"
+	command anyenv install goenv && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	exec $SHELL -l
+
+	# GHQ
+	if ! [[ -x $(command -v ghq) ]]; then
+		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
+		if [[ "$(uname)" == "Linux" ]]; then
+			command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
+		elif [[ "$(uname)" == "Darwin" ]]; then
+			command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
+		fi
+		command arc -strip-components 1 -overwrite unarchive /tmp/ghq.zip /tmp/ghq && \
+			mv /tmp/ghq/ghq $HOME/bin/ && \
+			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+			print -P "%F{160}▓▒░ The installation has failed.%f%b"
+		command rm -rf /tmp/ghq*
+		command git config --global ghq.root $GOPATH/src
+	fi
+
+	# Peco
+	if ! [[ -x $(command -v peco) ]]; then
+		print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
+		if [[ "$(uname)" == "Linux" ]]; then
+			command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz
+		elif [[ "$(uname)" == "Darwin" ]]; then
+			command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.tar.gz
+		fi
+		command arc -strip-components 1 -overwrite unarchive /tmp/peco.tar.gz /tmp/peco && \
+			mv /tmp/peco/peco $HOME/bin/ && \
+			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+			print -P "%F{160}▓▒░ The installation has failed.%f%b"
+		command rm -rf /tmp/peco*
+	fi
+fi
+
+#
+# clone dotfiles
+#
+
+print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
+command ghq get git@github.com:AkashiSN/dotfiles.git && \
+	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
+	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
+	ln -s $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
+	print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+	print -P "%F{160}▓▒░ The clone has failed.%f%b"
+
+print -P "%F{33}▓▒░ %F{34}Change login default shell to zsh%f%b"
+command user=$(whoami) && \
+	sudo chsh -s $(which zsh) $user

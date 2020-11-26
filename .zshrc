@@ -112,71 +112,17 @@ zinit ice blockf
 zinit light zsh-users/zsh-completions
 # }}}
 
-# {{{ anyenv
-if [[ ! -f $HOME/.anyenv/bin/anyenv ]]; then
-  print -P "%F{33}▓▒░ %F{220}Installing %F{33}anyenv%F{220} All in one for **env (%F{33}anyenv/anyenv%F{220})…%f"
-  command git clone https://github.com/anyenv/anyenv "$HOME/.anyenv" && \
-    print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-  command mkdir -p $HOME/.anyenv/plugins
-  command git clone https://github.com/znz/anyenv-update.git $HOME/.anyenv/plugins/anyenv-update && \
-    print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-update successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-  command git clone https://github.com/znz/anyenv-git.git $HOME/.anyenv/plugins/anyenv-git && \
-    print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-git successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
-
-# Initial setting of anyenv.
+# {{{ Initial setting of anyenv.
 export PATH="$HOME/.anyenv/bin:$PATH"
 export ANYENV_ROOT="$HOME/.anyenv"
 eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
 # }}}
 
-# {{{ goenv
-if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
-  print -P "%F{33}▓▒░ %F{220}Installing %F{33}goenv%F{220} Go Version Management (%F{33}syndbg/goenv%F{220})…%f"
-  command anyenv install goenv && \
-    print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-  exec $SHELL -l
-fi
-
+# {{{ Golang
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
 export PATH=$PATH:$GOPATH/bin
-
-# GHQ
-if ! [[ -x $(command -v ghq) ]]; then
-  command mkdir -p $GOPATH/bin
-  command mkdir -p $GOPATH/src
-  print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
-  if [[ "$(uname)" == "Linux" ]]; then
-    command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
-  elif [[ "$(uname)" == "Darwin" ]]; then
-    command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
-  fi
-  command unzip /tmp/ghq.zip -d /tmp/ && \
-    mv /tmp/ghq_*/ghq $GOPATH/bin/ && \
-    print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-  git config --global ghq.root $GOPATH/src
-fi
-
-# Peco
-if ! [[ -x $(command -v peco) ]]; then
-  print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
-  if [[ "$(uname)" == "Linux" ]]; then
-    command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz
-  elif [[ "$(uname)" == "Darwin" ]]; then
-    command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.tar.gz
-  fi
-  command tar xzvf /tmp/peco.tar.gz -C /tmp && \
-    mv /tmp/peco_*/peco $GOPATH/bin/ && \
-    print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
 
 # Setting for peco
 function peco-src () {
@@ -189,7 +135,6 @@ function peco-src () {
 }
 zle -N peco-src
 bindkey '^]' peco-src
-
 # }}}
 
 # {{{ zcompile
