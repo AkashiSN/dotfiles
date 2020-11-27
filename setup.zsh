@@ -82,36 +82,37 @@ if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
 	command anyenv install goenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
 
-	# GHQ
-	if ! [[ -x $(command -v ghq) ]]; then
-		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
-		if [[ "$(uname)" == "Linux" ]]; then
-			command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
-		elif [[ "$(uname)" == "Darwin" ]]; then
-			command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
-		fi
-		command arc -strip-components 1 -overwrite unarchive /tmp/ghq.zip /tmp/ghq && \
-			mv /tmp/ghq/ghq $HOME/bin/ && \
-			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-			print -P "%F{160}▓▒░ The installation has failed.%f%b"
-		command rm -rf /tmp/ghq*
+# GHQ
+if ! [[ -x $(command -v ghq) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
 	fi
+	command arc -strip-components 1 -overwrite unarchive /tmp/ghq.zip /tmp/ghq && \
+		mv /tmp/ghq/ghq $HOME/bin/ && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+	command rm -rf /tmp/ghq*
+fi
 
-	# Peco
-	if ! [[ -x $(command -v peco) ]]; then
-		print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
-		if [[ "$(uname)" == "Linux" ]]; then
-			command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz
-		elif [[ "$(uname)" == "Darwin" ]]; then
-			command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.tar.gz
-		fi
-		command arc -strip-components 1 -overwrite unarchive /tmp/peco.tar.gz /tmp/peco && \
-			mv /tmp/peco/peco $HOME/bin/ && \
-			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-			print -P "%F{160}▓▒░ The installation has failed.%f%b"
-		command rm -rf /tmp/peco*
+# Peco
+if ! [[ -x $(command -v peco) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz && \
+			arc -strip-components 1 -overwrite unarchive /tmp/peco.tar.gz /tmp/peco
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.zip && \
+			arc -strip-components 1 -overwrite unarchive /tmp/peco.zip /tmp/peco
 	fi
+	command mv /tmp/peco/peco $HOME/bin/ && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+	command rm -rf /tmp/peco*
 fi
 
 #

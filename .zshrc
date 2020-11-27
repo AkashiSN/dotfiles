@@ -79,10 +79,6 @@ linux*)
   alias l='ls -CF'
   ;;
 esac
-
-for i in /etc/profile.d/*.sh ; do
-    [ -r $i ] && source $i
-done
 # }}}
 
 # {{{ Zinit setting
