@@ -166,7 +166,7 @@ fi
 
 if [[ ! -d $GOPATH/src/github.com/AkashiSN/dotfiles ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
-	command ghq get https://github.com/AkashiSN/dotfiles.git && \
+	command ghq get git@github.com:AkashiSN/dotfiles.git && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 else
