@@ -100,18 +100,33 @@ zinit ice wait'!0'; zinit load zsh-users/zsh-syntax-highlighting
 zinit ice compile'(pure|async).zsh' pick'async.zsh' src'pure.zsh'
 zinit light sindresorhus/pure
 
-zinit ice as"completion"
+zinit ice as "completion"
 zinit snippet https://github.com/docker/cli/blob/master/contrib/completion/zsh/_docker
 zinit snippet https://github.com/docker/compose/blob/master/contrib/completion/zsh/_docker-compose
 
 zinit ice blockf
-zinit light zsh-users/zsh-completions
+zinit ice wait'!0'; zinit light zsh-users/zsh-completions
+zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 # }}}
 
 # {{{ Initial setting of anyenv.
 export PATH="$HOME/.anyenv/bin:$PATH"
 export ANYENV_ROOT="$HOME/.anyenv"
 eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
+# }}}
+
+# {{{ Conda
+__conda_setup="$($PYENV_ROOT/versions/miniconda3-latest/bin/conda shell.zsh hook 2> /dev/null)"
+if [ $? -eq 0 ]; then
+  eval "$__conda_setup"
+else
+  if [ -f "$PYENV_ROOT/versions/miniconda3-latest/etc/profile.d/conda.sh" ]; then
+    . "$PYENV_ROOT/versions/miniconda3-latest/etc/profile.d/conda.sh"
+  else
+    export PATH="$PYENV_ROOT/versions/miniconda3-latest/bin:$PATH"
+  fi
+fi
+unset __conda_setup
 # }}}
 
 # {{{ Golang
@@ -122,12 +137,12 @@ export PATH=$GOPATH/bin:$PATH
 
 # Setting for peco
 function peco-src () {
-    local selected_dir=$(ghq list -p | peco --query "$LBUFFER")
-    if [ -n "$selected_dir" ]; then
-        BUFFER="cd ${selected_dir}"
-        zle accept-line
-    fi
-    zle clear-screen
+  local selected_dir=$(ghq list -p | peco --query "$LBUFFER")
+  if [ -n "$selected_dir" ]; then
+    BUFFER="cd ${selected_dir}"
+    zle accept-line
+  fi
+  zle clear-screen
 }
 zle -N peco-src
 bindkey '^]' peco-src
@@ -139,7 +154,8 @@ export PATH=$HOME/bin:$PATH
 
 # {{{ zcompile
 if [ ! -f $HOME/.zshrc.zwc -o $HOME/.zshrc -nt $HOME/.zshrc.zwc ]; then
-   zcompile $HOME/.zshrc
+  print -P "%F{34}Recompile .zshrc%f%b"
+  zcompile $HOME/.zshrc
 fi
 # }}}
 

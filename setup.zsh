@@ -4,6 +4,7 @@
 # Setup PATH
 #
 
+cd $HOME
 mkdir -p $HOME/bin
 export PATH=$HOME/bin:$PATH
 export TERM=xterm-256color
@@ -29,7 +30,7 @@ command_exists "git" || exit 1;
 command_exists "curl" || exit 1;
 
 #
-# ARC
+# arc
 #
 
 if ! [[ -x $(command -v arc) ]]; then
@@ -84,7 +85,7 @@ if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
-# GHQ
+# ghq
 if ! [[ -x $(command -v ghq) ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
 	if [[ "$(uname)" == "Linux" ]]; then
@@ -131,21 +132,73 @@ if [[ ! -f $HOME/.anyenv/envs/nodenv/bin/nodenv ]]; then
 fi
 
 #
+# Pyenv
+#
+
+if [[ ! -f $HOME/.anyenv/envs/pyenv/bin/pyenv ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}pyenv%F{220} Simple Python Version Management: pyenv (%F{33}pyenv/pyenv%F{220})…%f"
+	command anyenv install pyenv && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}miniconda3%F{220} Miniconda is a free minimal installer for conda."
+	command pyenv install miniconda3-latest && \
+		pyenv global miniconda3-latest && \
+		print -P "%F{33}▓▒░ %F{34}Installation miniconda3 successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
+
+#
+# Jenv
+#
+
+if [[ "$(uname)" == "Darwin" ]]; then
+	if [[ ! -f $HOME/.anyenv/envs/jenv/bin/jenv ]]; then
+		print -P "%F{33}▓▒░ %F{220}Installing %F{33}jenv%F{220} Master your Java Environment with jenv (%F{33}jenv/jenv%F{220})…%f"
+		command anyenv install jenv && \
+			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+			print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	fi
+fi
+
+#
 # clone dotfiles
 #
 
-print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
-command ghq get https://github.com/AkashiSN/dotfiles.git && \
-	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
-	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
-	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
-	\cp -f $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
-	ln -snf $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
+if [[ ! -d $GOPATH/src/github.com/AkashiSN/dotfiles ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
+	command ghq get https://github.com/AkashiSN/dotfiles.git && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+else
+	print -P "%F{33}▓▒░ %F{220}Updating %F{33}dotfiles%F{220}%f"
+	(cd $GOPATH/src/github.com/AkashiSN/dotfiles && git pull) && \
 	print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 	print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
 
-print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
-export user=$(whoami) && \
-sudo chsh -s $(which zsh) $user && \
-print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
-print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
+print -P "%F{33}▓▒░ %F{220}Linking %F{33}dotfiles%F{220}%f"
+command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global
+
+zsh=false
+if [[ "$(uname)" == "Linux" ]]; then
+	if [[ $(cat /etc/passwd | grep $(users)) =~ "zsh" ]]; then
+		zsh=true
+	fi
+elif [[ "$(uname)" == "Darwin" ]]; then
+	if [[ $(dscl . -read ~/ UserShell) =~ "zsh" ]]; then
+		zsh=true
+	fi
+fi
+
+if ! $zsh ; then 
+	print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
+	export user=$(whoami) && \
+	sudo chsh -s $(which zsh) $user && \
+	print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
+	print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
+fi
+
