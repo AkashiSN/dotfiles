@@ -95,7 +95,7 @@ zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 
 # {{{ Initial setting of anyenv.
 export ANYENV_ROOT="$HOME/.anyenv"
-eval "$($ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
+eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
 # }}}
 
 # {{{ Conda
