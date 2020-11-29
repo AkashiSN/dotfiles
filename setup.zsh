@@ -141,8 +141,8 @@ if [[ ! -f $HOME/.anyenv/envs/pyenv/bin/pyenv ]]; then
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}miniconda3%F{220} Miniconda is a free minimal installer for conda."
-	command pyenv install miniconda3-latest && \
-		pyenv global miniconda3-latest && \
+	command $HOME/.anyenv/envs/pyenv/bin/pyenv install miniconda3-latest && \
+		$HOME/.anyenv/envs/pyenv/bin/pyenv global miniconda3-latest && \
 		print -P "%F{33}▓▒░ %F{34}Installation miniconda3 successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
@@ -194,7 +194,7 @@ elif [[ "$(uname)" == "Darwin" ]]; then
 	fi
 fi
 
-if ! $zsh ; then 
+if ! $zsh ; then
 	print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
 	export user=$(whoami) && \
 	sudo chsh -s $(which zsh) $user && \
