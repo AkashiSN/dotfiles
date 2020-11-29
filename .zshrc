@@ -65,22 +65,6 @@ SAVEHIST=1000000 # ヒストリーサイズ設定
 HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい形に変更
 # }}}
 
-# {{{ ls
-case "${OSTYPE}" in
-darwin*)
-  alias ls="ls -G"
-  alias ll="ls -lG"
-  alias la="ls -laG"
-  ;;
-linux*)
-  alias ls='ls --color=auto'
-  alias ll='ls -alF'
-  alias la='ls -A'
-  alias l='ls -CF'
-  ;;
-esac
-# }}}
-
 # {{{ Zinit setting
 if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
   print -P "%F{33}▓▒░ %F{220}Installing %F{33}DHARMA%F{220} Initiative Plugin Manager (%F{33}zdharma/zinit%F{220})…%f"
@@ -110,9 +94,8 @@ zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 # }}}
 
 # {{{ Initial setting of anyenv.
-export PATH="$HOME/.anyenv/bin:$PATH"
 export ANYENV_ROOT="$HOME/.anyenv"
-eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
+eval "$($ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
 # }}}
 
 # {{{ Conda
@@ -133,7 +116,6 @@ unset __conda_setup
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
-export PATH=$GOPATH/bin:$PATH
 
 # Setting for peco
 function peco-src () {
@@ -148,8 +130,53 @@ zle -N peco-src
 bindkey '^]' peco-src
 # }}}
 
-# {{{ add PATH
+# {{{ Aliases
+
+case "$(uname)" in
+Darwin)
+  alias ls="ls -G"
+  alias ll="ls -lG"
+  alias la="ls -laG"
+  alias brew="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin brew"
+  export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
+  ;;
+Linux)
+  alias ls='ls --color=auto'
+  alias ll='ls -alF'
+  alias la='ls -A'
+  alias l='ls -CF'
+  export PATH_TO_FX="/usr/share/openjfx/lib"
+  ;;
+esac
+
+alias rsync="rsync -a -v --delete --progress"
+alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
+alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
+alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
+
+# }}}
+
+# {{{ Functions
+# build latex in docker
+# https://hub.docker.com/r/arkark/latexmk
+function latex () {
+  docker run --rm -it --name="latexmk" -v `pwd`:/workdir arkark/latexmk:full latexmk-ext "$@"
+}
+
+function pdfcrop () {
+  docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir arkark/latexmk:full pdfcrop "$@"
+}
+# }}}
+
+# {{{ PATH
 export PATH=$HOME/bin:$PATH
+export PATH=$GOPATH/bin:$PATH
+# }}}
+
+# {{{ WSL 用の調整
+if [[ "$(uname -r)" == *microsoft* ]]; then
+  export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
+fi
 # }}}
 
 # {{{ zcompile
@@ -163,15 +190,6 @@ fi
 bindkey "^[[1~" beginning-of-line
 bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
-# }}}
-
-# {{{ WSL 用の調整
-if [[ "$(uname -r)" == *microsoft* ]]; then
-  export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
-  export PATH_TO_FX=/usr/share/openjfx/lib/
-  alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
-  alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
-fi
 # }}}
 
 # {{{
