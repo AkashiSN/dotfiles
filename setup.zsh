@@ -49,23 +49,24 @@ fi
 # Anyenv
 #
 
-if [[ ! -f $HOME/.anyenv/bin/anyenv ]]; then
+export ANYENV_ROOT="$HOME/.anyenv"
+
+if [[ ! -f $ANYENV_ROOT/bin/anyenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}anyenv%F{220} All in one for **env (%F{33}anyenv/anyenv%F{220})…%f"
-	command git clone https://github.com/anyenv/anyenv "$HOME/.anyenv" && \
+	command git clone https://github.com/anyenv/anyenv "$ANYENV_ROOT" && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	command mkdir -p $HOME/.anyenv/plugins
-	command git clone https://github.com/znz/anyenv-update.git $HOME/.anyenv/plugins/anyenv-update && \
+	command mkdir -p $ANYENV_ROOT/plugins
+	command git clone https://github.com/znz/anyenv-update.git $ANYENV_ROOT/plugins/anyenv-update && \
 		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-update successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	command git clone https://github.com/znz/anyenv-git.git $HOME/.anyenv/plugins/anyenv-git && \
+	command git clone https://github.com/znz/anyenv-git.git $ANYENV_ROOT/plugins/anyenv-git && \
 		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-git successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
 # Initial setting of anyenv.
-export PATH="$HOME/.anyenv/bin:$PATH"
-export ANYENV_ROOT="$HOME/.anyenv"
+export PATH="$ANYENV_ROOT/bin:$PATH"
 eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
 
 #
@@ -78,7 +79,7 @@ export GOPATH=$HOME/Project
 export PATH=$GOPATH/bin:$PATH
 
 # Goenv
-if [[ ! -f $HOME/.anyenv/envs/goenv/bin/goenv ]]; then
+if [[ ! -f $ANYENV_ROOT/envs/goenv/bin/goenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}goenv%F{220} Go Version Management (%F{33}syndbg/goenv%F{220})…%f"
 	command anyenv install goenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
@@ -120,7 +121,7 @@ fi
 # Nodenv
 #
 
-if [[ ! -f $HOME/.anyenv/envs/nodenv/bin/nodenv ]]; then
+if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app’s Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
 	command anyenv install nodenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
@@ -135,14 +136,16 @@ fi
 # Pyenv
 #
 
-if [[ ! -f $HOME/.anyenv/envs/pyenv/bin/pyenv ]]; then
+export PYENV_ROOT=$ANYENV_ROOT/envs/pyenv
+
+if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}pyenv%F{220} Simple Python Version Management: pyenv (%F{33}pyenv/pyenv%F{220})…%f"
 	command anyenv install pyenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}miniconda3%F{220} Miniconda is a free minimal installer for conda."
-	command $HOME/.anyenv/envs/pyenv/bin/pyenv install miniconda3-latest && \
-		$HOME/.anyenv/envs/pyenv/bin/pyenv global miniconda3-latest && \
+	command $PYENV_ROOT/bin/pyenv install miniconda3-latest && \
+		$PYENV_ROOT/bin/pyenv global miniconda3-latest && \
 		print -P "%F{33}▓▒░ %F{34}Installation miniconda3 successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
@@ -152,7 +155,7 @@ fi
 #
 
 if [[ "$(uname)" == "Darwin" ]]; then
-	if [[ ! -f $HOME/.anyenv/envs/jenv/bin/jenv ]]; then
+	if [[ ! -f $ANYENV_ROOT/envs/jenv/bin/jenv ]]; then
 		print -P "%F{33}▓▒░ %F{220}Installing %F{33}jenv%F{220} Master your Java Environment with jenv (%F{33}jenv/jenv%F{220})…%f"
 		command anyenv install jenv && \
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
