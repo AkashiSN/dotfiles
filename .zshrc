@@ -28,7 +28,6 @@ setopt MARK_DIRS # ファイル名の展開でディレクトリにマッチし�
 setopt list_types # 補完候補一覧でファイルの種別を識別マーク表示(ls -F の記号)
 setopt NO_BEEP #BEEPを鳴らさない
 setopt ALWAYS_LAST_PROMPT # 補完候補など表示する時はその場に表示し、終了時に画面から消す
-setopt SH_WORD_SPLIT # クォートされていない変数拡張が行われたあとで、フィールド分割
 setopt AUTO_PARAM_SLASH # ディレクトリ名を補完すると、末尾に / を付加
 setopt AUTO_PUSHD # 普通のcdでもディレクトリスタックに入れる
 setopt PUSHD_IGNORE_DUPS # ディレクトリスタックに、同じディレクトリを入れない
