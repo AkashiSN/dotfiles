@@ -80,6 +80,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
 export PATH=$GOPATH/bin:$PATH
+git config --global ghq.root $GOPATH/src
 
 # Goenv
 if [[ ! -f $ANYENV_ROOT/envs/goenv/bin/goenv ]]; then

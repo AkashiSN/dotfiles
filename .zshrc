@@ -150,8 +150,6 @@ esac
 
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
-alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
 
 # }}}
 
@@ -178,6 +176,8 @@ export PATH=$GOPATH/bin:$PATH
 # {{{ WSL 用の調整
 if [[ "$(uname -r)" == *microsoft* ]]; then
   export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
+  alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
+  alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
 fi
 # }}}
 
