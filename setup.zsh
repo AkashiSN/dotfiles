@@ -173,7 +173,12 @@ if [[ ! -d $GOPATH/src/github.com/AkashiSN/dotfiles ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
 	command ghq get git@github.com:AkashiSN/dotfiles.git && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+		(print -P "%F{160}▓▒░ The clone has failed.%f%b" && \
+		print -P "%F{220}▓▒░ Retry to clone.%f%b" && \
+		mkdir -p $GOPATH/src/github.com/AkashiSN/dotfiles && \
+		git clone https://github.com/AkashiSN/dotfiles.git $GOPATH/src/github.com/AkashiSN/dotfiles && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b")
 else
 	print -P "%F{33}▓▒░ %F{220}Updating %F{33}dotfiles%F{220}%f"
 	(cd $GOPATH/src/github.com/AkashiSN/dotfiles && git pull) && \
