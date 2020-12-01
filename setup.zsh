@@ -63,6 +63,8 @@ if [[ ! -f $ANYENV_ROOT/bin/anyenv ]]; then
 	command git clone https://github.com/znz/anyenv-git.git $ANYENV_ROOT/plugins/anyenv-git && \
 		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-git successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	export PATH="$ANYENV_ROOT/bin:$PATH"
+	command yes | anyenv install --init
 fi
 
 # Initial setting of anyenv.
