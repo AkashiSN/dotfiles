@@ -5,8 +5,9 @@
 #
 
 cd $HOME
-mkdir -p $HOME/bin
-export PATH=$HOME/bin:$PATH
+PREFIX=$HOME/.local
+mkdir -p $PREFIX/bin
+export PATH=$PREFIX/bin:$PATH
 export TERM=xterm-256color
 autoload -Uz colors && colors
 
@@ -37,12 +38,12 @@ if ! [[ -x $(command -v arc) ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}arc%F{220} A cross-platform, multi-format archive utility and Go library (%F{33}mholt/archiver%F{220})…%f"
 	if [[ "$(uname)" == "Linux" ]]; then
 		file=$(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep linux_amd64 | read hash file; echo ${file})
-		command curl -L -o $HOME/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
+		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
 	elif [[ "$(uname)" == "Darwin" ]]; then
 		file=$(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep mac_amd64 | read hash file; echo ${file})
-		command curl -L -o $HOME/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
+		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
 	fi
-	chmod +x $HOME/bin/arc
+	chmod +x $PREFIX/bin/arc
 fi
 
 #
@@ -97,7 +98,7 @@ if ! [[ -x $(command -v ghq) ]]; then
 		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
 	fi
 	command arc -strip-components 1 -overwrite unarchive /tmp/ghq.zip /tmp/ghq && \
-		mv /tmp/ghq/ghq $HOME/bin/ && \
+		mv /tmp/ghq/ghq $PREFIX/bin/ && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	command rm -rf /tmp/ghq*
@@ -113,7 +114,7 @@ if ! [[ -x $(command -v peco) ]]; then
 		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.zip && \
 			arc -strip-components 1 -overwrite unarchive /tmp/peco.zip /tmp/peco
 	fi
-	command mv /tmp/peco/peco $HOME/bin/ && \
+	command mv /tmp/peco/peco $PREFIX/bin/ && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	command rm -rf /tmp/peco*
