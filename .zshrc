@@ -168,6 +168,9 @@ function pdfcrop () {
 # }}}
 
 # {{{ PATH
+export MANPATH=$HOME/.local/share/man:$MANPATH
+export INFOPATH=$HOME/.local/share/info:$INFOPATH
+export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
 # }}}
