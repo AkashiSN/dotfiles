@@ -193,20 +193,20 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global
 
-zsh=false
-if [[ "$(uname)" == "Linux" ]]; then
-	if [[ $(cat /etc/passwd | grep $(users)) =~ "zsh" ]]; then
-		zsh=true
+read -p "Do you want to change default shell to zsh? [y/N]: " answer
+if [ "$answer" != "${answer#[Yy]}" ]; then
+	zsh=false
+	if [[ "$(uname)" == "Linux" ]]; then
+		if [[ $(cat /etc/passwd | grep $(users)) =~ "zsh" ]]; then
+			zsh=true
+		fi
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		if [[ $(dscl . -read ~/ UserShell) =~ "zsh" ]]; then
+			zsh=true
+		fi
 	fi
-elif [[ "$(uname)" == "Darwin" ]]; then
-	if [[ $(dscl . -read ~/ UserShell) =~ "zsh" ]]; then
-		zsh=true
-	fi
-fi
 
-if ! $zsh ; then
-	read -p "Do you want to change default shell to zsh? [y/N]: " answer
-	if [ "$answer" != "${answer#[Yy]}" ]; then
+	if ! $zsh ; then
 		print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
 		export user=$(whoami) && \
 		sudo chsh -s $(which zsh) $user && \
