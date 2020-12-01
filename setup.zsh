@@ -200,10 +200,13 @@ elif [[ "$(uname)" == "Darwin" ]]; then
 fi
 
 if ! $zsh ; then
-	print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
-	export user=$(whoami) && \
-	sudo chsh -s $(which zsh) $user && \
-	print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
-	print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
+	read -p "Do you want to change default shell to zsh? [y/N]: " answer
+	if [ "$answer" != "${answer#[Yy]}" ]; then
+		print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
+		export user=$(whoami) && \
+		sudo chsh -s $(which zsh) $user && \
+		print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
+		print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
+	fi
 fi
 
