@@ -193,8 +193,8 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global
 
-read -p "Do you want to change default shell to zsh? [y/N]: " answer
-if [ "$answer" != "${answer#[Yy]}" ]; then
+/bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
+if read -q; then;
 	zsh=false
 	if [[ "$(uname)" == "Linux" ]]; then
 		if [[ $(cat /etc/passwd | grep $(users)) =~ "zsh" ]]; then
