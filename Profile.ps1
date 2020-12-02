@@ -1,15 +1,9 @@
 # Start location
 Set-Location $env:USERPROFILE
 
-if (Get-Module -ListAvailable -Name posh-git) {
-    # Git module import
-    Import-Module posh-git
-} else {
-    # Install posh-git
-    PowerShellGet\Install-Module posh-git -Scope CurrentUser -AllowPrerelease -Force
-    # Git module import
-    Import-Module posh-git
-}
+# starship
+# https://github.com/starship/starship
+Invoke-Expression (&starship init powershell)
 
 # ghq and peco setting
 function gh () {
@@ -38,20 +32,3 @@ function anaconda {
 function encode {
     & "$env:USERPROFILE/anaconda3/python.exe" "$(Split-Path $profile -Parent)/scripts/encode.py" $Args
 }
-
-# Setting for prompt
-function executetime {
-    if ((Get-History).count -ge 1) {
-        $executionTime = ((Get-History)[-1].EndExecutionTime - (Get-History)[-1].StartExecutionTime).Totalmilliseconds
-        $time = [math]::Round($executionTime,2) / 1000
-        $ts =  [timespan]::fromseconds($time)
-        return ("{0:hh\:mm\:ss\,fff}" -f $ts)
-    } else {
-        $ts =  [timespan]::fromseconds(0)
-        return ("{0:hh\:mm\:ss\,fff}" -f $ts)
-    }
-}
-
-$GitPromptSettings.DefaultPromptPath.ForegroundColor = 'Orange'
-$GitPromptSettings.DefaultPromptPrefix.Text = '$(executetime) '
-$GitPromptSettings.DefaultPromptPrefix.ForegroundColor = [ConsoleColor]::Cyan
