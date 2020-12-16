@@ -1,6 +1,9 @@
 # .zshrc
 
-# {{{ Settings
+# -------------------------------------
+# zshのオプション
+# -------------------------------------
+
 export TERM=xterm-256color # 色空間
 export WORDCHARS="*?_-.[]~=&;!#$%^(){}<>" # 区切り文字
 
@@ -62,9 +65,12 @@ HISTSIZE=1000000 # ヒストリーサイズ設定
 SAVEHIST=1000000 # ヒストリーサイズ設定
 
 HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい形に変更
-# }}}
 
-# {{{ Zinit setting
+
+# -------------------------------------
+# Zinit setting
+# -------------------------------------
+
 if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
   print -P "%F{33}▓▒░ %F{220}Installing %F{33}DHARMA%F{220} Initiative Plugin Manager (%F{33}zdharma/zinit%F{220})…%f"
   command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
@@ -83,22 +89,26 @@ zinit ice wait'!0'; zinit load zsh-users/zsh-syntax-highlighting
 zinit ice compile'(pure|async).zsh' pick'async.zsh' src'pure.zsh'
 zinit light sindresorhus/pure
 
-zinit ice as "completion"
-zinit snippet https://github.com/docker/cli/blob/master/contrib/completion/zsh/_docker
-zinit snippet https://github.com/docker/compose/blob/master/contrib/completion/zsh/_docker-compose
+zinit ice as "completion"; zinit snippet https://github.com/docker/cli/blob/master/contrib/completion/zsh/_docker
+zinit ice as "completion"; zinit snippet https://github.com/docker/compose/blob/master/contrib/completion/zsh/_docker-compose
 
 zinit ice blockf
 zinit ice wait'!0'; zinit light zsh-users/zsh-completions
 zinit ice wait'!0'; zinit load esc/conda-zsh-completion
-# }}}
 
-# {{{ Initial setting of anyenv.
+
+# -------------------------------------
+# anyenv setting
+# -------------------------------------
+
 export ANYENV_ROOT="$HOME/.anyenv"
 export PATH=$ANYENV_ROOT/bin:$PATH
 eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
-# }}}
 
-# {{{ Conda
+
+# -------------------------------------
+# Conda setting
+# -------------------------------------
 __conda_setup="$($PYENV_ROOT/versions/miniconda3-latest/bin/conda shell.zsh hook 2> /dev/null)"
 if [ $? -eq 0 ]; then
   eval "$__conda_setup"
@@ -110,9 +120,12 @@ else
   fi
 fi
 unset __conda_setup
-# }}}
 
-# {{{ Golang
+
+# -------------------------------------
+# Golang setting
+# -------------------------------------
+
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
@@ -128,9 +141,30 @@ function peco-src () {
 }
 zle -N peco-src
 bindkey '^]' peco-src
-# }}}
 
-# {{{ Aliases
+
+#-------------------------------------
+# google cloud sdk
+#-------------------------------------
+
+if [ -f /usr/share/google-cloud-sdk/completion.zsh.inc ]; then
+  source /usr/share/google-cloud-sdk/completion.zsh.inc
+fi
+
+
+#-------------------------------------
+# terraform
+#-------------------------------------
+
+if [ -f $HOME/.local/bin/terraform ]; then
+  autoload -U +X bashcompinit && bashcompinit
+  complete -o nospace -C $HOME/.local/bin/terraform terraform
+fi
+
+
+# -------------------------------------
+# Aliases setting
+# -------------------------------------
 
 case "$(uname)" in
 Darwin)
@@ -151,10 +185,13 @@ esac
 
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
+alias tf="terraform"
 
-# }}}
 
-# {{{ Functions
+# -------------------------------------
+# Functions setting
+# -------------------------------------
+
 # build latex in docker
 # https://hub.docker.com/r/arkark/latexmk
 function latex () {
@@ -164,38 +201,53 @@ function latex () {
 function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir arkark/latexmk:full pdfcrop "$@"
 }
-# }}}
 
-# {{{ PATH
+
+# -------------------------------------
+# Other Path setting
+# -------------------------------------
+
 export MANPATH=$HOME/.local/share/man:$MANPATH
 export INFOPATH=$HOME/.local/share/info:$INFOPATH
 export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
-# }}}
 
-# {{{ WSL 用の調整
+
+# -------------------------------------
+#  WSL 用の調整
+# -------------------------------------
+
 if [[ "$(uname -r)" == *microsoft* ]]; then
   export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
   alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias code="~/winhome/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
 fi
-# }}}
 
-# {{{ zcompile
+
+#--------------------------------------
+# Auto compile
+#--------------------------------------
+
 if [ ! -f $HOME/.zshrc.zwc -o $HOME/.zshrc -nt $HOME/.zshrc.zwc ]; then
   print -P "%F{34}Recompile .zshrc%f%b"
   zcompile $HOME/.zshrc
 fi
-# }}}
 
-# {{{ HOME, DELETE, ENDキーを有効にする
+
+# -------------------------------------
+# キーバインド
+# -------------------------------------
+
+# HOME, DELETE, ENDキーを有効にする
 bindkey "^[[1~" beginning-of-line
 bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
-# }}}
 
-# {{{
+
+# -------------------------------------
+# 補完
+# -------------------------------------
+
 compinit -i # 補完を再読込
-# }}}
