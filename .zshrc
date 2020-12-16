@@ -156,9 +156,9 @@ fi
 # terraform
 #-------------------------------------
 
-if [ -f $HOME/.local/bin/terraform ]; then
+if [ -f $TFENV_ROOT/bin/terraform ]; then
   autoload -U +X bashcompinit && bashcompinit
-  complete -o nospace -C $HOME/.local/bin/terraform terraform
+  complete -o nospace -C $TFENV_ROOT/bin/terraform terraform
 fi
 
 
