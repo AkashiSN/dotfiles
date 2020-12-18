@@ -247,7 +247,7 @@ bindkey "^[[4~" end-of-line
 
 if [[ $(uname) == "Linux" ]]; then
   xmodmap $HOME/.Xmodmap
-else
+fi
 
 
 # -------------------------------------
