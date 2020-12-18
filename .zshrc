@@ -245,6 +245,10 @@ bindkey "^[[1~" beginning-of-line
 bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
 
+if [[ $(uname) == "Linux" ]]; then
+  xmodmap $HOME/.Xmodmap
+else
+
 
 # -------------------------------------
 # 補完
