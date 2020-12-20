@@ -109,6 +109,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 # -------------------------------------
 # Conda setting
 # -------------------------------------
+
 __conda_setup="$($PYENV_ROOT/versions/miniconda3-latest/bin/conda shell.zsh hook 2> /dev/null)"
 if [ $? -eq 0 ]; then
   eval "$__conda_setup"
@@ -245,7 +246,7 @@ bindkey "^[[1~" beginning-of-line
 bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
 
-if [[ $(uname) == "Linux" ]]; then
+if command -v xmodmap &> /dev/null ;then
   xmodmap $HOME/.Xmodmap
 fi
 
