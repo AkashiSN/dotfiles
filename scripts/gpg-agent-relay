@@ -53,7 +53,7 @@ relay() {
   set -e
   local winhome
   local wslwinhome
-  winhome=$(cmd.exe /c "<nul set /p=%UserProfile%" 2>/dev/null || true)
+  winhome=$(/mnt/c/Windows/System32/cmd.exe /c "<nul set /p=%UserProfile%" 2>/dev/null || true)
   wslwinhome="$(wslpath -u "$winhome")"
   local npiperelay="$wslwinhome/AppData/Roaming/npiperelay/npiperelay.exe"
   local wslsshpageant="$wslwinhome/AppData/Roaming/wsl-ssh-pageant/wsl-ssh-pageant-amd64-gui.exe"
