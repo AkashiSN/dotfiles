@@ -224,6 +224,9 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias code="~/winhome/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
+
+  gpg-agent-relay start
+  export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
 fi
 
 
