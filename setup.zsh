@@ -193,8 +193,9 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/scripts/gpg-agent-relay $HOME/.local/bin/gpg-agent-relay
 
 /bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
 if read -q; then;
