@@ -190,6 +190,7 @@ fi
 
 print -P "%F{33}▓▒░ %F{220}Linking %F{33}dotfiles%F{220}%f"
 command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zlogout $HOME/.zlogout && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
