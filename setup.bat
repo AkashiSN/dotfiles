@@ -3,4 +3,5 @@ md %homedrive%%homepath%\Documents\PowerShell\Scripts
 mklink %homedrive%%homepath%\Documents\PowerShell\Profile.ps1 %cd%\Profile.ps1
 mklink %homedrive%%homepath%\Documents\PowerShell\Scripts\encode.py %cd%\scripts\encode.py
 
-git config --global gpg.program 'C:\Program Files (x86)\gnupg\bin\gpg.exe'
+git config --global gpg.program 'C:/Program Files (x86)/gnupg/bin/gpg.exe'
+git config --global core.sshCommand 'C:/Windows/System32/OpenSSH/ssh.exe'
