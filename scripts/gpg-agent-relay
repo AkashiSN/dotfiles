@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
 # https://gist.github.com/andsens/2ebd7b46c9712ac205267136dc677ac1
-# Inspired by https://blog.nimamoh.net/yubi-key-gpg-wsl2/
-
-# Guide:
-# Install GPG on windows & Unix
-# Add "enable-putty-support" to gpg-agent.conf
-# Download wsl-ssh-pageant and npiperelay and place the executables in "C:\Users\[USER]\AppData\Roaming\" under wsl-ssh-pageant & npiperelay
-# https://github.com/benpye/wsl-ssh-pageant/releases/tag/20190513.14
-# https://github.com/NZSmartie/npiperelay/releases/tag/v0.1
-# Adjust relay() below if you alter those paths
-# Place this script in WSL at ~/.local/bin/gpg-agent-relay
-# Start it on login by calling it from your .bashrc: "$HOME/.local/bin/gpg-agent-relay start"
 
 GNUPGHOME="$HOME/.gnupg"
 PIDFILE="$GNUPGHOME/gpg-agent-relay.pid"
@@ -52,12 +41,8 @@ main() {
 relay() {
   set -e
   local winhome
-  local wslwinhome
   winhome=$(/mnt/c/Windows/System32/cmd.exe /c "<nul set /p=%UserProfile%" 2>/dev/null || true)
-  wslwinhome="$(wslpath -u "$winhome")"
-  local npiperelay="$wslwinhome/AppData/Roaming/npiperelay/npiperelay.exe"
-  local wslsshpageant="$wslwinhome/AppData/Roaming/wsl-ssh-pageant/wsl-ssh-pageant-amd64-gui.exe"
-  local gpgconnectagent="/mnt/c/Program Files (x86)/GnuPG/bin/gpg-connect-agent.exe"
+  local npiperelay="/mnt/c/tools/Utils/npiperelay/npiperelay.exe"
   local gpgagentsocket="$GNUPGHOME/S.gpg-agent"
   local sshagentsocket="$GNUPGHOME/S.gpg-agent.ssh"
   # backslash escaping in socat EXEC doesn't seem to work very well, use forward slashes instead
@@ -66,12 +51,6 @@ relay() {
 
   killsocket "$gpgagentsocket"
   killsocket "$sshagentsocket"
-
-  "$gpgconnectagent" /bye
-
-  "$wslsshpageant" --systray --winssh ssh-pageant 2>/dev/null &
-  # shellcheck disable=SC2034
-  WSPPID=$!
 
   socat UNIX-LISTEN:"$gpgagentsocket,unlink-close,fork,umask=177" EXEC:"$npiperelay -ep -ei -s -a '$wingpgagentpath'",nofork &
   GNUPID=$!
