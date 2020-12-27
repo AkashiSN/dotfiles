@@ -228,6 +228,14 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   gpg-agent-relay status > /dev/null || {
     gpg-agent-relay start
   }
+fi
+
+
+#--------------------------------------
+# gpg agent
+#--------------------------------------
+
+if [ -f $HOME/.gnupg/S.gpg-agent.ssh ]; then
   export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
 fi
 

@@ -195,8 +195,16 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/scripts/gpg-agent-relay $HOME/.local/bin/gpg-agent-relay
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap
+
+if [[ "$(uname -r)" == *microsoft* ]]; then
+	command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/scripts/gpg-agent-relay $HOME/.local/bin/gpg-agent-relay
+fi
+
+print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
+command mkdir -p $HOME/.ssh && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
+		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub
 
 /bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
 if read -q; then;
