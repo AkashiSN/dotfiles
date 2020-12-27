@@ -235,7 +235,7 @@ fi
 # gpg agent
 #--------------------------------------
 
-if [ -f $HOME/.gnupg/S.gpg-agent.ssh ]; then
+if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
   export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
 fi
 

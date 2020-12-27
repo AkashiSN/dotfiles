@@ -201,6 +201,11 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
 	command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/scripts/gpg-agent-relay $HOME/.local/bin/gpg-agent-relay
 fi
 
+if [[ "$(uname)" == "Darwin" ]]; then
+	command chmod 755 /usr/local/share/zsh && \
+		chmod 755 /usr/local/share/zsh/site-functions
+fi
+
 print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
 command mkdir -p $HOME/.ssh && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
