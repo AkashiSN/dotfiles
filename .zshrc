@@ -203,6 +203,47 @@ function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir arkark/latexmk:full pdfcrop "$@"
 }
 
+# https://callanbryant.co.uk/blog/how-to-get-the-best-out-of-your-yubikey-with-gpg/#a-better-solution
+function gssh () {
+    echo "Preparing host for forwarded GPG agent..." >&2
+    # prepare remote for agent forwarding, get socket
+    # Remove the socket in this pre-command as an alternative to requiring
+    # StreamLocalBindUnlink to be set on the remote SSH server.
+    # Find the path of the agent socket remotely to avoid manual configuration
+    # client side. The location of the socket varies per version of GPG,
+    # username, and host OS.
+    remote_socket=$(cat <<'EOF' | command ssh -T "$@" bash
+        set -e
+        socket=$(gpgconf --list-dirs agent-socket)
+        # killing agent works over socket, which might be dangling, so time it out.
+        timeout -k 2 1 gpgconf --kill gpg-agent || true
+        test -S $socket && rm $socket
+        echo $socket
+EOF
+)
+    if [ ! $? -eq 0 ]; then
+        echo "Problem with remote GPG. use ssh -A $@ for ssh with agent forwarding only." >&2
+        return
+    fi
+
+    if [ "$SSH_CONNECTION" ]; then
+        # agent on this host is forwarded, allow chaining
+        local_socket=$(gpgconf --list-dirs agent-socket)
+    else
+        # agent on this host is running locally, use special remote socket
+        local_socket=$(gpgconf --list-dirs agent-extra-socket)
+    fi
+
+    if [ ! -S $local_socket ]; then
+        echo "Could not find suitable local GPG agent socket" 2>&1
+        return
+    fi
+
+    echo "Connecting..." >&2
+    ssh -A -R $remote_socket:$local_socket "$@"
+}
+compdef _ssh gssh=ssh
+
 
 # -------------------------------------
 # Other Path setting
@@ -235,11 +276,13 @@ fi
 # gpg agent
 #--------------------------------------
 
-if command -v gpg &> /dev/null ;then
-  gpg-connect-agent reloadagent /bye > /dev/null
+if ! [ "$SSH_CONNECTION" ]; then
+  if command -v gpg &> /dev/null ;then
+    gpg-connect-agent reloadagent /bye > /dev/null
 
-  if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
-    export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
+    if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
+      export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
+    fi
   fi
 fi
 
