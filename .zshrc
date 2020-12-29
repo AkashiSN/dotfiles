@@ -164,32 +164,6 @@ fi
 
 
 # -------------------------------------
-# Aliases setting
-# -------------------------------------
-
-case "$(uname)" in
-Darwin)
-  alias ls="ls -G"
-  alias ll="ls -lG"
-  alias la="ls -laG"
-  alias brew="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin brew"
-  export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
-  ;;
-Linux)
-  alias ls='ls --color=auto'
-  alias ll='ls -alF'
-  alias la='ls -A'
-  alias l='ls -CF'
-  export PATH_TO_FX="/usr/share/openjfx/lib"
-  ;;
-esac
-
-alias rsync="rsync -a -v --delete --progress"
-alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-alias tf="terraform"
-
-
-# -------------------------------------
 # Functions setting
 # -------------------------------------
 
@@ -202,6 +176,11 @@ function latex () {
 function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir arkark/latexmk:full pdfcrop "$@"
 }
+
+function tssh () {
+  \ssh -t "$@" "tmux -2u attach -d || tmux -2u"
+}
+compdef _ssh tssh=ssh
 
 # https://callanbryant.co.uk/blog/how-to-get-the-best-out-of-your-yubikey-with-gpg/#a-better-solution
 function gssh () {
@@ -240,9 +219,36 @@ EOF
     fi
 
     echo "Connecting..." >&2
-    ssh -A -R $remote_socket:$local_socket "$@"
+    tssh -A -R $remote_socket:$local_socket "$@"
 }
 compdef _ssh gssh=ssh
+
+
+# -------------------------------------
+# Aliases setting
+# -------------------------------------
+
+case "$(uname)" in
+Darwin)
+  alias ls="ls -G"
+  alias ll="ls -lG"
+  alias la="ls -laG"
+  alias brew="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin brew"
+  export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
+  ;;
+Linux)
+  alias ls='ls --color=auto'
+  alias ll='ls -alF'
+  alias la='ls -A'
+  alias l='ls -CF'
+  export PATH_TO_FX="/usr/share/openjfx/lib"
+  ;;
+esac
+
+alias rsync="rsync -a -v --delete --progress"
+alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
+alias tf="terraform"
+alias ssh=tssh
 
 
 # -------------------------------------
