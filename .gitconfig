@@ -12,6 +12,12 @@
 [ghq]
 	root = ~/Project/src
 
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+
 [pull]
 	rebase = false
 
@@ -19,3 +25,4 @@
 	name = AkashiSN
 	email = btorntireinvynriy@gmail.com
 	signingkey = 058A1155F0E6572C
+
