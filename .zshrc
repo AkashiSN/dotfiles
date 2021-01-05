@@ -329,7 +329,9 @@ bindkey "^[[3~" delete-char
 bindkey "^[[4~" end-of-line
 
 if command -v xmodmap &> /dev/null ;then
-  xmodmap $HOME/.Xmodmap
+  if [ -n "$DISPLAY" ]; then
+    xmodmap $HOME/.Xmodmap
+  fi
 fi
 
 
