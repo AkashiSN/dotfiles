@@ -235,7 +235,6 @@ function qr () {
   qrencode -t ansiutf8 -r $@
 }
 
-
 function serial () {
     screen /dev/tty.usbserial-DN05LT6T 115200
 }

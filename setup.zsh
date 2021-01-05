@@ -206,10 +206,12 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		chmod 755 /usr/local/share/zsh/site-functions
 fi
 
-print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
-command mkdir -p $HOME/.ssh && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub
+if ! [ "$SSH_CONNECTION" ]; then
+	print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
+	command mkdir -p $HOME/.ssh && \
+			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
+			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub
+fi
 
 /bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
 if read -q; then;
