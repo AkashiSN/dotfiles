@@ -44,12 +44,15 @@ relay() {
   winhome=$(/mnt/c/Windows/System32/cmd.exe /c "<nul set /p=%UserProfile%" 2>/dev/null || true)
   local npiperelay="/mnt/c/tools/Utils/npiperelay/npiperelay.exe"
   local gpgagentsocket="$GNUPGHOME/S.gpg-agent"
+  local gpgagentextrasocket="$GNUPGHOME/S.gpg-agent.extra"
   local sshagentsocket="$GNUPGHOME/S.gpg-agent.ssh"
   # backslash escaping in socat EXEC doesn't seem to work very well, use forward slashes instead
   # windows/npiperelay handle that just fine
   local wingpgagentpath="${winhome//\\/\/}/AppData/Roaming/gnupg/S.gpg-agent"
+  local wingpgagentextrapath="${winhome//\\/\/}/AppData/Roaming/gnupg/S.gpg-agent.extra"
 
   killsocket "$gpgagentsocket"
+  killsocket "$gpgagentextrasocket"
   killsocket "$sshagentsocket"
 
   socat UNIX-LISTEN:"$gpgagentsocket,unlink-close,fork,umask=177" EXEC:"$npiperelay -ep -ei -s -a '$wingpgagentpath'",nofork &
@@ -57,12 +60,17 @@ relay() {
   # shellcheck disable=SC2064
   trap "kill -TERM $GNUPID" EXIT
 
+  socat UNIX-LISTEN:"$gpgagentextrasocket,unlink-close,fork,umask=177" EXEC:"$npiperelay -ep -ei -s -a '$wingpgagentextrapath'",nofork &
+  GNUEXTPID=$!
+  # shellcheck disable=SC2064
+  trap "kill -TERM $GNUEXTPID" EXIT
+
   socat UNIX-LISTEN:"$sshagentsocket,unlink-close,fork,umask=177" EXEC:"$npiperelay /\/\./\pipe/\ssh-pageant" &
   SSHPID=$!
 
   set +e
   # shellcheck disable=SC2064
-  trap "kill -TERM $GNUPID; kill -TERM $SSHPID" EXIT
+  trap "kill -TERM $GNUPID; kill -TERM $GNUEXTPID; kill -TERM $SSHPID" EXIT
 
   systemd-notify --ready 2>/dev/null
   wait $GNUPID $SSHPID
