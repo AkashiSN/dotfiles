@@ -24,6 +24,10 @@ function tmux {
     wsl -e tmux
 }
 
+function zsh {
+    wsl -e zsh
+}
+
 function anaconda {
     & "$env:USERPROFILE/anaconda3/shell/condabin/conda-hook.ps1"
     conda activate "$env:USERPROFILE/anaconda3"
