@@ -183,7 +183,7 @@ function tssh () {
 EOF
 )
   if [ ! $? -eq 0 ]; then
-      \ssh -t "$@"
+    \ssh "$@"
   else
     \ssh -t "$@" "tmux -2u attach -d || tmux -2u"
   fi
@@ -191,6 +191,10 @@ EOF
 compdef _ssh tssh=ssh
 
 # https://callanbryant.co.uk/blog/how-to-get-the-best-out-of-your-yubikey-with-gpg/#a-better-solution
+# Add below into remote /etc/ssh/sshd_config
+#
+# StreamLocalBindUnlink yes
+#
 function gssh () {
   echo "Preparing host for forwarded GPG agent..." >&2
   # prepare remote for agent forwarding, get socket
@@ -236,7 +240,7 @@ function qr () {
 }
 
 function serial () {
-    screen /dev/tty.usbserial-DN05LT6T 115200
+  screen /dev/tty.usbserial-DN05LT6T 115200
 }
 
 
@@ -299,12 +303,12 @@ fi
 #--------------------------------------
 
 if ! [ "$SSH_CONNECTION" ]; then
-  if command -v gpg &> /dev/null ;then
+  local_socket=$(gpgconf --list-dirs agent-socket)
+  if [ ! -S $local_socket ]; then
     gpg-connect-agent reloadagent /bye > /dev/null
-
-    if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
-      export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
-    fi
+  fi
+  if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
+    export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
   fi
 fi
 
