@@ -33,4 +33,7 @@ else:
         subprocess.call(command, shell=True)
     files = list(pathlib.Path(".").glob("**/*.new"))
     for f in files:
-        shutil.move(str(f), str(f.parent.joinpath(f.stem)))
+        if os.path.getsize(str(f)) < os.path.getsize(str(f.parent.joinpath(f.stem))):
+            shutil.move(str(f), str(f.parent.joinpath(f.stem)))
+        else:
+            os.remove(str(f))
