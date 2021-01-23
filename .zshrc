@@ -282,7 +282,7 @@ export INFOPATH=$HOME/.local/share/info:$INFOPATH
 export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
-
+export FPATH=$HOME/.local/share/zsh/site-functions:$FPATH
 
 # -------------------------------------
 #  WSL 用の調整
