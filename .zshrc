@@ -261,6 +261,8 @@ Linux)
   alias ll='ls -alF'
   alias la='ls -A'
   alias l='ls -CF'
+  alias docker="sudo docker"
+  alias docker-compose="sudo docker-compose"
   export PATH_TO_FX="/usr/share/openjfx/lib"
   ;;
 esac
@@ -270,8 +272,6 @@ alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 alias tf="terraform"
 alias ssh="tssh"
 
-alias docker="sudo docker"
-alias docker-compose="sudo docker-compose"
 
 # -------------------------------------
 # Other Path setting
