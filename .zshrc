@@ -152,6 +152,11 @@ if [ -f /usr/share/google-cloud-sdk/completion.zsh.inc ]; then
   source /usr/share/google-cloud-sdk/completion.zsh.inc
 fi
 
+if [ -f /opt/google-cloud-sdk/completion.zsh.inc ]; then
+  export PATH=/opt/google-cloud-sdk/bin:$PATH
+  source /opt/google-cloud-sdk/completion.zsh.inc
+fi
+
 
 #-------------------------------------
 # terraform
