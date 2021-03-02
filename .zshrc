@@ -275,7 +275,6 @@ esac
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 alias tf="terraform"
-alias ssh="tssh"
 
 
 # -------------------------------------
