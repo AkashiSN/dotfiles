@@ -248,6 +248,26 @@ function serial () {
   screen /dev/tty.usbserial-DN05LT6T 115200
 }
 
+function search () {
+  local result="$(find . -type f)"
+  for arg in "$@"; do
+    result="$(echo "$result" | grep -i "$arg")"
+  done
+  IFS=$'\n'
+  local results=($(echo "$result" ))
+  for r in "${results[@]}"; do
+    printf %q "$r"
+    echo
+  done
+}
+
+function remove () {
+  xargs sudo -u www-data rm
+}
+
+function move () {
+  xargs -i sudo -u www-data mv {} $1
+}
 
 # -------------------------------------
 # Aliases setting
