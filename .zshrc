@@ -208,7 +208,7 @@ function gssh () {
   # Find the path of the agent socket remotely to avoid manual configuration
   # client side. The location of the socket varies per version of GPG,
   # username, and host OS.
-  remote_socket=$(cat <<'EOF' | command ssh -T "$@" bash
+  remote_socket=$(cat <<'EOF' | command \ssh -T "$@" bash
     set -e
     socket=$(gpgconf --list-dirs agent-socket)
     # killing agent works over socket, which might be dangling, so time it out.
