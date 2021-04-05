@@ -333,8 +333,9 @@ if ! [ "$SSH_CONNECTION" ]; then
   if [ ! -S $local_socket ]; then
     gpg-connect-agent reloadagent /bye > /dev/null
   fi
-  if [ -e $HOME/.gnupg/S.gpg-agent.ssh ]; then
-    export SSH_AUTH_SOCK=$HOME/.gnupg/S.gpg-agent.ssh
+  local_ssh_socket=$(gpgconf --list-dirs agent-ssh-socket)
+  if [ -S $local_ssh_socket ]; then
+    export SSH_AUTH_SOCK=$local_ssh_socket
   fi
 fi
 
