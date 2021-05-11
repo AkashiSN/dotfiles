@@ -168,6 +168,15 @@ if [ -f $TFENV_ROOT/bin/terraform ]; then
 fi
 
 
+#-------------------------------------
+# opam
+#-------------------------------------
+
+if command -v opam &> /dev/null ;then
+  eval $(opam env)
+fi
+
+
 # -------------------------------------
 # Functions setting
 # -------------------------------------
