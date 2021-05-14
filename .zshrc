@@ -303,7 +303,7 @@ esac
 
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-alias kubectl='microk8s kubectl'
+alias kubectl='sudo microk8s kubectl'
 alias tf="terraform"
 
 
