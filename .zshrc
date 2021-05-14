@@ -177,6 +177,15 @@ if command -v opam &> /dev/null ;then
 fi
 
 
+#-------------------------------------
+# kubectl
+#-------------------------------------
+
+if command -v kubectl &> /dev/null ;then
+  source <(kubectl completion zsh)
+fi
+
+
 # -------------------------------------
 # Functions setting
 # -------------------------------------
@@ -303,7 +312,6 @@ esac
 
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-alias kubectl='sudo microk8s kubectl'
 alias tf="terraform"
 
 
