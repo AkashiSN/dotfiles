@@ -306,8 +306,6 @@ Linux)
   alias l='ls -CF'
   alias docker="sudo docker"
   alias docker-compose="sudo docker-compose"
-  alias microk8s="sudo microk8s"
-  alias mkctl="microk8s kubectl"
   export PATH_TO_FX="/usr/share/openjfx/lib"
   ;;
 esac
