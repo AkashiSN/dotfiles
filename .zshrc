@@ -96,6 +96,13 @@ zinit ice blockf
 zinit ice wait'!0'; zinit light zsh-users/zsh-completions
 zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 
+# -------------------------------------
+# pyenv setting
+# -------------------------------------
+
+export PYENV_ROOT="$HOME/.anyenv/envs/pyenv"
+export PATH=$PYENV_ROOT/bin:$PATH
+eval "$(pyenv init -)"
 
 # -------------------------------------
 # anyenv setting
