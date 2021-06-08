@@ -102,7 +102,15 @@ zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 
 export PYENV_ROOT="$HOME/.anyenv/envs/pyenv"
 export PATH=$PYENV_ROOT/bin:$PATH
-eval "$(pyenv init -)"
+if [[ "$(uname)" == "Linux" ]]; then
+  eval "$(pyenv init --path)"
+  if command -v pyenv 1>/dev/null 2>&1; then
+    eval "$(pyenv init -)"
+  fi
+elif [[ "$(uname)" == "Darwin" ]]; then
+  eval "$(pyenv init -)"
+fi
+
 
 # -------------------------------------
 # anyenv setting
