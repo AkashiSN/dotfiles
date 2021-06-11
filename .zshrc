@@ -191,6 +191,11 @@ fi
 # kubectl
 #-------------------------------------
 
+if command -v mk &> /dev/null ;then
+  source <(mk completion zsh | sed "s/kubectl/mk/g" | sed "s/__custom_func/__mk_custom_func/g")
+  alias microk8s.kubectl=mk
+fi
+
 if command -v kubectl &> /dev/null ;then
   source <(kubectl completion zsh)
 fi
