@@ -292,6 +292,28 @@ function move () {
   xargs -i sudo -u www-data mv {} $1
 }
 
+function enc_h264_qsv () {
+  xargs -i /bin/bash -c '
+      INFILE="{}"
+      OUTFILE="${INFILE%.*}.mp4"
+      echo "Start convert $INFILE to $OUTFILE"
+      sudo -E docker run --rm --device=/dev/dri -e INFILE="${INFILE}" -e OUTFILE="${OUTFILE}" -v "${PWD}":/workdir \
+        akashisn/ffmpeg:4.4-qsv \
+          -init_hw_device qsv=qsv:hw -hwaccel qsv -filter_hw_device qsv -hwaccel_output_format qsv \
+          -fflags +discardcorrupt \
+          -analyzeduration 10M -probesize 32M \
+          -dual_mono_mode main \
+          -i "${INFILE}" \
+          -c:v h264_qsv -global_quality 20 \
+          -vf hwupload=extra_hw_frames=64,vpp_qsv=deinterlace=2,scale_qsv=1920:-1,fps=30000/1001 \
+          -c:a aac -ar 48000 -ab 256k \
+          -f mp4 \
+          "${OUTFILE}"
+      sudo -E chown --reference="${INFILE}" "${OUTFILE}"
+      sudo -E chmod --reference="${INFILE}" "${OUTFILE}"
+    '
+}
+
 # -------------------------------------
 # Aliases setting
 # -------------------------------------
