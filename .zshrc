@@ -191,6 +191,16 @@ if command -v kubectl &> /dev/null ;then
 fi
 
 
+#-------------------------------------
+# knative client
+#-------------------------------------
+
+if command -v kn &> /dev/null ;then
+  source <(kn completion zsh)
+  compdef _kn kn
+fi
+
+
 # -------------------------------------
 # Functions setting
 # -------------------------------------
