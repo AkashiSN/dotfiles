@@ -5,7 +5,6 @@ del %homedrive%%homepath%\Documents\PowerShell\Profile.ps1
 del %homedrive%%homepath%\Documents\PowerShell\Scripts\encode.py
 mklink %homedrive%%homepath%\Documents\PowerShell\Profile.ps1 %cd%\Profile.ps1
 mklink %homedrive%%homepath%\Documents\PowerShell\Scripts\encode.py %cd%\scripts\encode.py
-mklink %homedrive%%homepath%\Desktop\Change-ip-address.ps1 %cd%\scripts\Change-ip-address.ps1
 
 rem ssh config
 md %homedrive%%homepath%\.ssh
