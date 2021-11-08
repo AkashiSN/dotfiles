@@ -206,7 +206,7 @@ fi
 if read -q; then;
 	zsh=false
 	if [[ "$(uname)" == "Linux" ]]; then
-		if [[ $(cat /etc/passwd | grep $(users)) =~ "zsh" ]]; then
+		if [[ $(cat /etc/passwd | grep $HOME) =~ "zsh" ]]; then
 			zsh=true
 		fi
 	elif [[ "$(uname)" == "Darwin" ]]; then
