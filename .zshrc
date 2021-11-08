@@ -373,31 +373,31 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias code="~/winhome/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
 
-  wsl2_ssh_pageant_bin="/mnt/c/tools/utils/wsl2-ssh-pageant/wsl2-ssh-pageant.exe"
-  if test -x "$wsl2_ssh_pageant_bin"; then
+  wsl2_gpg_agent_bin="/mnt/c/tools/utils/wsl2-gpg-agent/wsl2-gpg-agent.exe"
+  if test -x "$wsl2_gpg_agent_bin"; then
 
     export SSH_AUTH_SOCK="$HOME/.gnupg/S.gpg-agent.ssh"
     if ! ss -a | grep -q "$SSH_AUTH_SOCK"; then
       rm -f "$SSH_AUTH_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$SSH_AUTH_SOCK,fork" EXEC:"$wsl2_ssh_pageant_bin --ssh" >/dev/null 2>&1 &)
+      (setsid nohup socat UNIX-LISTEN:"$SSH_AUTH_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --ssh" >/dev/null 2>&1 &)
     fi
 
     export GPG_AGENT_SOCK="$HOME/.gnupg/S.gpg-agent"
     if ! ss -a | grep -q "$GPG_AGENT_SOCK"; then
       rm -rf "$GPG_AGENT_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_SOCK,fork" EXEC:"$wsl2_ssh_pageant_bin --gpg S.gpg-agent" >/dev/null 2>&1 &)
+      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent" >/dev/null 2>&1 &)
     fi
 
     export GPG_AGENT_EXTRA_SOCK="$HOME/.gnupg/S.gpg-agent.extra"
     if ! ss -a | grep -q "$GPG_AGENT_EXTRA_SOCK"; then
       rm -rf "$GPG_AGENT_EXTRA_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_EXTRA_SOCK,fork" EXEC:"$wsl2_ssh_pageant_bin --gpg S.gpg-agent.extra" >/dev/null 2>&1 &)
+      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_EXTRA_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent.extra" >/dev/null 2>&1 &)
     fi
 
   else
-    echo >&2 "WARNING: $wsl2_ssh_pageant_bin is not executable."
+    echo >&2 "WARNING: $wsl2_gpg_agent_bin is not executable."
   fi
-  unset wsl2_ssh_pageant_bin
+  unset wsl2_gpg_agent_bin
 
 fi
 
