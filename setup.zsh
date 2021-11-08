@@ -36,14 +36,7 @@ command_exists "curl" || exit 1;
 
 if ! [[ -x $(command -v arc) ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}arc%F{220} A cross-platform, multi-format archive utility and Go library (%F{33}mholt/archiver%F{220})…%f"
-	if [[ "$(uname)" == "Linux" ]]; then
-		file=$(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep linux_amd64 | read hash file; echo ${file})
-		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		file=$(curl -sL https://github.com/mholt/archiver/releases/latest/download/checksums.txt | grep mac_amd64 | read hash file; echo ${file})
-		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/latest/download/${file}
-	fi
-	chmod +x $PREFIX/bin/arc
+	curl -fsS https://webinstall.dev/arc | bash
 fi
 
 #
