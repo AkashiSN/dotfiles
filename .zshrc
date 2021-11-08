@@ -379,19 +379,19 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
     export SSH_AUTH_SOCK="$HOME/.gnupg/S.gpg-agent.ssh"
     if ! ss -a | grep -q "$SSH_AUTH_SOCK"; then
       rm -f "$SSH_AUTH_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$SSH_AUTH_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --ssh" >/dev/null 2>&1 &)
+      (setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --ssh" >/dev/null 2>&1 &)
     fi
 
     export GPG_AGENT_SOCK="$HOME/.gnupg/S.gpg-agent"
     if ! ss -a | grep -q "$GPG_AGENT_SOCK"; then
       rm -rf "$GPG_AGENT_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent" >/dev/null 2>&1 &)
+      (setsid socat UNIX-LISTEN:"$GPG_AGENT_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent" >/dev/null 2>&1 &)
     fi
 
     export GPG_AGENT_EXTRA_SOCK="$HOME/.gnupg/S.gpg-agent.extra"
     if ! ss -a | grep -q "$GPG_AGENT_EXTRA_SOCK"; then
       rm -rf "$GPG_AGENT_EXTRA_SOCK"
-      (setsid nohup socat UNIX-LISTEN:"$GPG_AGENT_EXTRA_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent.extra" >/dev/null 2>&1 &)
+      (setsid socat UNIX-LISTEN:"$GPG_AGENT_EXTRA_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent.extra" >/dev/null 2>&1 &)
     fi
 
   else
