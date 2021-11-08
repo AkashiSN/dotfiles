@@ -197,10 +197,6 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
 		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap
 
-if [[ "$(uname -r)" == *microsoft* ]]; then
-	command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/scripts/gpg-agent-relay $HOME/.local/bin/gpg-agent-relay
-fi
-
 if [[ "$(uname)" == "Darwin" ]]; then
 	command chmod 755 /usr/local/share/zsh && \
 		chmod 755 /usr/local/share/zsh/site-functions

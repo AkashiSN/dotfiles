@@ -1,3 +1,5 @@
+cd /d %~dp0
+
 rem PowerShell Profiles
 md %homedrive%%homepath%\Documents\PowerShell
 md %homedrive%%homepath%\Documents\PowerShell\Scripts
