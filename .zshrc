@@ -373,6 +373,9 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
   alias code="~/winhome/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
 
+  unalias docker
+  unalias docker-compose
+
   wsl2_gpg_agent_bin="/mnt/c/tools/utils/wsl2-gpg-agent/wsl2-gpg-agent.exe"
   if test -x "$wsl2_gpg_agent_bin"; then
 
