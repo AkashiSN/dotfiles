@@ -7,7 +7,9 @@
 cd $HOME
 PREFIX=$HOME/.local
 mkdir -p $PREFIX/bin
+mkdir -p $PREFIX/lib
 export PATH=$PREFIX/bin:$PATH
+export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 export TERM=xterm-256color
 autoload -Uz colors && colors
 
@@ -157,6 +159,22 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		command anyenv install jenv && \
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 			print -P "%F{160}▓▒░ The clone has failed.%f%b"
+	fi
+fi
+
+#
+# FFmpeg
+#
+
+if [[ "$(uname)" == "Linux" ]]; then
+	if [[ ! -f $PREFIX/bin/ffmpeg ]]; then
+		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} ffmpeg with Intel QSV in docker (%F{33}AkashiSN/ffmpeg-docker%F{220})…%f"
+		command curl -L -o /tmp/ffmpeg-4.4-qsv-linux-amd64.tar.xz https://github.com/AkashiSN/ffmpeg-docker/releases/latest/download/ffmpeg-4.4-qsv-linux-amd64.tar.xz && \
+			arc -strip-components 1 -overwrite unarchive /tmp/ffmpeg-4.4-qsv-linux-amd64.tar.xz /tmp/ffmpeg && \
+			mv /tmp/ffmpeg/bin/* ${PREFIX}/bin/ && \
+			mv /tmp/ffmpeg/lib/* ${PREFIX}/lib/ && \
+			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+			print -P "%F{160}▓▒░ The download has failed.%f%b"
 	fi
 fi
 

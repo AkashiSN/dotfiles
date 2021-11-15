@@ -343,6 +343,7 @@ Linux)
   alias l='ls -CF'
   alias docker="sudo docker"
   alias docker-compose="sudo docker-compose"
+  alias ffmpeg="sudo env PATH=$HOME/.local/bin:$PATH env LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH env LIBVA_DRIVERS_PATH=$HOME/.local/lib env LIBVA_DRIVER_NAME=iHD ffmpeg"
   export PATH_TO_FX="/usr/share/openjfx/lib"
   ;;
 esac
@@ -362,6 +363,7 @@ export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
 export PATH=$HOME/.local/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
 export FPATH=$HOME/.local/share/zsh/site-functions:$FPATH
+
 
 # -------------------------------------
 #  WSL 用の調整
