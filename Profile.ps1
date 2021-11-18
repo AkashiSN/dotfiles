@@ -36,3 +36,7 @@ function anaconda {
 function encode {
     & "$env:USERPROFILE/anaconda3/python.exe" "$(Split-Path $profile -Parent)/scripts/encode.py" $Args
 }
+
+function ytdl {
+    youtube-dl.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36" --referer "https://www.youtube.com/" --embed-thumbnail -f m4a -o "~/Youtube/%(uploader)s/%(title)s.%(ext)s" $Args
+}
