@@ -295,34 +295,19 @@ function search () {
 }
 
 function remove () {
-  xargs sudo -u www-data rm
+  xargs -t sudo -u www-data rm
 }
 
 function move () {
-  xargs -i sudo -u www-data mv {} $1
+  xargs -t -I {} sudo -u www-data mv {} $1
 }
 
-function enc_h264_qsv () {
-  xargs -i /bin/bash -c '
-      INFILE="{}"
-      OUTFILE="${INFILE%.*}.mp4"
-      echo "Start convert $INFILE to $OUTFILE"
-      sudo -E docker run --rm --device=/dev/dri -e INFILE="${INFILE}" -e OUTFILE="${OUTFILE}" -v "${PWD}":/workdir \
-        akashisn/ffmpeg:4.4-qsv \
-          -init_hw_device qsv=qsv:hw -hwaccel qsv -filter_hw_device qsv -hwaccel_output_format qsv \
-          -fflags +discardcorrupt \
-          -analyzeduration 10M -probesize 32M \
-          -dual_mono_mode main \
-          -i "${INFILE}" \
-          -c:v h264_qsv -global_quality 20 \
-          -vf hwupload=extra_hw_frames=64,vpp_qsv=deinterlace=2,scale_qsv=1920:-1,fps=30000/1001 \
-          -c:a aac -ar 48000 -ab 256k \
-          -f mp4 \
-          "${OUTFILE}"
-      sudo -E chown --reference="${INFILE}" "${OUTFILE}"
-      sudo -E chmod --reference="${INFILE}" "${OUTFILE}"
-    '
+function normalize () {
+  mkdir -p normalize
+  find . -type f -name "*.m4a" -maxdepth 1 | xargs -t -I {} \
+    ffmpeg-normalize {} -nt peak -t -0.5 -ar 44100 -c:a aac -b:a 128k -e "-aac_coder twoloop -empty_hdlr_name 1" -o normalize/{}
 }
+
 
 # -------------------------------------
 # Aliases setting
