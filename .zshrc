@@ -206,13 +206,13 @@ fi
 # -------------------------------------
 
 # build latex in docker
-# https://hub.docker.com/r/arkark/latexmk
+# https://hub.docker.com/r/akashisn/latexmk
 function latex () {
-  docker run --rm -it --name="latexmk" -v `pwd`:/workdir arkark/latexmk:full latexmk-ext "$@"
+  docker run --rm -it --name="latexmk" -v `pwd`:/workdir akashisn/latexmk latexmk-ext "$@"
 }
 
 function pdfcrop () {
-  docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir arkark/latexmk:full pdfcrop "$@"
+  docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk pdfcrop "$@"
 }
 
 function tssh () {

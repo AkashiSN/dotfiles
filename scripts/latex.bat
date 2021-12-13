@@ -5,4 +5,4 @@ for /f "usebackq delims=" %%A in (`pwsh -noprofile -Command "%~dp0get_relative_p
   set ARGS=%%A
 )
 
-docker run --rm --name="latex" -v "%CD%:/workdir" arkark/latexmk:full latex %ARGS%
+docker run --rm --name="latex" -v "%CD%:/workdir" akashisn/latexmk latex %ARGS%
