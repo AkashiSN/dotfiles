@@ -13,11 +13,11 @@ function gh () {
 # build latex in docker
 # https://hub.docker.com/r/akashisn/latexmk
 function latexmk {
-    docker run --rm -it --name="latexmk" -v "$(Get-Location):/workdir" akashisn/latexmk latexmk-ext (Split-Path $Args[0] -Leaf)
+    docker run --rm -it --name="latexmk" -v "$(Get-Location):/workdir" akashisn/latexmk:full latexmk-ext (Split-Path $Args[0] -Leaf)
 }
 
 function pdfcrop {
-    docker run --rm -it --name="pdfcrop" -v "$(Get-Location):/workdir" akashisn/latexmk pdfcrop (Split-Path $Args[0] -Leaf)
+    docker run --rm -it --name="pdfcrop" -v "$(Get-Location):/workdir" akashisn/latexmk:full pdfcrop (Split-Path $Args[0] -Leaf)
 }
 
 function tmux {

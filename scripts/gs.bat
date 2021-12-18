@@ -8,4 +8,4 @@ for /f "usebackq delims=" %%A in (`pwsh -noprofile -Command "%~dp0get_relative_p
 )
 
 "C:\Program Files\Git\usr\bin\winpty.exe" "C:\Program Files\Git\bin\bash.exe"
-docker run --rm -it --name="gs" -v "%CD%:/workdir" akashisn/latexmk gs %ARGS%
+docker run --rm -it --name="gs" -v "%CD%:/workdir" akashisn/latexmk:full gs %ARGS%
