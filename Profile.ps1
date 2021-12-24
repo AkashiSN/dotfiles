@@ -1,6 +1,3 @@
-# Start location
-Set-Location $env:USERPROFILE
-
 # starship
 # https://github.com/starship/starship
 Invoke-Expression (&starship init powershell)
@@ -18,6 +15,10 @@ function latexmk {
 
 function pdfcrop {
     docker run --rm -it --name="pdfcrop" -v "$(Get-Location):/workdir" akashisn/latexmk:full pdfcrop (Split-Path $Args[0] -Leaf)
+}
+
+function klatexformula {
+    docker run --rm -it --name="klatexformula" -v "$(Get-Location):/workdir" akashisn/latexmk:full klatexformula
 }
 
 function tmux {
