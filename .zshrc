@@ -342,12 +342,17 @@ alias tf="terraform"
 # Other Path setting
 # -------------------------------------
 
-export MANPATH=$HOME/.local/share/man:$MANPATH
-export INFOPATH=$HOME/.local/share/info:$INFOPATH
-export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
-export PATH=$HOME/.local/bin:$PATH
+export LOCAL_PREFIX=$HOME/.local
+export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
+export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
+export LD_LIBRARY_PATH=$LOCAL_PREFIX/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=$LOCAL_PREFIX/lib:$LIBRARY_PATH
+export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
+export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
+export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
+export PATH=$LOCAL_PREFIX/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
-export FPATH=$HOME/.local/share/zsh/site-functions:$FPATH
+export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
 
 # -------------------------------------
