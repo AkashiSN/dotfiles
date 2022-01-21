@@ -22,11 +22,19 @@ function klatexformula {
 }
 
 function tmux {
-    wsl -e tmux
+    if ($Args.Length -eq 0) {
+        wsl --cd ~ -e tmux
+    } else {
+        wsl --cd (Resolve-Path $Args[0]).Path -e tmux
+    }
 }
 
 function zsh {
-    wsl -e zsh
+    if ($Args.Length -eq 0) {
+        wsl --cd ~ -e zsh
+    } else {
+        wsl --cd (Resolve-Path $Args[0]).Path -e zsh
+    }
 }
 
 function anaconda {
