@@ -68,6 +68,16 @@ HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい�
 
 
 # -------------------------------------
+# Base PATH
+# -------------------------------------
+
+export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin
+if [[ "$(uname)" == Darwin ]]; then
+  export PATH=$PATH:/usr/local/MacGPG2/bin
+fi
+
+
+# -------------------------------------
 # Zinit setting
 # -------------------------------------
 
@@ -318,7 +328,7 @@ Darwin)
   alias ls="ls -G"
   alias ll="ls -lG"
   alias la="ls -laG"
-  alias brew="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin brew"
+  alias brew="PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin brew"
   export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
   ;;
 Linux)
