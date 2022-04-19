@@ -128,7 +128,7 @@ fi
 #
 
 if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app’s Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app's Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
 	command anyenv install nodenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
