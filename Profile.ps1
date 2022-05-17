@@ -47,8 +47,8 @@ function encode {
 }
 
 function ytdl {
-    youtube-dl.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36" `
-        --referer "https://www.youtube.com/" --embed-thumbnail -f m4a -o "~/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" --min-sleep-interval 5 --max-sleep-interval 15 $Args
+    youtube-dl.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36" `
+        --referer "https://www.youtube.com/" --embed-thumbnail -f m4a -o "~/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" --min-sleep-interval 15 --max-sleep-interval 30 $Args
 }
 
 function normalize {
