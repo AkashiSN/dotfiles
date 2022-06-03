@@ -186,7 +186,7 @@ if [[ "$(uname)" == "Linux" ]]; then
 fi
 
 #
-# clone dotfiles
+# Clone dotfiles
 #
 
 if [[ ! -d $GOPATH/src/github.com/AkashiSN/dotfiles ]]; then
@@ -226,6 +226,21 @@ if ! [ "$SSH_CONNECTION" ]; then
 			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
 			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub
 fi
+
+#
+# Download gpgkey
+#
+
+if [[ ! $(gpg --list-keys | grep Nishi) ]]; then
+	curl -L -o ~/AkashiSN.gpg https://github.com/AkashiSN.gpg
+	gpg --import ~/AkashiSN.gpg
+	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
+	rm ~/AkashiSN.gpg
+fi
+
+#
+# Change default shell
+#
 
 /bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
 if read -q; then;
