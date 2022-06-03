@@ -176,8 +176,8 @@ fi
 if [[ "$(uname)" == "Linux" ]]; then
 	if [[ ! -f $PREFIX/bin/ffmpeg ]]; then
 		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} ffmpeg with Intel QSV in docker (%F{33}AkashiSN/ffmpeg-docker%F{220})…%f"
-		command curl -L -o /tmp/ffmpeg-5.0-qsv-linux-amd64.tar.xz https://github.com/AkashiSN/ffmpeg-docker/releases/latest/download/ffmpeg-5.0-qsv-linux-amd64.tar.xz && \
-			arc -strip-components 1 -overwrite unarchive /tmp/ffmpeg-5.0-qsv-linux-amd64.tar.xz /tmp/ffmpeg && \
+		command curl -L -o /tmp/fffmpeg-5.0.1-linux-amd64.tar.xz https://github.com/AkashiSN/ffmpeg-docker/releases/latest/download/ffmpeg-5.0.1-linux-amd64.tar.xz && \
+			arc -strip-components 1 -overwrite unarchive /tmp/ffmpeg-5.0.1-linux-amd64.tar.xz /tmp/ffmpeg && \
 			mv /tmp/ffmpeg/bin/* ${PREFIX}/bin/ && \
 			mv /tmp/ffmpeg/lib/* ${PREFIX}/lib/ && \
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \

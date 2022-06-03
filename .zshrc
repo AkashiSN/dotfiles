@@ -175,6 +175,7 @@ fi
 if [ -f $TFENV_ROOT/bin/terraform ]; then
   autoload -U +X bashcompinit && bashcompinit
   complete -o nospace -C $TFENV_ROOT/bin/terraform terraform
+  alias tf="terraform"
 fi
 
 
@@ -198,6 +199,16 @@ fi
 
 if command -v kubectl &> /dev/null ;then
   source <(kubectl completion zsh)
+fi
+
+if [[ "$(uname)" == "Linux" ]]; then
+  alias docker="sudo docker"
+  alias docker-compose="sudo docker compose"
+  if command -v kind &> /dev/null ;then
+    alias kind="sudo kind"
+    alias kubectl="sudo kubectl"
+    alias tkn="sudo tkn"
+  fi
 fi
 
 
@@ -336,8 +347,6 @@ Linux)
   alias ll='ls -alF'
   alias la='ls -A'
   alias l='ls -CF'
-  alias docker="sudo docker"
-  alias docker-compose="sudo docker-compose"
   alias ffmpeg="sudo env PATH=$HOME/.local/bin:$PATH env LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH env LIBVA_DRIVERS_PATH=$HOME/.local/lib env LIBVA_DRIVER_NAME=iHD ffmpeg"
   export PATH_TO_FX="/usr/share/openjfx/lib"
   ;;
@@ -345,7 +354,6 @@ esac
 
 alias rsync="rsync -a -v --delete --progress"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-alias tf="terraform"
 
 
 # -------------------------------------
