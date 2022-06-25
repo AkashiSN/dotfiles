@@ -81,9 +81,11 @@ fi
 # Load profile
 # -------------------------------------
 
-for i in /etc/profile.d/*.sh ; do
-  [ -r $i ] && source $i
-done
+if [ -d /etc/profile.d ]; then
+  for i in /etc/profile.d/*.sh ; do
+    [ -r $i ] && source $i
+  done
+fi
 
 
 # -------------------------------------
