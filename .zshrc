@@ -215,6 +215,7 @@ fi
 if [[ "$(uname)" == "Linux" ]]; then
   alias docker="sudo docker"
   alias docker-compose="sudo docker compose"
+  alias dc-down="sudo docker compose down -t 23"
   if command -v kind &> /dev/null ;then
     alias kind="sudo kind"
     alias kubectl="sudo kubectl"
