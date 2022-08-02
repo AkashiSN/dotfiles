@@ -434,6 +434,7 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   fi
   unset wsl2_gpg_agent_bin
 
+  sleep 1
 fi
 
 
