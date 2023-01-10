@@ -71,9 +71,8 @@ HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい�
 # Base PATH
 # -------------------------------------
 
-export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin
-if [[ "$(uname)" == Darwin ]]; then
-  export PATH=$PATH:/usr/local/MacGPG2/bin
+if [[ "$(uname)" != Darwin ]]; then
+  export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin
 fi
 
 
@@ -480,9 +479,12 @@ else
   bindkey "^[[4~" end-of-line
 fi
 
-if command -v xmodmap &> /dev/null ;then
-  if [ -n "$DISPLAY" ]; then
-    xmodmap $HOME/.Xmodmap
+
+if [[ "$(uname)" != Darwin ]]; then
+  if command -v xmodmap &> /dev/null ;then
+    if [ -n "$DISPLAY" ]; then
+      xmodmap $HOME/.Xmodmap
+    fi
   fi
 fi
 
