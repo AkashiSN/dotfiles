@@ -55,11 +55,3 @@ function normalize {
     $null = $(New-Item -Type Directory -Force normalize)
     ls | where { $_.Name -match "m4a" } | % { echo $_.FullName && ffmpeg-normalize $_.FullName -nt peak -t -0.5 -ar 44100 -c:a aac -b:a 128k -e "-aac_coder twoloop -empty_hdlr_name 1" -o $(Join-Path normalize $_.NameString) }
 }
-
-function proxy-docker {
-    ssh -L 12375:localhost:2375 i9-11000k
-}
-
-function rdocker {
-    docker -H localhost:12375 $Args
-}
