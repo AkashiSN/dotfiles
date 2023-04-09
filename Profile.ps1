@@ -46,12 +46,7 @@ function encode {
     & "$env:USERPROFILE/anaconda3/python.exe" "$(Split-Path $profile -Parent)/scripts/encode.py" $Args
 }
 
-function ytdl {
-    youtube-dl.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36" `
-        --referer "https://www.youtube.com/" --embed-thumbnail -f m4a -o "~/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" --min-sleep-interval 15 --max-sleep-interval 30 $Args
-}
-
-function normalize {
-    $null = $(New-Item -Type Directory -Force normalize)
-    ls | where { $_.Name -match "m4a" } | % { echo $_.FullName && ffmpeg-normalize $_.FullName -nt peak -t -0.5 -ar 44100 -c:a aac -b:a 128k -e "-aac_coder twoloop -empty_hdlr_name 1" -o $(Join-Path normalize $_.NameString) }
+function ytdlp {
+    yt-dlp.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36" `
+        --referer "https://www.youtube.com/" -x -f "ba[ext=webm]" -k --audio-format alac --embed-thumbnail -o "~/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $Args
 }
