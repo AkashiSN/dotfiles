@@ -149,11 +149,6 @@ if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
 	command anyenv install pyenv && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}miniconda3%F{220} Miniconda is a free minimal installer for conda."
-	command $PYENV_ROOT/bin/pyenv install miniconda3-latest && \
-		$PYENV_ROOT/bin/pyenv global miniconda3-latest && \
-		print -P "%F{33}▓▒░ %F{34}Installation miniconda3 successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
 #
@@ -237,6 +232,14 @@ if [[ ! $(gpg --list-keys | grep Nishi) ]]; then
 	gpg --import ~/AkashiSN.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
 	rm ~/AkashiSN.gpg
+
+	cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
+pinentry-program  /usr/bin/pinentry-curses
+
+enable-ssh-support
+default-cache-ttl-ssh    7200
+max-cache-ttl-ssh       28800
+EOF
 fi
 
 #

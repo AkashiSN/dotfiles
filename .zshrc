@@ -127,23 +127,6 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 
 
 # -------------------------------------
-# Conda setting
-# -------------------------------------
-
-__conda_setup="$($PYENV_ROOT/versions/miniconda3-latest/bin/conda shell.zsh hook 2> /dev/null)"
-if [ $? -eq 0 ]; then
-  eval "$__conda_setup"
-else
-  if [ -f "$PYENV_ROOT/versions/miniconda3-latest/etc/profile.d/conda.sh" ]; then
-    . "$PYENV_ROOT/versions/miniconda3-latest/etc/profile.d/conda.sh"
-  else
-    export PATH="$PYENV_ROOT/versions/miniconda3-latest/bin:$PATH"
-  fi
-fi
-unset __conda_setup
-
-
-# -------------------------------------
 # Golang setting
 # -------------------------------------
 
@@ -335,20 +318,6 @@ function search () {
   done
 }
 
-function remove () {
-  xargs -t sudo -u www-data rm
-}
-
-function move () {
-  xargs -t -I {} sudo -u www-data mv {} $1
-}
-
-function normalize () {
-  mkdir -p normalize
-  find . -type f -name "*.m4a" -maxdepth 1 | xargs -t -I {} \
-    ffmpeg-normalize {} -nt peak -t -0.5 -ar 44100 -c:a aac -b:a 128k -e "-aac_coder twoloop -empty_hdlr_name 1" -o normalize/{}
-}
-
 
 # -------------------------------------
 # Aliases setting
@@ -398,42 +367,10 @@ export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 # -------------------------------------
 
 if [[ "$(uname -r)" == *microsoft* ]]; then
-  export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
-  alias javac="javac -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
-  alias java="java -p $PATH_TO_FX --add-modules javafx.controls,javafx.swing,javafx.base,javafx.fxml,javafx.media,javafx.web"
-  alias code="~/winhome/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
-
+  alias code="/mnt/c/Users/$(whoami)/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
   unalias docker
   unalias docker-compose
-
-  wsl2_gpg_agent_bin="/mnt/c/tools/utils/wsl2-gpg-agent/wsl2-gpg-agent.exe"
-  if test -x "$wsl2_gpg_agent_bin"; then
-    logfile="$(gpgconf --list-dir homedir)/wsl2-gpg-agent.log"
-
-    export SSH_AUTH_SOCK="$HOME/.gnupg/S.gpg-agent.ssh"
-    if ! ss -a | grep -q "$SSH_AUTH_SOCK"; then
-      rm -f "$SSH_AUTH_SOCK"
-      (setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --ssh --log $logfile" >/dev/null 2>&1 &)
-    fi
-
-    export GPG_AGENT_SOCK="$HOME/.gnupg/S.gpg-agent"
-    if ! ss -a | grep -q "$GPG_AGENT_SOCK"; then
-      rm -rf "$GPG_AGENT_SOCK"
-      (setsid socat UNIX-LISTEN:"$GPG_AGENT_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent --log $logfile" >/dev/null 2>&1 &)
-    fi
-
-    export GPG_AGENT_EXTRA_SOCK="$HOME/.gnupg/S.gpg-agent.extra"
-    if ! ss -a | grep -q "$GPG_AGENT_EXTRA_SOCK"; then
-      rm -rf "$GPG_AGENT_EXTRA_SOCK"
-      (setsid socat UNIX-LISTEN:"$GPG_AGENT_EXTRA_SOCK,fork" EXEC:"$wsl2_gpg_agent_bin --gpg S.gpg-agent.extra --log $logfile" >/dev/null 2>&1 &)
-    fi
-
-  else
-    echo >&2 "WARNING: $wsl2_gpg_agent_bin is not executable."
-  fi
-  unset wsl2_gpg_agent_bin
-
-  sleep 1
+  sudo service pcscd restart
 fi
 
 
@@ -442,14 +379,12 @@ fi
 #--------------------------------------
 
 if ! [ "$SSH_CONNECTION" ]; then
-  local_socket=$(gpgconf --list-dirs agent-socket)
-  local_extra_socket=$(gpgconf --list-dirs agent-extra-socket)
-  if [ ! -S $local_socket ] || [ ! -S $local_extra_socket ]; then
-    gpg-connect-agent reloadagent /bye > /dev/null
-  fi
-  local_ssh_socket=$(gpgconf --list-dirs agent-ssh-socket)
-  if [ -S $local_ssh_socket ]; then
-    export SSH_AUTH_SOCK=$local_ssh_socket
+  if [ -n "`which gpg-agent 2> /dev/null`" ];then
+    export GPG_TTY=$(tty)
+    LANG=C gpg-connect-agent updatestartuptty /bye
+    export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+  else
+    echo "gpg-agent is not exists"
   fi
 fi
 
