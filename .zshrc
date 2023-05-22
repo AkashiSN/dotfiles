@@ -370,7 +370,27 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   alias code="/mnt/c/Users/$(whoami)/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
   unalias docker
   unalias docker-compose
-  sudo service pcscd restart
+
+  # Yubikeyが接続されているか確認
+  if lsusb | grep -i Yubico > /dev/null; then
+    echo "Yubikey is connected. Checking pcscd process is running."
+    # pcscdサービスが稼働しているか確認
+    if ps aux | grep -v grep | grep pcscd > /dev/null;then
+      echo "pcscd is already running."
+    else
+      echo "pcscd is not running. Starting pcscd..."
+      sudo service pcscd start
+
+      # 再度チェック
+      if ps aux | grep -v grep | grep pcscd > /dev/null; then
+        echo "pcscd started successfully."
+      else
+        echo "Failed to start pcscd."
+      fi
+    fi
+  else
+    echo "Yubikey is not connected. Please connect your Yubikey."
+  fi
 fi
 
 
