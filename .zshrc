@@ -75,6 +75,16 @@ if [[ "$(uname)" != Darwin ]]; then
   export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin
 fi
 
+export LOCAL_PREFIX=$HOME/.local
+export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
+export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
+export LD_LIBRARY_PATH=$LOCAL_PREFIX/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=$LOCAL_PREFIX/lib:$LIBRARY_PATH
+export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
+export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
+export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
+export PATH=$LOCAL_PREFIX/bin:$PATH
+
 
 # -------------------------------------
 # Load profile
@@ -349,15 +359,6 @@ alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 # Other Path setting
 # -------------------------------------
 
-export LOCAL_PREFIX=$HOME/.local
-export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
-export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
-export LD_LIBRARY_PATH=$LOCAL_PREFIX/lib:$LD_LIBRARY_PATH
-export LIBRARY_PATH=$LOCAL_PREFIX/lib:$LIBRARY_PATH
-export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
-export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
-export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
-export PATH=$LOCAL_PREFIX/bin:$PATH
 export PATH=$GOPATH/bin:$PATH
 export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
