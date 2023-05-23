@@ -371,22 +371,16 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   unalias docker
   unalias docker-compose
 
+  result=0
   # Yubikeyが接続されているか確認
-  if lsusb | grep -i Yubico > /dev/null; then
-    echo "Yubikey is connected. Checking pcscd process is running."
-    # pcscdサービスが稼働しているか確認
-    if ps aux | grep -v grep | grep pcscd > /dev/null;then
-      echo "pcscd is already running."
-    else
-      echo "pcscd is not running. Starting pcscd..."
-      sudo service pcscd start
-
-      # 再度チェック
-      if ps aux | grep -v grep | grep pcscd > /dev/null; then
-        echo "pcscd started successfully."
-      else
-        echo "Failed to start pcscd."
-      fi
+  output=$(lsusb | grep -i Yubico 2>&1 > /dev/null) || result=$?
+  if [ "$result" = "0" ]; then
+    echo "Yubikey is connected. Checking if gpg-agent recognizes Yubikey."
+    # gpg-agentがYubikeyを認識しているか確認
+    output=$(gpg --card-status 2>&1 > /dev/null) || result=$?
+    if [ ! "$result" = "0" ]; then
+      echo "gpg-agent is not recognizes Yubikey. Restarting pcscd..."
+      sudo service pcscd restart
     fi
   else
     echo "Yubikey is not connected. Please connect your Yubikey."
