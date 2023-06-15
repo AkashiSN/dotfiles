@@ -165,23 +165,6 @@ if [[ "$(uname)" == "Darwin" ]]; then
 fi
 
 #
-# FFmpeg
-#
-
-if [[ "$(uname)" == "Linux" ]]; then
-	if [[ ! -f $PREFIX/bin/ffmpeg ]]; then
-		FFMPEG=ffmpeg-5.0.1-qsv-linux-amd64.tar.xz
-		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} ffmpeg with Intel QSV in docker (%F{33}AkashiSN/ffmpeg-docker%F{220})…%f"
-		command curl -L -o /tmp/${FFMPEG} https://github.com/AkashiSN/ffmpeg-docker/releases/latest/download/${FFMPEG} && \
-			arc -strip-components 1 -overwrite unarchive /tmp/${FFMPEG} /tmp/ffmpeg && \
-			mv /tmp/ffmpeg/bin/* ${PREFIX}/bin/ && \
-			mv /tmp/ffmpeg/lib/* ${PREFIX}/lib/ && \
-			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-			print -P "%F{160}▓▒░ The download has failed.%f%b"
-	fi
-fi
-
-#
 # Clone dotfiles
 #
 
@@ -234,7 +217,7 @@ if [[ ! $(gpg --list-keys | grep Nishi) ]]; then
 	rm ~/AkashiSN.gpg
 
 	cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
-pinentry-program  /usr/bin/pinentry-curses
+#pinentry-program  /usr/bin/pinentry-curses
 
 enable-ssh-support
 default-cache-ttl-ssh    7200
