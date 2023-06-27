@@ -124,7 +124,6 @@ zinit ice as "completion"; zinit snippet https://github.com/docker/compose/blob/
 
 zinit ice blockf
 zinit ice wait'!0'; zinit light zsh-users/zsh-completions
-zinit ice wait'!0'; zinit load esc/conda-zsh-completion
 
 
 # -------------------------------------
