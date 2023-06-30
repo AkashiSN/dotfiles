@@ -201,6 +201,7 @@ fi
 
 if command -v kubectl &> /dev/null ;then
   source <(kubectl completion zsh)
+  alias k="kubectl"
 fi
 
 if [[ "$(uname)" == "Linux" ]]; then
