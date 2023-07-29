@@ -196,7 +196,9 @@ command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc &&
 
 if [[ "$(uname)" == "Darwin" ]]; then
 	command chmod 755 /usr/local/share/zsh && \
-		chmod 755 /usr/local/share/zsh/site-functions
+		chmod 755 /usr/local/share/zsh/site-functions && \
+		defaults write com.apple.desktopservices DSDontWriteNetworkStores True && \
+		killall Finder
 fi
 
 if ! [ "$SSH_CONNECTION" ]; then
