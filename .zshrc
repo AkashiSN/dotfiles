@@ -328,6 +328,18 @@ function search () {
   done
 }
 
+function extract-opus-from-webm () {
+  mkdir -p ../Opus
+  find -type f -name "*.webm" -print0 \
+  | xargs -0 -I {} sh -c 'ffmpeg -y -i "$1" -vn -c:a copy "../Opus/$(basename -s .webm "$1").opus"' _ {}
+}
+
+function extract-artwork-from-m4a () {
+  mkdir -p ../Artwork
+  find -type f -name "*.m4a" -exec AtomicParsley '{}' -E \;
+  find -type f -name "*_artwork_1*" -print0 \
+  | xargs -0 -I {} sh -c 'mv -v "$1" "../Artwork/$(echo "$1" | sed -e "s/\(.*\)\_artwork_1.\(.*\)/\1\.\2/")"' _ {}
+}
 
 # -------------------------------------
 # Aliases setting
@@ -346,7 +358,7 @@ Linux)
   alias ll='ls -alF'
   alias la='ls -A'
   alias l='ls -CF'
-  alias ffmpeg="sudo env PATH=$HOME/.local/bin:$PATH env LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH env LIBVA_DRIVERS_PATH=$HOME/.local/lib env LIBVA_DRIVER_NAME=iHD ffmpeg"
+  alias ffmpeg-qsv="sudo env PATH=$HOME/.local/bin:$PATH env LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH env LIBVA_DRIVERS_PATH=$HOME/.local/lib env LIBVA_DRIVER_NAME=iHD ffmpeg"
   export PATH_TO_FX="/usr/share/openjfx/lib"
   ;;
 esac

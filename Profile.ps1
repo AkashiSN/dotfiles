@@ -47,6 +47,6 @@ function encode {
 }
 
 function ytdlp {
-    yt-dlp.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36" `
-        --referer "https://www.youtube.com/" -x -f "ba[ext=webm]" -k --audio-format alac --embed-thumbnail -o "~/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $Args
+    yt-dlp.exe --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36" `
+        --referer "https://www.youtube.com/" -x -f "ba[ext=webm]" -k --audio-format alac --embed-thumbnail -o "~/Music/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $Args
 }
