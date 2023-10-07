@@ -328,6 +328,17 @@ function search () {
   done
 }
 
+function ytdlp () {
+  yt-dlp --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+    --referer "https://www.youtube.com/"
+    --extract-audio
+    --format "ba[ext=webm]"
+    --keep-video
+    --audio-format alac
+    --embed-thumbnail
+    --output "~/Music/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $@
+}
+
 function extract-opus-from-webm () {
   mkdir -p ../Opus
   find -type f -name "*.webm" -print0 \
@@ -340,6 +351,20 @@ function extract-artwork-from-m4a () {
   find -type f -name "*_artwork_1*" -print0 \
   | xargs -0 -I {} sh -c 'mv -v "$1" "../Artwork/$(echo "$1" | sed -e "s/\(.*\)\_artwork_1.\(.*\)/\1\.\2/")"' _ {}
 }
+
+function post-process-for-ytdlp () {
+  mkdir -p Original
+  mkdir -p AAC
+  mv *.webm Original/
+  mv *.m4a AAC/
+
+  cd Original
+  extract-opus-from-webm
+  cd ../AAC
+  extract-artwork-from-m4a
+  cd ..
+}
+
 
 # -------------------------------------
 # Aliases setting
