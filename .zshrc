@@ -388,7 +388,7 @@ Linux)
   ;;
 esac
 
-alias rsync="rsync -a -v --delete --progress"
+alias rsync="rsync -azP"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 
 
