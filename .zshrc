@@ -376,6 +376,7 @@ Darwin)
   alias ll="ls -lG"
   alias la="ls -laG"
   alias brew="PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin brew"
+  alias sed='gsed'
   export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
   ;;
 Linux)
