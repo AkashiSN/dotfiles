@@ -447,6 +447,7 @@ if ! [ "$SSH_CONNECTION" ]; then
       (
         output=$(ssh git@github.com 2>&1)
         if [[ $output == *"successfully authenticated"* ]]; then
+          echo $output | sed -n -r -e "s/(Hi .* authenticated).*/\1./p"
           exit 0
         else
           exit 1
@@ -454,6 +455,7 @@ if ! [ "$SSH_CONNECTION" ]; then
       ) || (
         output=$(ssh git@isec-github 2>&1)
         if [[ $output == *"successfully authenticated"* ]]; then
+          echo $output | sed -n -r -e "s/(Hi .* authenticated).*/\1./p"
           exit 0
         else
           exit 1
