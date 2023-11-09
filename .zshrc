@@ -422,6 +422,7 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
       echo "gpg-agent is not recognizes Yubikey. Restarting pcscd..."
       sudo service pcscd restart
     fi
+    echo "OK"
   else
     echo "Yubikey is not connected. Please connect your Yubikey."
   fi
