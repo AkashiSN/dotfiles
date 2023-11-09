@@ -415,6 +415,7 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   output=$(lsusb | grep -i Yubico 2>&1 > /dev/null) || result=$?
   if [ "$result" = "0" ]; then
     echo "Yubikey is connected. Checking if gpg-agent recognizes Yubikey."
+    result=0
     # gpg-agentがYubikeyを認識しているか確認
     output=$(gpg --card-status 2>&1 > /dev/null) || result=$?
     if [ ! "$result" = "0" ]; then
@@ -434,8 +435,30 @@ fi
 if ! [ "$SSH_CONNECTION" ]; then
   if [ -n "`which gpg-agent 2> /dev/null`" ];then
     export GPG_TTY=$(tty)
-    LANG=C gpg-connect-agent updatestartuptty /bye
+    LANG=C gpg-connect-agent reloadagent /bye 2>&1 > /dev/null
+    LANG=C gpg-connect-agent updatestartuptty /bye 2>&1 > /dev/null
     export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+
+    result=0
+    # gpg-agentがYubikeyを認識しているか確認
+    output=$(gpg --card-status 2>&1 > /dev/null) || result=$?
+    if [ "$result" = "0" ]; then
+      (
+        output=$(ssh git@github.com 2>&1)
+        if [[ $output == *"successfully authenticated"* ]]; then
+          exit 0
+        else
+          exit 1
+        fi
+      ) || (
+        output=$(ssh git@isec-github 2>&1)
+        if [[ $output == *"successfully authenticated"* ]]; then
+          exit 0
+        else
+          exit 1
+        fi
+      ) || true
+    fi
   else
     echo "gpg-agent is not exists"
   fi

@@ -205,21 +205,30 @@ if ! [ "$SSH_CONNECTION" ]; then
 	print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
 	command mkdir -p $HOME/.ssh && \
 			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
-			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub
+			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub && \
+			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/isec-gpg.pub $HOME/.ssh/isec-gpg.pub
 fi
 
 #
 # Download gpgkey
 #
 
-if [[ ! $(gpg --list-keys | grep Nishi) ]]; then
-	curl -L -o ~/AkashiSN.gpg https://github.com/AkashiSN.gpg
-	gpg --import ~/AkashiSN.gpg
+if [[ ! $(gpg --list-keys | grep nishi) ]]; then
+	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/.gpg/nishi.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
-	rm ~/AkashiSN.gpg
+fi
+if [[ ! $(gpg --list-keys | grep isec) ]]; then
+	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/.gpg/isec.gpg
+	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "isec" trust
+fi
 
+if [[ ! -f $(gpgconf --list-dir homedir)/gpg-agent.conf ]]; then
+  if [[ "$(uname -r)" == *microsoft* ]]; then
 	cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
-#pinentry-program  /usr/bin/pinentry-curses
+pinentry-program  /usr/bin/pinentry-curses
+EOF
+	fi
+	cat <<EOF >> $(gpgconf --list-dir homedir)/gpg-agent.conf
 
 enable-ssh-support
 default-cache-ttl-ssh    7200
