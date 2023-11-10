@@ -84,6 +84,7 @@ export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
 export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
 export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
 export PATH=$LOCAL_PREFIX/bin:$PATH
+export PASSWORD_STORE_DIR=$HOME/.password-store
 
 
 # -------------------------------------

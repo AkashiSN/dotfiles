@@ -210,7 +210,7 @@ if ! [ "$SSH_CONNECTION" ]; then
 fi
 
 #
-# Download gpgkey
+# Import gpgkey
 #
 
 if [[ ! $(gpg --list-keys | grep nishi) ]]; then
@@ -234,6 +234,15 @@ enable-ssh-support
 default-cache-ttl-ssh    7200
 max-cache-ttl-ssh       28800
 EOF
+fi
+
+#
+# vault setup
+#
+
+export PASSWORD_STORE_DIR=$HOME/.password-store
+if [[ ! -d $PASSWORD_STORE_DIR ]]; then
+	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR
 fi
 
 #
