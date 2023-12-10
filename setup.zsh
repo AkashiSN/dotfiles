@@ -186,13 +186,7 @@ else
 fi
 
 print -P "%F{33}▓▒░ %F{220}Linking %F{33}dotfiles%F{220}%f"
-command ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zshrc $HOME/.zshrc && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.zlogout $HOME/.zlogout && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.vimrc $HOME/.vimrc && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.tmux.conf $HOME/.tmux.conf && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitconfig $HOME/.gitconfig && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.gitignore_global $HOME/.gitignore_global && \
-		ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.Xmodmap $HOME/.Xmodmap
+command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME others
 
 if [[ "$(uname)" == "Darwin" ]]; then
 	command chmod 755 /usr/local/share/zsh && \
@@ -204,9 +198,7 @@ fi
 if ! [ "$SSH_CONNECTION" ]; then
 	print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
 	command mkdir -p $HOME/.ssh && \
-			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/config $HOME/.ssh/config && \
-			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/gpg.pub $HOME/.ssh/gpg.pub && \
-			ln -snfv $GOPATH/src/github.com/AkashiSN/dotfiles/.ssh/isec-gpg.pub $HOME/.ssh/isec-gpg.pub
+		stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME/.ssh ssh
 fi
 
 #
@@ -214,11 +206,11 @@ fi
 #
 
 if [[ ! $(gpg --list-keys | grep nishi) ]]; then
-	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/.gpg/nishi.gpg
+	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/nishi.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
 fi
 if [[ ! $(gpg --list-keys | grep isec) ]]; then
-	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/.gpg/isec.gpg
+	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/isec.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "isec" trust
 fi
 
