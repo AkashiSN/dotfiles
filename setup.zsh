@@ -29,10 +29,41 @@ command_exists () {
 # Check command exists
 #
 
+if [[ "$(uname)" != Darwin ]]; then
+	command_exists "brew" || exit 1;
+
+	brew update
+
+	FORMULAS+=(
+		coreutils
+		diffutils
+		ed
+		findutils
+		gawk
+		git
+		gnu-sed
+		gnu-tar
+		grep
+		gzip
+		stow
+		wget
+		zsh
+	)
+
+	for formula in ${FORMULAS[@]}; do
+		if brew ls --versions ${formula} ; then
+			brew upgrade ${formula}
+		else
+			brew install ${formula}
+		fi
+	done
+fi
+
 command_exists "curl" || exit 1;
 command_exists "git" || exit 1;
 command_exists "gpg" || exit 1;
 command_exists "stow" || exit 1;
+
 
 #
 # arc
