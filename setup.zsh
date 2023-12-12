@@ -25,11 +25,12 @@ command_exists () {
 	return 0
 }
 
+
 #
 # Check command exists
 #
 
-if [[ "$(uname)" != Darwin ]]; then
+if [[ "$(uname)" == "Darwin" ]]; then
 	command_exists "brew" || exit 1;
 
 	brew update
@@ -214,6 +215,9 @@ else
 fi
 
 print -P "%F{33}▓▒░ %F{220}Linking %F{33}dotfiles%F{220}%f"
+if [[ ! -L $HOME/.gitconfig ]]; then
+  rm -f $HOME/.gitconfig
+fi
 command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME others
 
 if [[ "$(uname)" == "Darwin" ]]; then

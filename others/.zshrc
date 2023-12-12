@@ -1,7 +1,7 @@
 # .zshrc
 
 # in ~/.zshenv, executed `unsetopt GLOBAL_RCS` and ignored /etc/zshrc
-if [[ "$(uname)" != Darwin ]]; then
+if [[ "$(uname)" == "Darwin" ]]; then
   [ -r /etc/zshrc ] && . /etc/zshrc
 fi
 
