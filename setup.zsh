@@ -31,6 +31,7 @@ command_exists () {
 
 command_exists "git" || exit 1;
 command_exists "curl" || exit 1;
+command_exists "stow" || exit 1;
 
 #
 # arc

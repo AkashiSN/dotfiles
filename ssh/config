@@ -94,6 +94,12 @@ Host ubuntu-pve
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
+Host mac-pve
+    HostName        172.16.100.20
+    User            nishi
+    ForwardAgent    yes
+    IdentityFile    ~/.ssh/gpg.pub
+
 # Hyper-V
 Host k3s-hyperv
     HostName        172.16.254.40

@@ -330,13 +330,13 @@ function search () {
 }
 
 function ytdlp () {
-  yt-dlp --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
-    --referer "https://www.youtube.com/"
-    --extract-audio
-    --format "ba[ext=webm]"
-    --keep-video
-    --audio-format alac
-    --embed-thumbnail
+  yt-dlp --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36" \
+    --referer "https://www.youtube.com/" \
+    --extract-audio \
+    --format "ba[ext=webm]" \
+    --keep-video \
+    --audio-format alac \
+    --embed-thumbnail \
     --output "~/Music/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $@
 }
 
