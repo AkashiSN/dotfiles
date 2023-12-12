@@ -29,8 +29,9 @@ command_exists () {
 # Check command exists
 #
 
-command_exists "git" || exit 1;
 command_exists "curl" || exit 1;
+command_exists "git" || exit 1;
+command_exists "gpg" || exit 1;
 command_exists "stow" || exit 1;
 
 #
@@ -83,7 +84,6 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
 export PATH=$GOPATH/bin:$PATH
-git config --global ghq.root $GOPATH/src
 
 # Goenv
 if [[ ! -f $ANYENV_ROOT/envs/goenv/bin/goenv ]]; then
@@ -171,14 +171,10 @@ fi
 
 if [[ ! -d $GOPATH/src/github.com/AkashiSN/dotfiles ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}dotfiles%F{220} dotfiles (%F{33}AkashiSN/dotfiles%F{220})…%f"
-	command ghq get git@github.com:AkashiSN/dotfiles.git && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		(print -P "%F{160}▓▒░ The clone has failed.%f%b" && \
-		print -P "%F{220}▓▒░ Retry to clone.%f%b" && \
-		mkdir -p $GOPATH/src/github.com/AkashiSN/dotfiles && \
+	command mkdir -p $GOPATH/src/github.com/AkashiSN/dotfiles && \
 		git clone https://github.com/AkashiSN/dotfiles.git $GOPATH/src/github.com/AkashiSN/dotfiles && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b")
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 else
 	print -P "%F{33}▓▒░ %F{220}Updating %F{33}dotfiles%F{220}%f"
 	(cd $GOPATH/src/github.com/AkashiSN/dotfiles && git pull) && \

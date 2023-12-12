@@ -1,5 +1,10 @@
 # .zshrc
 
+# in ~/.zshenv, executed `unsetopt GLOBAL_RCS` and ignored /etc/zshrc
+if [[ "$(uname)" != Darwin ]]; then
+  [ -r /etc/zshrc ] && . /etc/zshrc
+fi
+
 # -------------------------------------
 # zshのオプション
 # -------------------------------------
@@ -71,10 +76,6 @@ HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい�
 # Base PATH
 # -------------------------------------
 
-if [[ "$(uname)" != Darwin ]]; then
-  export PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin
-fi
-
 export LOCAL_PREFIX=$HOME/.local
 export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
 export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
@@ -119,9 +120,6 @@ zinit ice wait'!0'; zinit load zsh-users/zsh-syntax-highlighting
 
 zinit ice compile'(pure|async).zsh' pick'async.zsh' src'pure.zsh'
 zinit light sindresorhus/pure
-
-zinit ice as "completion"; zinit snippet https://github.com/docker/cli/blob/master/contrib/completion/zsh/_docker
-zinit ice as "completion"; zinit snippet https://github.com/docker/compose/blob/master/contrib/completion/zsh/_docker-compose
 
 zinit ice blockf
 zinit ice wait'!0'; zinit light zsh-users/zsh-completions
@@ -175,7 +173,7 @@ fi
 # terraform
 #-------------------------------------
 
-if [ -f $TFENV_ROOT/bin/terraform ]; then
+if command -v terraform &> /dev/null ;then
   autoload -U +X bashcompinit && bashcompinit
   complete -o nospace -C $TFENV_ROOT/bin/terraform terraform
   alias tf="terraform"
@@ -217,25 +215,6 @@ if [[ "$(uname)" == "Linux" ]]; then
 fi
 
 
-#-------------------------------------
-# krew
-#-------------------------------------
-
-if [ -d $HOME/.krew ]; then
-  export PATH="$HOME/.krew/bin:$PATH"
-fi
-
-
-#-------------------------------------
-# knative client
-#-------------------------------------
-
-if command -v kn &> /dev/null ;then
-  source <(kn completion zsh)
-  compdef _kn kn
-fi
-
-
 # -------------------------------------
 # Functions setting
 # -------------------------------------
@@ -243,11 +222,11 @@ fi
 # build latex in docker
 # https://hub.docker.com/r/akashisn/latexmk
 function latex () {
-  docker run --rm -it --name="latexmk" -v `pwd`:/workdir akashisn/latexmk:full latexmk-ext "$@"
+  docker run --rm -it --name="latexmk" -v `pwd`:/workdir akashisn/latexmk latexmk-ext "$@"
 }
 
 function pdfcrop () {
-  docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk:full pdfcrop "$@"
+  docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk pdfcrop "$@"
 }
 
 function tssh () {
