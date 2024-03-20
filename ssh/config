@@ -16,20 +16,25 @@ Host openwrt-raspi4-suita
     User            root
     IdentityFile    ~/.ssh/id_ed25519
 
+Host er-x-suita
+    HostName        172.16.0.4
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
 Host truenas-suita
     HostName        172.16.10.10
     User            admin
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-# Toyohashi
+# Tokyo
 Host ix2215-lan
     HostName        172.16.100.1
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
-Host openwrt-raspi4-toyohashi
+Host openwrt-raspi4-tokyo
     HostName        172.16.100.5
     User            root
     IdentityFile    ~/.ssh/id_ed25519
@@ -40,7 +45,7 @@ Host ix2215-server
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
-Host truenas-toyohashi
+Host truenas
     HostName        172.16.254.3
     User            admin
     ForwardAgent    yes
@@ -107,6 +112,13 @@ Host k3s-hyperv
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
+# VPS
+Host k3s-vps
+    HostName        k3s-vps.akashisn.info
+    User            ubuntu
+    ForwardAgent    yes
+    IdentityFile    ~/.ssh/gpg.pub
+
 # TUT
 Host tut
     HostName        xdev.edu.tut.ac.jp
@@ -122,6 +134,11 @@ Host isec-er-lite3
 Host isec-pve
     HostName        172.16.50.2
     User            root
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host isec-truenas
+    HostName        172.16.50.50
+    User            admin
     IdentityFile    ~/.ssh/gpg.pub
 
 Host isec-k3s
