@@ -219,6 +219,7 @@ if [[ ! -L $HOME/.gitconfig ]]; then
   rm -f $HOME/.gitconfig
 fi
 command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME others
+command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $PREFIX/bin scripts
 
 if [[ "$(uname)" == "Darwin" ]]; then
 	command chmod 755 /usr/local/share/zsh && \
