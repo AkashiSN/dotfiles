@@ -63,6 +63,12 @@ Host pve01
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
+Host pve02
+    HostName        172.16.254.6
+    User            root
+    ForwardAgent    yes
+    IdentityFile    ~/.ssh/gpg.pub
+
 # Proxmox
 Host openwrt-pve
     HostName        172.16.254.10
