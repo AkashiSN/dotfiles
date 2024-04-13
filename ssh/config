@@ -93,8 +93,14 @@ Host k8s-control-plane
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-Host worker-node
+Host worker-node-01
     HostName        172.16.254.25
+    User            nishi
+    ForwardAgent    yes
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host worker-node-02
+    HostName        172.16.254.26
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
