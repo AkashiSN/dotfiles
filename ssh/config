@@ -28,93 +28,93 @@ Host truenas-suita
     IdentityFile    ~/.ssh/gpg.pub
 
 # Tokyo
+Host gw-tokyo
+    HostName        gw-tokyo.akashisn.info
+    ProxyCommand    cloudflared access ssh --hostname %h
+    User            root
+    ForwardAgent    yes
+    IdentityFile    ~/.ssh/id_ed25519
+
 Host ix2215-lan
     HostName        172.16.100.1
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
-Host openwrt-raspi4-tokyo
-    HostName        172.16.100.5
-    User            root
-    IdentityFile    ~/.ssh/id_ed25519
-
 Host ix2215-server
     HostName        172.16.254.1
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host truenas
     HostName        172.16.254.3
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            admin
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve
     HostName        172.16.254.4
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve01
     HostName        172.16.254.5
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve02
     HostName        172.16.254.6
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 # Proxmox
 Host openwrt-pve
     HostName        172.16.254.10
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/id_ed25519
 
-Host k3s
-    HostName        172.16.254.15
+Host vpn-server
+    HostName        172.16.254.11
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-Host k3s-backup
-    HostName        172.16.254.16
+Host k3s
+    HostName        172.16.254.15
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host k8s-control-plane
     HostName        172.16.254.20
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host worker-node-01
     HostName        172.16.254.25
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host worker-node-02
     HostName        172.16.254.26
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
-    ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host ubuntu-pve
-    HostName        172.16.254.30
-    User            nishi
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host mac-pve
     HostName        172.16.100.20
+    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
-    ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 # Hyper-V
@@ -123,6 +123,12 @@ Host k3s-hyperv
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
+
+# Travel
+Host gl-axt1800
+    HostName        192.168.6.1
+    User            root
+    IdentityFile    ~/.ssh/id_ed25519
 
 # VPS
 Host k3s-vps
