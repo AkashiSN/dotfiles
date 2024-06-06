@@ -1,5 +1,7 @@
 export PATH
 export MANPATH
+export HOMEBREW_PATH
+
 # -U: keep only the first occurrence of each duplicated value
 # ref. http://zsh.sourceforge.net/Doc/Release/Shell-Builtin-Commands.html#index-typeset
 typeset -U PATH path MANPATH manpath
@@ -14,31 +16,37 @@ if [ -x /usr/libexec/path_helper ]; then
   eval `/usr/libexec/path_helper -s`
 fi
 
+if [[ "$(uname -m)" == "amd64" ]]; then
+  HOMEBREW_PATH=/usr/local
+elif [[ "$(uname -m)" == "arm64" ]]; then
+  HOMEBREW_PATH=/opt/homebrew
+fi
+
 path=(
-  /usr/local/bin(N-/) # homebrew
-  /usr/local/sbin(N-/) # homebrew
+  ${HOMEBREW_PATH}/bin(N-/) # homebrew
+  ${HOMEBREW_PATH}/sbin(N-/) # homebrew
   ${path}
 )
 manpath=(
-  /usr/local/share/man(N-/) # homebrew
+  ${HOMEBREW_PATH}/share/man(N-/) # homebrew
   ${manpath}
 )
 
 path=(
-  /usr/local/opt/coreutils/libexec/gnubin(N-/) # coreutils
-  /usr/local/opt/ed/libexec/gnubin(N-/) # ed
-  /usr/local/opt/findutils/libexec/gnubin(N-/) # findutils
-  /usr/local/opt/gnu-sed/libexec/gnubin(N-/) # sed
-  /usr/local/opt/gnu-tar/libexec/gnubin(N-/) # tar
-  /usr/local/opt/grep/libexec/gnubin(N-/) # grep
+  ${HOMEBREW_PATH}/opt/coreutils/libexec/gnubin(N-/) # coreutils
+  ${HOMEBREW_PATH}/opt/ed/libexec/gnubin(N-/) # ed
+  ${HOMEBREW_PATH}/opt/findutils/libexec/gnubin(N-/) # findutils
+  ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnubin(N-/) # sed
+  ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnubin(N-/) # tar
+  ${HOMEBREW_PATH}/opt/grep/libexec/gnubin(N-/) # grep
   ${path}
 )
 manpath=(
-  /usr/local/opt/coreutils/libexec/gnuman(N-/) # coreutils
-  /usr/local/opt/ed/libexec/gnuman(N-/) # ed
-  /usr/local/opt/findutils/libexec/gnuman(N-/) # findutils
-  /usr/local/opt/gnu-sed/libexec/gnuman(N-/) # sed
-  /usr/local/opt/gnu-tar/libexec/gnuman(N-/) # tar
-  /usr/local/opt/grep/libexec/gnuman(N-/) # grep
+  ${HOMEBREW_PATH}/opt/coreutils/libexec/gnuman(N-/) # coreutils
+  ${HOMEBREW_PATH}/opt/ed/libexec/gnuman(N-/) # ed
+  ${HOMEBREW_PATH}/opt/findutils/libexec/gnuman(N-/) # findutils
+  ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnuman(N-/) # sed
+  ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnuman(N-/) # tar
+  ${HOMEBREW_PATH}/opt/grep/libexec/gnuman(N-/) # grep
   ${manpath}
 )

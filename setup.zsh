@@ -1,4 +1,5 @@
 #!/bin/zsh
+set -eu
 
 #
 # Setup PATH
@@ -8,10 +9,25 @@ cd $HOME
 PREFIX=$HOME/.local
 mkdir -p $PREFIX/bin
 mkdir -p $PREFIX/lib
-export PATH=$PREFIX/bin:$PATH
-export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
+export PATH=$PREFIX/bin:/opt/homebrew/bin:$PATH
+export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
 export TERM=xterm-256color
+
 autoload -Uz colors && colors
+
+
+#
+# Setup env
+#
+
+if [[ "$(uname)" == "Darwin" ]]; then
+	if [[ "$(uname -m)" == "amd64" ]]; then
+		HOMEBREW_PATH=/usr/local
+	elif [[ "$(uname -m)" == "arm64" ]]; then
+		HOMEBREW_PATH=/opt/homebrew
+	fi
+fi
+
 
 #
 # Functions
@@ -67,22 +83,6 @@ command_exists "stow" || exit 1;
 
 
 #
-# arc
-#
-
-if ! [[ -x $(command -v arc) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}arc%F{220} A cross-platform, multi-format archive utility and Go library (%F{33}mholt/archiver%F{220})…%f"
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/download/v3.5.0/arc_3.5.0_linux_amd64 && \
-        chmod +x $PREFIX/bin/arc
-
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o $PREFIX/bin/arc https://github.com/mholt/archiver/releases/download/v3.5.0/arc_3.5.0_mac_amd64 && \
-        chmod +x $PREFIX/bin/arc
-	fi
-fi
-
-#
 # Anyenv
 #
 
@@ -131,10 +131,10 @@ if ! [[ -x $(command -v ghq) ]]; then
 	if [[ "$(uname)" == "Linux" ]]; then
 		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
 	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_amd64.zip
+		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_$(uname -m).zip
 	fi
-	command arc -strip-components 1 -overwrite unarchive /tmp/ghq.zip /tmp/ghq && \
-		mv /tmp/ghq/ghq $PREFIX/bin/ && \
+	command unzip -qq /tmp/ghq.zip -d /tmp && \
+		mv /tmp/ghq_*/ghq $PREFIX/bin/ && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	command rm -rf /tmp/ghq*
@@ -145,12 +145,12 @@ if ! [[ -x $(command -v peco) ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
 	if [[ "$(uname)" == "Linux" ]]; then
 		command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz && \
-			arc -strip-components 1 -overwrite unarchive /tmp/peco.tar.gz /tmp/peco
+			tar xvf /tmp/peco.tar.gz -C /tmp
 	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_amd64.zip && \
-			arc -strip-components 1 -overwrite unarchive /tmp/peco.zip /tmp/peco
+		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_$(uname -m).zip && \
+			unzip -qq /tmp/peco.zip -d /tmp
 	fi
-	command mv /tmp/peco/peco $PREFIX/bin/ && \
+	command mv /tmp/peco_*/peco $PREFIX/bin/ && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	command rm -rf /tmp/peco*
@@ -222,13 +222,13 @@ command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME others
 command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $PREFIX/bin scripts
 
 if [[ "$(uname)" == "Darwin" ]]; then
-	command chmod 755 /usr/local/share/zsh && \
-		chmod 755 /usr/local/share/zsh/site-functions && \
+	command chmod 755 ${HOMEBREW_PATH}/share/zsh && \
+		chmod 755 ${HOMEBREW_PATH}/share/zsh/site-functions && \
 		defaults write com.apple.desktopservices DSDontWriteNetworkStores True && \
 		killall Finder
 fi
 
-if ! [ "$SSH_CONNECTION" ]; then
+if ! [ "${SSH_CONNECTION:-}" ]; then
 	print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
 	command mkdir -p $HOME/.ssh && \
 		stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME/.ssh ssh
@@ -238,11 +238,11 @@ fi
 # Import gpgkey
 #
 
-if [[ ! $(gpg --list-keys | grep nishi) ]]; then
+if [[ ! $(gpg --list-keys nishi) ]]; then
 	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/nishi.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
 fi
-if [[ ! $(gpg --list-keys | grep isec) ]]; then
+if [[ ! $(gpg --list-keys isec) ]]; then
 	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/isec.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "isec" trust
 fi
