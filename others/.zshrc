@@ -198,7 +198,7 @@ if command -v mk &> /dev/null ;then
   alias microk8s.kubectl=mk
 fi
 
-if command -v kubectl &> /dev/null ;then
+if command -v kubectl > /dev/null 2>&1;then
   source <(kubectl completion zsh)
   alias k="kubectl"
 fi
@@ -213,6 +213,13 @@ if [[ "$(uname)" == "Linux" ]]; then
     alias tkn="sudo tkn"
   fi
 fi
+
+
+#-------------------------------------
+# Rancher Desktop
+#-------------------------------------
+
+export PATH=$HOME/.rd/bin:$PATH
 
 
 # -------------------------------------
@@ -355,7 +362,7 @@ Darwin)
   alias ls="ls -G"
   alias ll="ls -lG"
   alias la="ls -laG"
-  alias brew="PATH=/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin brew"
+  alias brew="PATH=/opt/homebrew/bin:/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin brew"
   export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
   ;;
 Linux)
