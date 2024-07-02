@@ -1,20 +1,6 @@
 #!/bin/zsh
 set -eu
 
-#
-# Setup PATH
-#
-
-cd $HOME
-PREFIX=$HOME/.local
-mkdir -p $PREFIX/bin
-mkdir -p $PREFIX/lib
-export PATH=$PREFIX/bin:/opt/homebrew/bin:$PATH
-export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
-export TERM=xterm-256color
-
-autoload -Uz colors && colors
-
 
 #
 # Setup env
@@ -27,6 +13,21 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		HOMEBREW_PATH=/opt/homebrew
 	fi
 fi
+
+
+#
+# Setup PATH
+#
+
+cd $HOME
+PREFIX=$HOME/.local
+mkdir -p $PREFIX/bin
+mkdir -p $PREFIX/lib
+export PATH=$PREFIX/bin:${HOMEBREW_PATH}/bin:$PATH
+export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
+export TERM=xterm-256color
+
+autoload -Uz colors && colors
 
 
 #

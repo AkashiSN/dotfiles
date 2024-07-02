@@ -39,6 +39,7 @@ path=(
   ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnubin(N-/) # sed
   ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnubin(N-/) # tar
   ${HOMEBREW_PATH}/opt/grep/libexec/gnubin(N-/) # grep
+  ${HOMEBREW_PATH}/opt/node@20/bin(N-/) # node@20
   ${path}
 )
 manpath=(
@@ -48,5 +49,6 @@ manpath=(
   ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnuman(N-/) # sed
   ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnuman(N-/) # tar
   ${HOMEBREW_PATH}/opt/grep/libexec/gnuman(N-/) # grep
+  ${HOMEBREW_PATH}/opt/node@20/share/man(N-/) # node@20
   ${manpath}
 )
