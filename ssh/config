@@ -1,7 +1,7 @@
 Host *
     ServerAliveInterval 1200
     ServerAliveCountMax 12
-    IdentitiesOnly  yes
+    IdentitiesOnly yes
     TCPKeepAlive yes
     Compression yes
 
@@ -15,25 +15,21 @@ Host gw-suita
 
 Host rtx830
     HostName        172.16.0.1
-    ProxyCommand    ssh -W %h:%p gw-suita
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host openwrt-raspi4-suita
     HostName        172.16.0.3
-    ProxyCommand    ssh -W %h:%p gw-suita
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 Host er-x-suita
     HostName        172.16.0.4
-    ProxyCommand    ssh -W %h:%p gw-suita
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host truenas-suita
     HostName        172.16.10.10
-    ProxyCommand    ssh -W %h:%p gw-suita
     User            admin
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
@@ -48,52 +44,44 @@ Host gw-tokyo
 
 Host ix2215-lan
     HostName        172.16.100.1
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host ix2215-server
     HostName        172.16.254.1
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host openwrt-raspi4-tokyo
     HostName        172.16.254.2
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 Host truenas
     HostName        172.16.254.3
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            admin
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve
     HostName        172.16.254.4
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve01
     HostName        172.16.254.5
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve02
     HostName        172.16.254.6
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 # Proxmox
 Host openwrt-pve
     HostName        172.16.254.10
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
@@ -105,32 +93,27 @@ Host vpn-server
 
 Host k3s
     HostName        172.16.254.15
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
 Host k8s-control-plane
     HostName        172.16.254.20
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host worker-node-01
     HostName        172.16.254.25
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host worker-node-02
     HostName        172.16.254.26
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host mac-pve
     HostName        172.16.100.20
-    ProxyCommand    ssh -W %h:%p gw-tokyo
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
@@ -197,3 +180,10 @@ Host github.com
 Host gist.github.com
     HostName        github.com
     IdentityFile    ~/.ssh/gpg.pub
+
+# Match
+Match host 172.16.0.*,172.16.10.* !Exec "ping -c1 -t1 172.16.0.1"
+    ProxyJump gw-suita
+
+Match host 172.16.100.*,172.16.254.* !Exec "ping -c1 -t1 172.16.100.1"
+    ProxyJump gw-tokyo
