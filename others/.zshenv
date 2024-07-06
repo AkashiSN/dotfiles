@@ -16,7 +16,7 @@ if [ -x /usr/libexec/path_helper ]; then
   eval `/usr/libexec/path_helper -s`
 fi
 
-if [[ "$(uname -m)" == "amd64" ]]; then
+if [[ "$(uname -m)" == "amd64" || "$(uname -m)" == "x86_64" ]]; then
   HOMEBREW_PATH=/usr/local
 elif [[ "$(uname -m)" == "arm64" ]]; then
   HOMEBREW_PATH=/opt/homebrew

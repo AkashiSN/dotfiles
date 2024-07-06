@@ -7,7 +7,7 @@ set -eu
 #
 
 if [[ "$(uname)" == "Darwin" ]]; then
-	if [[ "$(uname -m)" == "amd64" ]]; then
+	if [[ "$(uname -m)" == "amd64" || "$(uname -m)" == "x86_64" ]]; then
 		HOMEBREW_PATH=/usr/local
 	elif [[ "$(uname -m)" == "arm64" ]]; then
 		HOMEBREW_PATH=/opt/homebrew
@@ -23,7 +23,7 @@ cd $HOME
 PREFIX=$HOME/.local
 mkdir -p $PREFIX/bin
 mkdir -p $PREFIX/lib
-export PATH=$PREFIX/bin:${HOMEBREW_PATH}/bin:$PATH
+export PATH=$PREFIX/bin:${HOMEBREW_PATH:-}/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
 export TERM=xterm-256color
 
