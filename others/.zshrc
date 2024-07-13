@@ -12,6 +12,7 @@ fi
 export TERM=xterm-256color # 色空間
 export WORDCHARS="*?_-.[]~=&;!#$%^(){}<>" # 区切り文字
 
+autoload bashcompinit && bashcompinit
 autoload -Uz compinit && compinit # 補完機能を有効にして、実行する
 autoload -Uz colors && colors # 色を有効にして、実行する
 
@@ -166,6 +167,15 @@ fi
 if [ -f /opt/google-cloud-sdk/completion.zsh.inc ]; then
   export PATH=/opt/google-cloud-sdk/bin:$PATH
   source /opt/google-cloud-sdk/completion.zsh.inc
+fi
+
+
+#-------------------------------------
+# aws cli
+#-------------------------------------
+
+if command -v aws_completer &> /dev/null ;then
+  complete -C $(which aws_completer) aws
 fi
 
 
@@ -474,9 +484,9 @@ if [[ "$(uname)" == Darwin ]]; then
   bindkey "^[[3~" delete-char
   bindkey "^[[F"  end-of-line
 else
-  bindkey "^[[1~" beginning-of-line
-  bindkey "^[[3~" delete-char
-  bindkey "^[[4~" end-of-line
+  # bindkey "^[[1~" beginning-of-line
+  # bindkey "^[[3~" delete-char
+  # bindkey "^[[4~" end-of-line
 fi
 
 
