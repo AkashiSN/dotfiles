@@ -8,6 +8,8 @@ initial_dir=$(pwd)
 # 対象とする拡張子
 extensions=("opus" "m4a")
 
+declare -a files
+
 function find_exclude_and_list() {
     local current_dir=$1
     local relative_path="${current_dir#$initial_dir}"
@@ -27,7 +29,7 @@ function find_exclude_and_list() {
             fi
             # 対象としている拡張子か否か
             if printf '%s\n' "${extensions[@]}" | grep -qx "${line##*.}"; then
-                echo "${relative_path:+$relative_path/}$line"
+                files+=("${relative_path:+$relative_path/}$line")
             fi
         done < <(comm -23 <(ls "$current_dir" | sort) <(sort "$current_dir/.exclude"))
         found_exclude=true
@@ -44,13 +46,13 @@ function find_exclude_and_list() {
         done
     fi
 
-    # ディレクトリ内のファイルを表示（.exclude が見つからなかった場合）
+    # ディレクトリ内のファイルを収集（.exclude が見つからなかった場合）
     if ! $found_exclude; then
         for file in "$current_dir"/*; do
             if [[ -f "$file" ]]; then
                 if printf '%s\n' "${extensions[@]}" | grep -qx "${file##*.}"; then
                     file="${file#$initial_dir}"
-                    echo "$file"
+                    files+=("$file")
                 fi
             fi
         done
@@ -63,3 +65,9 @@ start_dir="${start_dir%/}"
 
 # 関数を呼び出し
 find_exclude_and_list "$start_dir"
+
+# ファイル名のトラック番号を抽出してソート
+sorted_files=$(printf "%s\n" "${files[@]}" | sort -n)
+
+# ソートされたファイルリストを表示
+printf "%s\n" "$sorted_files"

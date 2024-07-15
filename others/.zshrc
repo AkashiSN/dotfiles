@@ -325,7 +325,7 @@ function search () {
 }
 
 function ytdlp () {
-  yt-dlp --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36" \
+  yt-dlp --user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" \
     --referer "https://www.youtube.com/" \
     --extract-audio \
     --format "ba[ext=webm]" \
@@ -342,6 +342,7 @@ function extract-opus-from-webm () {
 }
 
 function extract-artwork-from-m4a () {
+  # foobar2000 "Tagging" -> "Batch Attach Picture" -> `../Artwork/%filename%.png`
   mkdir -p ../Artwork
   find -type f -name "*.m4a" -exec AtomicParsley '{}' -E \;
   find -type f -name "*_artwork_1*" -print0 \
