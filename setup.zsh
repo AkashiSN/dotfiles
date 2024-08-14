@@ -6,11 +6,14 @@ set -eu
 # Setup env
 #
 
+ARCH="amd64"
 if [[ "$(uname)" == "Darwin" ]]; then
 	if [[ "$(uname -m)" == "amd64" || "$(uname -m)" == "x86_64" ]]; then
 		HOMEBREW_PATH=/usr/local
+		ARCH="amd64"
 	elif [[ "$(uname -m)" == "arm64" ]]; then
 		HOMEBREW_PATH=/opt/homebrew
+		ARCH="arm64"
 	fi
 fi
 
@@ -132,7 +135,7 @@ if ! [[ -x $(command -v ghq) ]]; then
 	if [[ "$(uname)" == "Linux" ]]; then
 		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
 	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_$(uname -m).zip
+		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_${ARCH}.zip
 	fi
 	command unzip -qq /tmp/ghq.zip -d /tmp && \
 		mv /tmp/ghq_*/ghq $PREFIX/bin/ && \
@@ -148,7 +151,7 @@ if ! [[ -x $(command -v peco) ]]; then
 		command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz && \
 			tar xvf /tmp/peco.tar.gz -C /tmp
 	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_$(uname -m).zip && \
+		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_${ARCH}.zip && \
 			unzip -qq /tmp/peco.zip -d /tmp
 	fi
 	command mv /tmp/peco_*/peco $PREFIX/bin/ && \
