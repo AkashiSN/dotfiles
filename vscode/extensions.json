@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "eamodio.gitlens",
+        "EditorConfig.EditorConfig",
+        "github.vscode-github-actions",
+        "hashicorp.terraform",
+        "PKief.material-icon-theme",
+        "streetsidesoftware.code-spell-checker",
+        "yzhang.markdown-all-in-one",
+        "zhuangtongfa.Material-theme"
+    ]
+}
