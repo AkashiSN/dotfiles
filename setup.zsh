@@ -31,6 +31,8 @@ export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
 export TERM=xterm-256color
 
 autoload -Uz colors && colors
+autoload -Uz compinit && compinit
+autoload -U +X bashcompinit && bashcompinit
 
 
 #
@@ -158,6 +160,16 @@ if ! [[ -x $(command -v peco) ]]; then
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	command rm -rf /tmp/peco*
+fi
+
+#
+# tfenv
+#
+if [[ ! -f $ANYENV_ROOT/envs/tfenv/bin/tfenv ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}tfenv%F{220} Terraform version manager inspired by rbenv: tfenv (%F{33}tfenv/tfenv%F{220})…%f"
+	command anyenv install tfenv && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
 #
@@ -294,7 +306,7 @@ if read -q; then;
 	if ! $zsh ; then
 		print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
 		export user=$(whoami) && \
-		sudo chsh -s $(which zsh) $user && \
+		sudo usermod -s $(which zsh) $user && \
 		print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
 		print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
 	fi
