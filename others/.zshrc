@@ -336,13 +336,13 @@ function ytdlp () {
 }
 
 function extract-opus-from-webm () {
+  # foobar2000 "Tagging" -> "Batch Attach Picture" -> `../Artwork/%filename%.png`
   mkdir -p ../Opus
   find -type f -name "*.webm" -print0 \
   | xargs -0 -I {} sh -c 'ffmpeg -y -i "$1" -vn -c:a copy "../Opus/$(basename -s .webm "$1").opus"' _ {}
 }
 
 function extract-artwork-from-m4a () {
-  # foobar2000 "Tagging" -> "Batch Attach Picture" -> `../Artwork/%filename%.png`
   mkdir -p ../Artwork
   find -type f -name "*.m4a" -exec AtomicParsley '{}' -E \;
   find -type f -name "*_artwork_1*" -print0 \
@@ -350,16 +350,22 @@ function extract-artwork-from-m4a () {
 }
 
 function post-process-for-ytdlp () {
-  mkdir -p Original
-  mkdir -p AAC
-  mv *.webm Original/
-  mv *.m4a AAC/
+  for dir in ~/Music/Youtube/* ;do
+    (
+      cd $dir
+      pwd
+      mkdir -p Original
+      mkdir -p AAC
+      mv *.webm Original/
+      mv *.m4a AAC/
 
-  cd Original
-  extract-opus-from-webm
-  cd ../AAC
-  extract-artwork-from-m4a
-  cd ..
+      cd Original
+      extract-opus-from-webm
+      cd ../AAC
+      extract-artwork-from-m4a
+      cd ..
+    )
+  done
 }
 
 
