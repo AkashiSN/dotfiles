@@ -485,16 +485,9 @@ fi
 # -------------------------------------
 
 # HOME, DELETE, ENDキーを有効にする
-if [[ "$(uname)" == Darwin ]]; then
-  bindkey "^[[H"  beginning-of-line
-  bindkey "^[[3~" delete-char
-  bindkey "^[[F"  end-of-line
-else
-  # bindkey "^[[1~" beginning-of-line
-  # bindkey "^[[3~" delete-char
-  # bindkey "^[[4~" end-of-line
-fi
-
+bindkey "^[[H"  beginning-of-line
+bindkey "^[[3~" delete-char
+bindkey "^[[F"  end-of-line
 
 if [[ "$(uname)" != Darwin ]]; then
   if command -v xmodmap &> /dev/null ;then
