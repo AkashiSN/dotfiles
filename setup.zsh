@@ -47,6 +47,28 @@ command_exists () {
 	return 0
 }
 
+get_latest_version_tag() {
+	local repo_url=$1
+	local prefix="${2:-""}"
+
+	local version_pattern="^${prefix}\K[0-9]+(\.[0-9]+)+$"
+
+	local latest_tag=$(git ls-remote --tags "$repo_url" | awk -F/ '{print $NF}' | \
+		grep -oP "$version_pattern" | \
+		sort -V | tail -n1)
+
+	echo "$latest_tag"
+}
+
+get_latest_tag() {
+	local repo_url=$1
+
+	local latest_tag=$(git ls-remote --tags --sort='v:refname' "$repo_url" | \
+		tail --line 1 | cut --delimiter='/' --fields=3)
+
+	echo "$latest_tag"
+}
+
 
 #
 # Check command exists
@@ -162,20 +184,27 @@ if ! [[ -x $(command -v peco) ]]; then
 	command rm -rf /tmp/peco*
 fi
 
-#
-# tfenv
-#
-if [[ ! -f $ANYENV_ROOT/envs/tfenv/bin/tfenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}tfenv%F{220} Terraform version manager inspired by rbenv: tfenv (%F{33}tfenv/tfenv%F{220})…%f"
-	command anyenv install tfenv && \
+# tenv
+if ! [[ -x $(command -v tenv) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}tenv%F{220} OpenTofu, Terraform, Terragrunt, and Atmos version manager, written in Go. (%F{33}tofuutils/tenv%F{220})…%f"
+	TENV_VERSION=$(get_latest_version_tag https://github.com/tofuutils/tenv.git v)
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/tenv.tar.gz https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_Linux_x86_64.tar.gz && \
+			tar xvf /tmp/tenv.tar.gz -C /tmp
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		TENV_ARCH="x86_64"
+		if [[ "${ARCH}" == "arm64" ]]; then
+			TENV_ARCH="arm64"
+		fi
+		command curl -L -o /tmp/tenv.tar.gz https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_Darwin_${TENV_ARCH}.tar.gz && \
+			tar xvf /tmp/tenv.tar.gz -C /tmp
+	fi
+	command mv /tmp/{tofu,tf,terragrunt,terraform,tenv,atmos} $PREFIX/bin/ && \
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 fi
 
-#
 # Nodenv
-#
-
 if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app's Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
 	command anyenv install nodenv && \
@@ -187,12 +216,8 @@ if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
-#
 # Pyenv
-#
-
 export PYENV_ROOT=$ANYENV_ROOT/envs/pyenv
-
 if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}pyenv%F{220} Simple Python Version Management: pyenv (%F{33}pyenv/pyenv%F{220})…%f"
 	command anyenv install pyenv && \
@@ -200,18 +225,54 @@ if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
-#
-# Jenv
-#
+# AtomicParsley
+if ! [[ -x $(command -v AtomicParsley) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}AtomicParsley%F{220} AtomicParsley is a lightweight command line program for reading, parsing and setting metadata into MPEG-4 files, in particular, iTunes-style metadata. (%F{33}wez/atomicparsley%F{220})…%f"
+	ATOMICPARSLEY_VERSION=$(get_latest_tag https://github.com/wez/atomicparsley.git)
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/AtomicParsleyLinux.zip https://github.com/wez/atomicparsley/releases/download/${ATOMICPARSLEY_VERSION}/AtomicParsleyLinux.zip && \
+			unzip -qq /tmp/AtomicParsleyLinux.zip -d /tmp
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		command curl -L -o /tmp/AtomicParsleyMacOS.zip https://github.com/wez/atomicparsley/releases/download/${ATOMICPARSLEY_VERSION}/AtomicParsleyMacOS.zip && \
+			unzip -qq /tmp/AtomicParsleyMacOS.zip -d /tmp
+	fi
+	command mv /tmp/AtomicParsley $PREFIX/bin/ && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+fi
 
-if [[ "$(uname)" == "Darwin" ]]; then
-	if [[ ! -f $ANYENV_ROOT/envs/jenv/bin/jenv ]]; then
-		print -P "%F{33}▓▒░ %F{220}Installing %F{33}jenv%F{220} Master your Java Environment with jenv (%F{33}jenv/jenv%F{220})…%f"
-		command anyenv install jenv && \
+# ffmpeg
+if [[ "$(uname)" == "Linux" ]]; then
+	if ! [[ -x $(command -v ffmpeg) ]]; then
+		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} A complete, cross-platform solution to record, convert and stream audio and video. (%F{33}AkashiSN/ffmpeg-docker%F{220})…%f"
+		FFMPEG_VERSION=$(get_latest_version_tag https://github.com/AkashiSN/ffmpeg-docker v)
+		command curl -L -o /tmp/ffmpeg.tar.xz https://github.com/AkashiSN/ffmpeg-docker/releases/download/v${FFMPEG_VERSION}/ffmpeg-7.0.2-linux-amd64.tar.xz && \
+			tar xvf /tmp/ffmpeg.tar.xz -C /tmp/
+		command mv /tmp/ffmpeg-7.0.2-linux-amd64/bin/* $PREFIX/bin/ && \
+			mv /tmp/ffmpeg-7.0.2-linux-amd64/lib/* $PREFIX/lib/ && \
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-			print -P "%F{160}▓▒░ The clone has failed.%f%b"
+			print -P "%F{160}▓▒░ The installation has failed.%f%b"
 	fi
 fi
+
+# yt-dlp
+if ! [[ -x $(command -v yt-dlp) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}yt-dlp%F{220} yt-dlp is a feature-rich command-line audio/video downloader with support for thousands of sites. (%F{33}yt-dlp/yt-dlp%F{220})…%f"
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		if [[ "${ARCH}" == "arm64" ]]; then
+			command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
+		else
+			command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos_legacy
+		fi
+	fi
+	command mv /tmp/yt-dlp $PREFIX/bin/ && \
+		chmod +x $PREFIX/bin/yt-dlp && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+fi
+
 
 #
 # Clone dotfiles
@@ -250,6 +311,7 @@ if ! [ "${SSH_CONNECTION:-}" ]; then
 		stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME/.ssh ssh
 fi
 
+
 #
 # Import gpgkey
 #
@@ -277,6 +339,7 @@ max-cache-ttl-ssh       28800
 EOF
 fi
 
+
 #
 # vault setup
 #
@@ -286,24 +349,25 @@ if [[ ! -d $PASSWORD_STORE_DIR ]]; then
 	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR
 fi
 
+
 #
 # Change default shell
 #
 
-/bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
-if read -q; then;
-	zsh=false
-	if [[ "$(uname)" == "Linux" ]]; then
-		if [[ $(cat /etc/passwd | grep $HOME) =~ "zsh" ]]; then
-			zsh=true
-		fi
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		if [[ $(dscl . -read ~/ UserShell) =~ "zsh" ]]; then
-			zsh=true
-		fi
+zsh=false
+if [[ "$(uname)" == "Linux" ]]; then
+	if [[ $(cat /etc/passwd | grep $HOME) =~ "zsh" ]]; then
+		zsh=true
 	fi
+elif [[ "$(uname)" == "Darwin" ]]; then
+	if [[ $(dscl . -read ~/ UserShell) =~ "zsh" ]]; then
+		zsh=true
+	fi
+fi
 
-	if ! $zsh ; then
+if ! $zsh ; then
+	/bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
+	if read -q; then;
 		print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
 		export user=$(whoami) && \
 		sudo usermod -s $(which zsh) $user && \
