@@ -90,6 +90,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		gnu-tar
 		grep
 		gzip
+		pass
 		stow
 		wget
 		zsh

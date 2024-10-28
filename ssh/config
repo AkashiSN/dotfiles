@@ -112,6 +112,21 @@ Host worker-node-02
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
+Host k8s-v131-control-plane
+    HostName        172.16.254.131
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host k8s-v131-worker-node-01
+    HostName        172.16.254.132
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host k8s-v131-worker-node-02
+    HostName        172.16.254.133
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
 Host mac-pve
     HostName        172.16.100.20
     User            nishi
