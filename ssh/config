@@ -127,6 +127,11 @@ Host k8s-v131-worker-node-02
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
+Host eks-v131-hybrid-node-01
+    HostName        172.16.254.181
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
 Host mac-pve
     HostName        172.16.100.20
     User            nishi
