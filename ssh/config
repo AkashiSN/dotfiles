@@ -9,7 +9,7 @@ Host *
 Host gw-suita
     HostName        gw-suita.akashisn.info
     ProxyCommand    cloudflared access ssh --hostname %h
-    User            root
+    User            admin
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
