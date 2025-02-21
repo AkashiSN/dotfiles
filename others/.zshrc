@@ -340,6 +340,11 @@ function serial () {
   screen /dev/tty.usbserial-DN05LT6T 115200
 }
 
+function convert-crlf-to-lf () {
+  find . -type f | xargs file | grep CRLF \
+    | awk -F: '{print $1}' | xargs nkf -Lu --overwrite
+}
+
 function search () {
   local result="$(find . -type f)"
   for arg in "$@"; do
