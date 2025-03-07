@@ -81,6 +81,6 @@ rem   User ec2-user
 rem   ForwardAgent yes
 rem
 rem Match host i-*
-rem   ProxyCommand C:\Users\S048541\.ssh\eice-proxy.bat %h %p %r {aws_profile}
+rem   ProxyCommand C:\Users\{user}\.ssh\eice-proxy.bat %h %p %r {aws_profile}
 
 rem  !!! %USERPROFILE% not working
