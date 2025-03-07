@@ -9,7 +9,7 @@ SLEEP_DURATION=5
 HOST=$1
 PORT=$2
 USER=$3
-AWS_PROFILE=$4
+AWS_PROFILE=${4:-'default'}
 
 # Set aws cli path
 PATH=/usr/local/bin:$PATH

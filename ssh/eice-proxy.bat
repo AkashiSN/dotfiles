@@ -14,6 +14,7 @@ SET HOST=%~1
 SET PORT=%~2
 SET USER=%~3
 SET AWS_PROFILE=%~4
+if "%AWS_PROFILE%"=="" (set AWS_PROFILE="default")
 
 @echo on
 aws ssm describe-instance-information ^
