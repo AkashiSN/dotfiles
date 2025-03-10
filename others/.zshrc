@@ -126,6 +126,14 @@ zinit ice blockf
 zinit ice wait'!0'; zinit light zsh-users/zsh-completions
 
 
+#-------------------------------------
+# direnv
+#-------------------------------------
+if command -v direnv &> /dev/null ;then
+  eval "$(direnv hook zsh)"
+fi
+
+
 # -------------------------------------
 # anyenv setting
 # -------------------------------------
@@ -142,6 +150,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
+export GHQ_ROOT=$GOPATH
 
 # Setting for peco
 function peco-src () {
@@ -435,6 +444,13 @@ alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 
 export PATH=$GOPATH/bin:$PATH
 export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
+
+
+# -------------------------------------
+# Other ENV setting
+# -------------------------------------
+
+export EDITOR=vim
 
 
 # -------------------------------------
