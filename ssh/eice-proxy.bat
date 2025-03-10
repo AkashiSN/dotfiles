@@ -17,17 +17,15 @@ SET AWS_PROFILE=%~4
 if "%AWS_PROFILE%"=="" (set AWS_PROFILE="default")
 
 @echo on
-aws ssm describe-instance-information ^
-	--filters Key=InstanceIds,Values=%HOST% ^
-	--output text ^
-	--query InstanceInformationList[0].PingStatus ^
-	--profile %AWS_PROFILE% ^
-	--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
+aws ec2 describe-instances ^
+	--instance-ids %HOST% ^
+	--query Reservations[0].Instances[0].State.Code ^
+	--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
 @echo off
 SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
 rem If the instance is online, start the session
-IF "%STATUS%" == "Online" (
+IF "%STATUS%" == "16" (
 	aws ec2-instance-connect open-tunnel ^
 	--instance-id=%HOST% ^
 	--profile %AWS_PROFILE%
@@ -40,16 +38,14 @@ IF "%STATUS%" == "Online" (
 	:loop
 	if !COUNT! LEQ !MAX_ITERATION! (
 		@echo on
-		aws ssm describe-instance-information ^
-			--filters Key=InstanceIds,Values=%HOST% ^
-			--output text ^
-			--query InstanceInformationList[0].PingStatus ^
-			--profile %AWS_PROFILE% ^
-			--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
+		aws ec2 describe-instances ^
+			--instance-ids %HOST% ^
+			--query Reservations[0].Instances[0].State.Code ^
+			--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
 		@echo off
 		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
-		IF "%STATUS%" == "Online" (
+		IF "%STATUS%" == "16" (
 			GOTO :start_session
 		)
 		echo RETRY !COUNT!
@@ -77,9 +73,10 @@ EXIT /b 0
 rem ssh-config
 
 rem Host HOSTNAME_ALIAS
-rem   HostName i-asdfgxcvb98ubcxbv
-rem   User ec2-user
-rem   ForwardAgent yes
+rem   HostName      i-asdfgxcvb98ubcxbv
+rem   User          ec2-user
+rem   ForwardAgent  yes
+rem   IdentityFile  ~/.ssh/id_ed25519
 rem
 rem Match host i-*
 rem   ProxyCommand C:\Users\{user}\.ssh\eice-proxy.bat %h %p %r {aws_profile}

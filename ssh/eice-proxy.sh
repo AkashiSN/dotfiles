@@ -14,10 +14,10 @@ AWS_PROFILE=${4:-'default'}
 # Set aws cli path
 PATH=/usr/local/bin:$PATH
 
-STATUS=`aws ssm describe-instance-information --filters Key=InstanceIds,Values=${HOST} --output text --query 'InstanceInformationList[0].PingStatus' --profile ${AWS_PROFILE} --region ${AWS_REGION}`
+STATUS=`aws ec2 describe-instances --instance-ids ${HOST} --query Reservations[0].Instances[0].State.Code --profile ${AWS_PROFILE}`
 
 # If the instance is online, start the session
-if [ $STATUS == 'Online' ]; then
+if [ $STATUS == '16' ]; then
     aws ec2-instance-connect open-tunnel --instance-id=$HOST --profile $AWS_PROFILE
 else
     # Instance is offline - start the instance
@@ -25,8 +25,8 @@ else
     sleep ${SLEEP_DURATION}
     COUNT=0
     while [ ${COUNT} -le ${MAX_ITERATION} ]; do
-        STATUS=`aws ssm describe-instance-information --filters Key=InstanceIds,Values=${HOST} --output text --query 'InstanceInformationList[0].PingStatus' --profile ${AWS_PROFILE} --region ${AWS_REGION}`
-        if [ ${STATUS} == 'Online' ]; then
+        STATUS=`aws ec2 describe-instances --instance-ids ${HOST} --query Reservations[0].Instances[0].State.Code --profile ${AWS_PROFILE}`
+        if [ ${STATUS} == '16' ]; then
             break
         fi
         # Max attempts reached, exit
@@ -44,9 +44,10 @@ fi
 # ssh-config
 
 # Host HOSTNAME_ALIAS
-#     HostName i-asdfgxcvb98ubcxbv
-#     User ec2-user
-#     ForwardAgent yes
+#     HostName      i-asdfgxcvb98ubcxbv
+#     User          ec2-user
+#     ForwardAgent  yes
+#     IdentityFile  ~/.ssh/id_ed25519
 #
 # Match host i-*
 #   ProxyCommand ~/.ssh/eice-proxy.sh %h %p %r {aws_profile}
