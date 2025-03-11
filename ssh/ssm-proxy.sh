@@ -17,19 +17,19 @@ AWS_PROFILE=${4:-'default'}
 # Set aws cli path
 PATH=/usr/local/bin:$PATH
 
-STATUS=`aws ec2 describe-instances --instance-ids ${HOST} --query Reservations[0].Instances[0].State.Code --profile ${AWS_PROFILE}`
+STATUS=`aws ssm describe-instance-information --filters Key=InstanceIds,Values=${HOST} --output text --query 'InstanceInformationList[0].PingStatus' --profile ${AWS_PROFILE} --region ${AWS_REGION}`
 
 # If the instance is online, start the session
-if [ $STATUS == '16' ]; then
-    aws ec2-instance-connect open-tunnel --instance-id=$HOST --profile $AWS_PROFILE
+if [ $STATUS == 'Online' ]; then
+    aws ssm start-session --target $HOST --document-name AWS-StartSSHSession --parameters portNumber=${PORT} --profile ${AWS_PROFILE} --region ${AWS_REGION}
 else
     # Instance is offline - start the instance
     aws ec2 start-instances --instance-ids $HOST --profile ${AWS_PROFILE} --region ${AWS_REGION}
     sleep ${SLEEP_DURATION}
     COUNT=0
     while [ ${COUNT} -le ${MAX_ITERATION} ]; do
-        STATUS=`aws ec2 describe-instances --instance-ids ${HOST} --query Reservations[0].Instances[0].State.Code --profile ${AWS_PROFILE}`
-        if [ ${STATUS} == '16' ]; then
+        STATUS=`aws ssm describe-instance-information --filters Key=InstanceIds,Values=${HOST} --output text --query 'InstanceInformationList[0].PingStatus' --profile ${AWS_PROFILE} --region ${AWS_REGION}`
+        if [ ${STATUS} == 'Online' ]; then
             break
         fi
         # Max attempts reached, exit
@@ -40,9 +40,8 @@ else
             sleep ${SLEEP_DURATION}
         fi
     done
-    sleep ${SLEEP_DURATION}
     # Instance is online now - start the session
-    aws ec2-instance-connect open-tunnel --instance-id=$HOST --profile $AWS_PROFILE
+    aws ssm start-session --target $HOST --document-name AWS-StartSSHSession --parameters portNumber=${PORT} --profile ${AWS_PROFILE} --region ${AWS_REGION}
 fi
 
 # ssh-config
@@ -54,4 +53,4 @@ fi
 #     IdentityFile  ~/.ssh/id_ed25519
 #
 # Match host i-*
-#   ProxyCommand ~/.ssh/eice-proxy.sh %h %p %r {aws_profile}
+#   ProxyCommand ~/.ssh/ssm-proxy.sh %h %p %r {aws_profile}

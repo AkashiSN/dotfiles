@@ -17,18 +17,22 @@ SET AWS_PROFILE=%~4
 if "%AWS_PROFILE%"=="" (set AWS_PROFILE="default")
 
 @echo on
-aws ec2 describe-instances ^
-	--instance-ids %HOST% ^
-	--query Reservations[0].Instances[0].State.Code ^
-	--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
+aws ssm describe-instance-information ^
+	--filters Key=InstanceIds,Values=%HOST% ^
+	--output text ^
+	--query InstanceInformationList[0].PingStatus ^
+	--profile %AWS_PROFILE% ^
+	--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
 @echo off
 SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
 rem If the instance is online, start the session
-IF "%STATUS%" == "16" (
-	aws ec2-instance-connect open-tunnel ^
-	--instance-id=%HOST% ^
-	--profile %AWS_PROFILE%
+IF "%STATUS%" == "Online" (
+	aws ssm start-session --target %HOST% ^
+	--document-name AWS-StartSSHSession ^
+	--parameters portNumber=%PORT% ^
+	--profile %AWS_PROFILE% ^
+	--region %AWS_REGION%
 ) ELSE (
 	aws ec2 start-instances --instance-ids %HOST% --profile %AWS_PROFILE% --region %AWS_REGION%
 	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
@@ -38,14 +42,16 @@ IF "%STATUS%" == "16" (
 	:loop
 	if !COUNT! LEQ !MAX_ITERATION! (
 		@echo on
-		aws ec2 describe-instances ^
-			--instance-ids %HOST% ^
-			--query Reservations[0].Instances[0].State.Code ^
-			--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
+		aws ssm describe-instance-information ^
+			--filters Key=InstanceIds,Values=%HOST% ^
+			--output text ^
+			--query InstanceInformationList[0].PingStatus ^
+			--profile %AWS_PROFILE% ^
+			--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
 		@echo off
 		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
-		IF "%STATUS%" == "16" (
+		IF "%STATUS%" == "Online" (
 			GOTO :start_session
 		)
 		echo RETRY !COUNT!
@@ -60,11 +66,12 @@ IF "%STATUS%" == "16" (
 	echo Outside of loop^^!
 
 	:start_session
-	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
 	rem Instance is online now - start the session
-	aws ec2-instance-connect open-tunnel ^
-	--instance-id %HOST% ^
-	--profile %AWS_PROFILE%
+	aws ssm start-session --target %HOST% ^
+	--document-name AWS-StartSSHSession ^
+	--parameters portNumber=%PORT% ^
+	--profile %AWS_PROFILE% ^
+	--region %AWS_REGION%
 )
 
 ENDLOCAL
@@ -80,6 +87,6 @@ rem   ForwardAgent  yes
 rem   IdentityFile  ~/.ssh/id_ed25519
 rem
 rem Match host i-*
-rem   ProxyCommand C:\Users\{user}\.ssh\eice-proxy.bat %h %p %r {aws_profile}
+rem   ProxyCommand C:\Users\{user}\.ssh\ssm-proxy.bat %h %p %r {aws_profile}
 
 rem  !!! %USERPROFILE% not working
