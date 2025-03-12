@@ -8,7 +8,6 @@ SETLOCAL
 rem Configuration
 SET MAX_ITERATION=20
 SET SLEEP_DURATION=5
-SET AWS_DEFAULT_REGION=ap-northeast-1
 
 SET HOST=%~1
 SET PORT=%~2
@@ -19,8 +18,7 @@ SET AWS_PROFILE=%~4
 aws ssm describe-instance-information ^
 	--filters Key=InstanceIds,Values=%HOST% ^
 	--output text ^
-	--query InstanceInformationList[0].PingStatus ^
-	--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
+	--query InstanceInformationList[0].PingStatus > %USERPROFILE%\.ssh\%HOST%_status.temp
 @echo off
 SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
@@ -28,10 +26,9 @@ rem If the instance is online, start the session
 IF "%STATUS%" == "Online" (
 	aws ssm start-session --target %HOST% ^
 	--document-name AWS-StartSSHSession ^
-	--parameters portNumber=%PORT% ^
-	--region %AWS_REGION%
+	--parameters portNumber=%PORT%
 ) ELSE (
-	aws ec2 start-instances --instance-ids %HOST% --region %AWS_REGION%
+	aws ec2 start-instances --instance-ids %HOST%
 	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
 
 	SET /a COUNT=1
@@ -63,8 +60,7 @@ IF "%STATUS%" == "Online" (
 	rem Instance is online now - start the session
 	aws ssm start-session --target %HOST% ^
 	--document-name AWS-StartSSHSession ^
-	--parameters portNumber=%PORT% ^
-	--region %AWS_REGION%
+	--parameters portNumber=%PORT%
 )
 
 ENDLOCAL
