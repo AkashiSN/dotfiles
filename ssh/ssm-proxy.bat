@@ -39,8 +39,7 @@ IF "%STATUS%" == "Online" (
 		aws ssm describe-instance-information ^
 			--filters Key=InstanceIds,Values=%HOST% ^
 			--output text ^
-			--query InstanceInformationList[0].PingStatus ^
-			--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
+			--query InstanceInformationList[0].PingStatus > %USERPROFILE%\.ssh\%HOST%_status.temp
 		@echo off
 		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
