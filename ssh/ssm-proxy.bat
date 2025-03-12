@@ -6,22 +6,20 @@ goto :main
 SETLOCAL
 
 rem Configuration
-SET AWS_REGION=ap-northeast-1
 SET MAX_ITERATION=20
 SET SLEEP_DURATION=5
+SET AWS_DEFAULT_REGION=ap-northeast-1
 
 SET HOST=%~1
 SET PORT=%~2
 SET USER=%~3
 SET AWS_PROFILE=%~4
-if "%AWS_PROFILE%"=="" (set AWS_PROFILE="default")
 
 @echo on
 aws ssm describe-instance-information ^
 	--filters Key=InstanceIds,Values=%HOST% ^
 	--output text ^
 	--query InstanceInformationList[0].PingStatus ^
-	--profile %AWS_PROFILE% ^
 	--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
 @echo off
 SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
@@ -31,10 +29,9 @@ IF "%STATUS%" == "Online" (
 	aws ssm start-session --target %HOST% ^
 	--document-name AWS-StartSSHSession ^
 	--parameters portNumber=%PORT% ^
-	--profile %AWS_PROFILE% ^
 	--region %AWS_REGION%
 ) ELSE (
-	aws ec2 start-instances --instance-ids %HOST% --profile %AWS_PROFILE% --region %AWS_REGION%
+	aws ec2 start-instances --instance-ids %HOST% --region %AWS_REGION%
 	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
 
 	SET /a COUNT=1
@@ -46,7 +43,6 @@ IF "%STATUS%" == "Online" (
 			--filters Key=InstanceIds,Values=%HOST% ^
 			--output text ^
 			--query InstanceInformationList[0].PingStatus ^
-			--profile %AWS_PROFILE% ^
 			--region %AWS_REGION% > %USERPROFILE%\.ssh\%HOST%_status.temp
 		@echo off
 		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
@@ -62,15 +58,12 @@ IF "%STATUS%" == "Online" (
 	)
 
 	EXIT /b 1
-	echo.
-	echo Outside of loop^^!
 
 	:start_session
 	rem Instance is online now - start the session
 	aws ssm start-session --target %HOST% ^
 	--document-name AWS-StartSSHSession ^
 	--parameters portNumber=%PORT% ^
-	--profile %AWS_PROFILE% ^
 	--region %AWS_REGION%
 )
 

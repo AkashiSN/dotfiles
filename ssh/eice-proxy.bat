@@ -6,7 +6,6 @@ goto :main
 SETLOCAL
 
 rem Configuration
-SET AWS_REGION=ap-northeast-1
 SET MAX_ITERATION=20
 SET SLEEP_DURATION=5
 
@@ -14,23 +13,19 @@ SET HOST=%~1
 SET PORT=%~2
 SET USER=%~3
 SET AWS_PROFILE=%~4
-if "%AWS_PROFILE%"=="" (set AWS_PROFILE="default")
 
 @echo on
 aws ec2 describe-instances ^
 	--instance-ids %HOST% ^
-	--query Reservations[0].Instances[0].State.Code ^
-	--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
+	--query Reservations[0].Instances[0].State.Code > %USERPROFILE%\.ssh\%HOST%_status.temp
 @echo off
 SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
 rem If the instance is online, start the session
 IF "%STATUS%" == "16" (
-	aws ec2-instance-connect open-tunnel ^
-	--instance-id=%HOST% ^
-	--profile %AWS_PROFILE%
+	aws ec2-instance-connect open-tunnel --instance-id=%HOST%
 ) ELSE (
-	aws ec2 start-instances --instance-ids %HOST% --profile %AWS_PROFILE% --region %AWS_REGION%
+	aws ec2 start-instances --instance-ids %HOST%
 	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
 
 	SET /a COUNT=1
@@ -40,8 +35,7 @@ IF "%STATUS%" == "16" (
 		@echo on
 		aws ec2 describe-instances ^
 			--instance-ids %HOST% ^
-			--query Reservations[0].Instances[0].State.Code ^
-			--profile %AWS_PROFILE% > %USERPROFILE%\.ssh\%HOST%_status.temp
+			--query Reservations[0].Instances[0].State.Code > %USERPROFILE%\.ssh\%HOST%_status.temp
 		@echo off
 		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
 
@@ -56,15 +50,11 @@ IF "%STATUS%" == "16" (
 	)
 
 	EXIT /b 1
-	echo.
-	echo Outside of loop^^!
 
 	:start_session
 	ping -n %SLEEP_DURATION% 127.0.0.1 >NUL
 	rem Instance is online now - start the session
-	aws ec2-instance-connect open-tunnel ^
-	--instance-id %HOST% ^
-	--profile %AWS_PROFILE%
+	aws ec2-instance-connect open-tunnel --instance-id %HOST%
 )
 
 ENDLOCAL
