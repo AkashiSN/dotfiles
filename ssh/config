@@ -97,21 +97,6 @@ Host k3s
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-Host k8s-control-plane
-    HostName        172.16.254.20
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host worker-node-01
-    HostName        172.16.254.25
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host worker-node-02
-    HostName        172.16.254.26
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
 Host k8s-v131-control-plane
     HostName        172.16.254.131
     User            nishi
@@ -127,8 +112,18 @@ Host k8s-v131-worker-node-02
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
-Host eks-v131-hybrid-node-01
-    HostName        172.16.254.181
+Host k8s-v132-control-plane
+    HostName        172.16.254.135
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host k8s-v132-worker-node-01
+    HostName        172.16.254.136
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
+Host k8s-v132-worker-node-02
+    HostName        172.16.254.137
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
