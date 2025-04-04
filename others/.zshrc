@@ -74,7 +74,7 @@ HISTTIMEFORMAT="[%Y/%M/%D %H:%M:%S] " # ヒストリの一覧を読みやすい�
 
 
 # -------------------------------------
-# Base PATH
+# PATH Setting
 # -------------------------------------
 
 export LOCAL_PREFIX=$HOME/.local
@@ -86,7 +86,10 @@ export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
 export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
 export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
 export PATH=$LOCAL_PREFIX/bin:$PATH
+export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 export PASSWORD_STORE_DIR=$HOME/.password-store
+
+mkdir -p ${LOCAL_PREFIX}/{share,lib,include,bin,share/zsh/site-functions}
 
 
 # -------------------------------------
@@ -129,6 +132,7 @@ zinit ice wait'!0'; zinit light zsh-users/zsh-completions
 #-------------------------------------
 # direnv
 #-------------------------------------
+
 if command -v direnv &> /dev/null ;then
   eval "$(direnv hook zsh)"
 fi
@@ -413,6 +417,114 @@ function post-process-for-ytdlp () {
 
 
 # -------------------------------------
+# Download functions
+# -------------------------------------
+
+function donload-direnv () {
+  local version=$1
+
+  wget -O ${LOCAL_PREFIX}/bin/direnv \
+    https://github.com/direnv/direnv/releases/download/v${version}/direnv.linux-amd64
+
+  chmod +x ${LOCAL_PREFIX}/bin/direnv
+}
+
+function download-ghq () {
+  local version=$1
+
+  wget -O /tmp/ghq_linux_amd64.zip \
+    https://github.com/x-motemen/ghq/releases/download/v${version}/ghq_linux_amd64.zip
+
+  unzip -d /tmp /tmp/ghq_linux_amd64.zip
+  cp -v /tmp/ghq_linux_amd64/ghq ${LOCAL_PREFIX}/bin/
+  cp -v /tmp/ghq_linux_amd64/misc/zsh/_ghq ${LOCAL_PREFIX}/share/zsh/site-functions/
+
+  rm -rv /tmp/ghq_linux_amd64*
+}
+
+function download-peco () {
+  local version=$1
+
+  wget -O /tmp/peco_linux_amd64.tar.gz \
+    https://github.com/peco/peco/releases/download/v${version}/peco_linux_amd64.tar.gz
+
+  tar -C /tmp -xvf /tmp/peco_linux_amd64.tar.gz
+  cp -v /tmp/peco_linux_amd64/peco ${LOCAL_PREFIX}/bin/
+
+  rm -rv /tmp/peco_linux_amd64*
+}
+
+function download-tenv () {
+  local version=$1
+
+  wget -O /tmp/tenv_v${version}_Linux_x86_64.tar.gz \
+    https://github.com/tofuutils/tenv/releases/download/v${version}/tenv_v${version}_Linux_x86_64.tar.gz
+
+  mkdir -p ${LOCAL_PREFIX}/share/tenv
+  tar -C ${LOCAL_PREFIX}/share/tenv -xvf /tmp/tenv_v${version}_Linux_x86_64.tar.gz
+  ln -snvf ${LOCAL_PREFIX}/share/tenv/{tenv,terraform,tf} ${LOCAL_PREFIX}/bin
+
+  rm -rv /tmp/tenv_v${version}_Linux_x86_64.tar.gz
+}
+
+function download-tflint () {
+  local version=$1
+
+  wget -O /tmp/tflint_linux_amd64.zip \
+    https://github.com/terraform-linters/tflint/releases/download/v${version}/tflint_linux_amd64.zip
+
+  unzip -d /tmp /tmp/tflint_linux_amd64.zip
+  cp -v /tmp/tflint ${LOCAL_PREFIX}/bin/
+
+  rm -rv /tmp/tflint*
+}
+
+function download-tflint-ruleset () {
+  local ruleset=$1
+  local version=$2
+
+  local ruleset_path=$HOME/.tflint.d/plugins/github.com/terraform-linters/tflint-ruleset-${ruleset}/${version}
+
+  wget -O /tmp/tflint-ruleset-${ruleset}_linux_amd64.zip \
+    https://github.com/terraform-linters/tflint-ruleset-${ruleset}/releases/download/v${version}/tflint-ruleset-${ruleset}_linux_amd64.zip
+
+  mkdir -p ${ruleset_path}
+  unzip -d ${ruleset_path} /tmp/tflint-ruleset-${ruleset}_v${version}_linux_amd64.zip
+
+  rm -v /tmp/tflint-ruleset-${ruleset}_linux_amd64.zip
+}
+
+function download-tfmigrate () {
+  local version=$1
+
+  wget -O /tmp/tfmigrate_${version}_linux_amd64.tar.gz \
+    https://github.com/minamijoyo/tfmigrate/releases/download/v${version}/tfmigrate_${version}_linux_amd64.tar.gz
+
+  mkdir -p /tmp/tfmigrate
+  tar -C /tmp/tfmigrate -xvf /tmp/tfmigrate_${version}_linux_amd64.tar.gz
+  cp -v /tmp/tfmigrate/tfmigrate ${LOCAL_PREFIX}/bin
+
+  rm -rv /tmp/tfmigrate*
+}
+
+function download-terraform-provider () {
+  local provider=$1
+  local version=$2
+
+  local provider_base_path=$HOME/.terraform.d/plugins
+  local provider_path=${provider_base_path}/registry.terraform.io/hashicorp/${provider}/${version}/linux_amd64
+
+  wget -O /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip \
+    https://releases.hashicorp.com/terraform-provider-${provider}/${version}/terraform-provider-${provider}_${version}_linux_amd64.zip
+
+  mkdir -p ${provider_path}
+  unzip -d ${provider_path} /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip
+
+  rm -v /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip
+}
+
+
+# -------------------------------------
 # Aliases setting
 # -------------------------------------
 
@@ -443,7 +555,6 @@ alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 # -------------------------------------
 
 export PATH=$GOPATH/bin:$PATH
-export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
 
 # -------------------------------------
