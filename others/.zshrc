@@ -218,6 +218,7 @@ fi
 
 if command -v tenv &> /dev/null ;then
   source <(tenv completion zsh)
+  export TENV_AUTO_INSTALL=true
 fi
 
 
