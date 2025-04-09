@@ -63,7 +63,7 @@ is_shutting_down_al2023() {
 }
 
 is_vscode_connected() {
-    pgrep -u $USER -f .vscode-server/bin/ -a | grep -v -F 'shellIntegration-bash.sh' >/dev/null
+    pgrep -u $USER -f .vscode-server/cli/ -a >/dev/null || pgrep -u $USER -f .vscode-server/bin/ -a >/dev/null
 }
 
 if is_shutting_down; then
