@@ -85,31 +85,10 @@ Host openwrt-pve
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
-Host vpn-server
-    HostName        172.16.254.11
-    User            nishi
-    ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-
 Host k3s
     HostName        172.16.254.15
     User            nishi
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v131-control-plane
-    HostName        172.16.254.131
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v131-worker-node-01
-    HostName        172.16.254.132
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v131-worker-node-02
-    HostName        172.16.254.133
-    User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
 Host k8s-v132-control-plane
@@ -144,13 +123,6 @@ Host gl-axt1800
     HostName        192.168.6.1
     User            root
     IdentityFile    ~/.ssh/id_ed25519
-
-# VPS
-Host k3s-vps
-    HostName        k3s-vps.akashisn.info
-    User            ubuntu
-    ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
 
 # TUT
 Host tut
