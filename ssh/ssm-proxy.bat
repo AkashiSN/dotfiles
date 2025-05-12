@@ -14,13 +14,12 @@ SET PORT=%~2
 SET USER=%~3
 SET AWS_PROFILE=%~4
 
-@echo on
-aws ssm describe-instance-information ^
-	--filters Key=InstanceIds,Values=%HOST% ^
-	--output text ^
-	--query InstanceInformationList[0].PingStatus > %USERPROFILE%\.ssh\%HOST%_status.temp
-@echo off
-SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
+for /f "usebackq delims=" %%A in (`^
+	aws ssm describe-instance-information ^
+		--filters "Key=InstanceIds,Values=%HOST%" ^
+		--output text ^
+		--query InstanceInformationList[0].PingStatus ^
+`) do set STATUS=%%A
 
 rem If the instance is online, start the session
 IF "%STATUS%" == "Online" (
@@ -35,13 +34,12 @@ IF "%STATUS%" == "Online" (
 
 	:loop
 	if !COUNT! LEQ !MAX_ITERATION! (
-		@echo on
-		aws ssm describe-instance-information ^
-			--filters Key=InstanceIds,Values=%HOST% ^
-			--output text ^
-			--query InstanceInformationList[0].PingStatus > %USERPROFILE%\.ssh\%HOST%_status.temp
-		@echo off
-		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
+		for /f "usebackq delims=" %%A in (`^
+			aws ssm describe-instance-information ^
+				--filters "Key=InstanceIds,Values=%HOST%" ^
+				--query InstanceInformationList[0].PingStatus ^
+				--output text ^
+		`) do set STATUS=%%A
 
 		IF "%STATUS%" == "Online" (
 			GOTO :start_session

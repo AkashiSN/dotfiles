@@ -14,12 +14,11 @@ SET PORT=%~2
 SET USER=%~3
 SET AWS_PROFILE=%~4
 
-@echo on
-aws ec2 describe-instances ^
-	--instance-ids %HOST% ^
-	--query Reservations[0].Instances[0].State.Code > %USERPROFILE%\.ssh\%HOST%_status.temp
-@echo off
-SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
+for /f "usebackq delims=" %%A in (`^
+	aws ec2 describe-instances ^
+		--instance-ids %HOST% ^
+		--query Reservations[0].Instances[0].State.Code ^
+`)do set STATUS=%%A
 
 rem If the instance is online, start the session
 IF "%STATUS%" == "16" (
@@ -32,12 +31,11 @@ IF "%STATUS%" == "16" (
 
 	:loop
 	if !COUNT! LEQ !MAX_ITERATION! (
-		@echo on
-		aws ec2 describe-instances ^
-			--instance-ids %HOST% ^
-			--query Reservations[0].Instances[0].State.Code > %USERPROFILE%\.ssh\%HOST%_status.temp
-		@echo off
-		SET /p STATUS=<%USERPROFILE%\.ssh\%HOST%_status.temp
+		for /f "usebackq delims=" %%A in (`^
+			aws ec2 describe-instances ^
+				--instance-ids %HOST% ^
+				--query Reservations[0].Instances[0].State.Code ^
+		`)do set STATUS=%%A
 
 		IF "%STATUS%" == "16" (
 			GOTO :start_session
