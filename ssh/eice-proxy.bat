@@ -18,7 +18,9 @@ for /f "usebackq delims=" %%A in (`^
 	aws ec2 describe-instances ^
 		--instance-ids %HOST% ^
 		--query Reservations[0].Instances[0].State.Code ^
-`)do set STATUS=%%A
+`)do (
+	set STATUS=%%A
+)
 
 rem If the instance is online, start the session
 IF "%STATUS%" == "16" (
@@ -35,7 +37,9 @@ IF "%STATUS%" == "16" (
 			aws ec2 describe-instances ^
 				--instance-ids %HOST% ^
 				--query Reservations[0].Instances[0].State.Code ^
-		`)do set STATUS=%%A
+		`)do (
+			set STATUS=%%A
+		)
 
 		IF "%STATUS%" == "16" (
 			GOTO :start_session

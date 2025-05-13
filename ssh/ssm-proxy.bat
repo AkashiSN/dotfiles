@@ -19,7 +19,9 @@ for /f "usebackq delims=" %%A in (`^
 		--filters "Key=InstanceIds,Values=%HOST%" ^
 		--output text ^
 		--query InstanceInformationList[0].PingStatus ^
-`) do set STATUS=%%A
+`) do (
+	set STATUS=%%A
+)
 
 rem If the instance is online, start the session
 IF "%STATUS%" == "Online" (
@@ -39,7 +41,9 @@ IF "%STATUS%" == "Online" (
 				--filters "Key=InstanceIds,Values=%HOST%" ^
 				--query InstanceInformationList[0].PingStatus ^
 				--output text ^
-		`) do set STATUS=%%A
+		`) do (
+			set STATUS=%%A
+		)
 
 		IF "%STATUS%" == "Online" (
 			GOTO :start_session
