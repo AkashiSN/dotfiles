@@ -86,7 +86,7 @@ if is_shutting_down; then
         echo "$TIMESTAMP" > "/home/$USER/.ec2/autoshutdown-timestamp"
     fi
 else
-    if ! is_ssm_connected || ! is_ssh_connected; then
+    if ! is_ssm_connected && ! is_ssh_connected; then
         sudo shutdown -h $SHUTDOWN_TIMEOUT
     fi
 fi
