@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+USER_DIR=${USER_DIR:-~}
+AWS_PROFILE=$(aws configure list-profiles | peco --select-1 --query "$LBUFFER")
+
+echo "Current profile is $AWS_PROFILE."
+
+AccessKeyId=$(aws configure get aws_access_key_id)
+
+output=$(aws iam get-access-key-last-used --access-key-id  ${AccessKeyId} 2>&1 || true)
+if echo "$output" | grep -q '"UserName"'; then
+    UserName=$(echo "$output" | jq -r '.UserName')
+else
+    UserName=$(echo "$output" | sed -n 's/.*arn:aws:iam::[0-9]\+:user\/\([^ ]*\).*/\1/p')
+fi
+
+echo "Fetching MFA device serial number for the user \"${UserName}\"..."
+SerialNumber=$(aws iam list-mfa-devices --user-name ${UserName} | jq -r '.MFADevices[].SerialNumber' | peco --select-1 --query "$LBUFFER")
+
+echo "MFA Serial Number: ${SerialNumber}"
+read -p 'Enter MFA Code: ' code
+
+Credentials=$(aws sts get-session-token --serial-number ${SerialNumber} --token-code ${code})
+
+echo "export AWS_PROFILE=${AWS_PROFILE}" > ${USER_DIR}/.env
+echo "export AWS_ACCESS_KEY_ID=$(echo ${Credentials} | jq -r '.Credentials.AccessKeyId')" >> ${USER_DIR}/.env
+echo "export AWS_SECRET_ACCESS_KEY=$(echo ${Credentials} | jq -r '.Credentials.SecretAccessKey')" >> ${USER_DIR}/.env
+echo "export AWS_SESSION_TOKEN=$(echo ${Credentials} | jq -r '.Credentials.SessionToken')" >> ${USER_DIR}/.env
+
+echo "Successfull get session token."
