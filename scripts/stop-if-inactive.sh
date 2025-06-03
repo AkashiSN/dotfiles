@@ -62,12 +62,23 @@ is_shutting_down_al2023() {
     fi
 }
 
-is_vscode_connected() {
-    pgrep -u $USER -f .vscode-server/cli/ -a >/dev/null || pgrep -u $USER -f .vscode-server/bin/ -a >/dev/null
+is_ssh_connected() {
+  who | while read line; do
+    src_ip=$(echo "$line" | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)')
+    if [[ -n "$src_ip" && "$src_ip" != "(127.0.0.1)" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+is_ssm_connected() {
+    pgrep -U root -f /usr/bin/ssm-session-worker -a >/dev/null
 }
 
 if is_shutting_down; then
-    if [[ ! $SHUTDOWN_TIMEOUT =~ ^[0-9]+$ ]] || is_vscode_connected; then
+    if is_ssm_connected || is_ssh_connected; then
         sudo shutdown -c
         echo > "/home/$USER/.ec2/autoshutdown-timestamp"
     else
@@ -75,7 +86,7 @@ if is_shutting_down; then
         echo "$TIMESTAMP" > "/home/$USER/.ec2/autoshutdown-timestamp"
     fi
 else
-    if [[ $SHUTDOWN_TIMEOUT =~ ^[0-9]+$ ]] && ! is_vscode_connected; then
+    if ! is_ssm_connected || ! is_ssh_connected; then
         sudo shutdown -h $SHUTDOWN_TIMEOUT
     fi
 fi
