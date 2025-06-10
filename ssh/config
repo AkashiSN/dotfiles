@@ -54,14 +54,14 @@ Host ix2215-server
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
-Host openwrt-raspi4-tokyo
+Host truenas
     HostName        172.16.254.2
-    User            root
+    User            admin
     IdentityFile    ~/.ssh/gpg.pub
 
-Host truenas
+Host pve-n100
     HostName        172.16.254.3
-    User            admin
+    User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 Host pve
@@ -80,6 +80,11 @@ Host pve02
     IdentityFile    ~/.ssh/gpg.pub
 
 # Proxmox
+Host vpn-server-pve
+    HostName        172.16.254.100
+    User            nishi
+    IdentityFile    ~/.ssh/gpg.pub
+
 Host openwrt-pve
     HostName        172.16.254.10
     User            root
