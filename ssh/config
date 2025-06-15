@@ -74,13 +74,13 @@ Host pve01
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
-Host pve02
+Host pve-i7
     HostName        172.16.254.6
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
 # Proxmox
-Host vpn-server-pve
+Host vpn-pve
     HostName        172.16.254.100
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
@@ -91,7 +91,7 @@ Host openwrt-pve
     IdentityFile    ~/.ssh/gpg.pub
 
 Host k3s
-    HostName        172.16.254.15
+    HostName        172.16.254.115
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
@@ -128,6 +128,12 @@ Host gl-axt1800
     HostName        192.168.6.1
     User            root
     IdentityFile    ~/.ssh/id_ed25519
+
+# AWS
+Host s2s-vpn-lightsail
+    HostName        %h.akashisn.info
+    User            ubuntu
+    IdentityFile    ~/.ssh/gpg.pub
 
 # TUT
 Host tut
