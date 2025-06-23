@@ -92,6 +92,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		gzip
 		pass
 		stow
+		unzip
 		wget
 		zsh
 	)
@@ -108,6 +109,7 @@ fi
 command_exists "curl" || exit 1;
 command_exists "git" || exit 1;
 command_exists "gpg" || exit 1;
+command_exists "unzip" || exit 1;
 command_exists "stow" || exit 1;
 
 
@@ -136,6 +138,7 @@ fi
 # Initial setting of anyenv.
 export PATH="$ANYENV_ROOT/bin:$PATH"
 eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
+
 
 #
 # Golang
@@ -318,17 +321,15 @@ fi
 #
 
 if [[ ! $(gpg --list-keys nishi) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Import %F{33}gpg key%F{220}%f"
 	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/nishi.gpg
 	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "nishi" trust
 fi
-if [[ ! $(gpg --list-keys isec) ]]; then
-	gpg --import $GOPATH/src/github.com/AkashiSN/dotfiles/gpg/isec.gpg
-	echo -e "5\ny\n" | gpg --command-fd 0 --edit-key "isec" trust
-fi
 
 if [[ ! -f $(gpgconf --list-dir homedir)/gpg-agent.conf ]]; then
-  if [[ "$(uname -r)" == *microsoft* ]]; then
-	cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
+	print -P "%F{33}▓▒░ %F{220}Setting to %F{33}gpg-agent.conf%F{220}%f"
+	if [[ "$(uname -r)" == *microsoft* ]]; then
+		cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
 pinentry-program  /usr/bin/pinentry-curses
 EOF
 	fi
@@ -338,16 +339,6 @@ enable-ssh-support
 default-cache-ttl-ssh    7200
 max-cache-ttl-ssh       28800
 EOF
-fi
-
-
-#
-# vault setup
-#
-
-export PASSWORD_STORE_DIR=$HOME/.password-store
-if [[ ! -d $PASSWORD_STORE_DIR ]]; then
-	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR
 fi
 
 
@@ -369,10 +360,10 @@ fi
 if ! $zsh ; then
 	/bin/echo -n "Do you want to change default shell to zsh? [y/N]: ";
 	if read -q; then;
-		print -P "%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
+		print -P "\n%F{33}▓▒░ %F{34}Change login shell to zsh%f%b"
 		export user=$(whoami) && \
 		sudo usermod -s $(which zsh) $user && \
-		print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec \$SHELL -l) .%f%b" || \
+		print -P "%F{33}▓▒░ %F{34}All complete, Restart your shell (exec zsh -l) .%f%b" || \
 		print -P "%F{160}▓▒░ Changeing login shell has failed.%f%b"
 	fi
 fi

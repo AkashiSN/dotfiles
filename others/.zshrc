@@ -87,7 +87,6 @@ export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
 export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
 export PATH=$LOCAL_PREFIX/bin:$PATH
 export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
-export PASSWORD_STORE_DIR=$HOME/.password-store
 
 mkdir -p ${LOCAL_PREFIX}/{share,lib,include,bin,share/zsh/site-functions}
 
@@ -101,6 +100,13 @@ if [ -d /etc/profile.d ]; then
     [ -r $i ] && source $i
   done
 fi
+
+
+# -------------------------------------
+# Load other scripts
+# -------------------------------------
+
+source /etc/zsh_command_not_found
 
 
 # -------------------------------------
@@ -346,14 +352,6 @@ EOF
 }
 compdef _ssh gssh=ssh
 
-function qr () {
-  qrencode -t ansiutf8 -r $@
-}
-
-function serial () {
-  screen /dev/tty.usbserial-DN05LT6T 115200
-}
-
 function convert-crlf-to-lf () {
   find . -type f | xargs file | grep CRLF \
     | awk -F: '{print $1}' | xargs nkf -Lu --overwrite
@@ -563,6 +561,16 @@ export PATH=$GOPATH/bin:$PATH
 # -------------------------------------
 
 export EDITOR=vim
+
+
+# -------------------------------------
+# Vault setting
+# -------------------------------------
+export PASSWORD_STORE_DIR=$HOME/.password-store
+if [[ ! -d $PASSWORD_STORE_DIR ]]; then
+	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
+fi
 
 
 # -------------------------------------
