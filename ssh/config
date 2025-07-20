@@ -13,18 +13,14 @@ Host gw-suita
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-Host rtx830
+Host ix2215-suita
     HostName        172.16.0.1
     User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host openwrt-raspi4-suita
-    HostName        172.16.0.3
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
+    HostKeyAlgorithms ssh-rsa
+    PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host er-x-suita
-    HostName        172.16.0.4
+    HostName        172.16.0.2
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
@@ -42,14 +38,8 @@ Host gw-tokyo
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
-Host ix2215-lan
+Host ix2215-tokyo
     HostName        172.16.100.1
-    User            nishi
-    HostKeyAlgorithms ssh-rsa
-    PubkeyAcceptedAlgorithms +ssh-rsa
-
-Host ix2215-server
-    HostName        172.16.254.1
     User            nishi
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
