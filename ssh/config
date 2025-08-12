@@ -54,61 +54,14 @@ Host pve-n100
     User            root
     IdentityFile    ~/.ssh/gpg.pub
 
-Host pve
-    HostName        172.16.254.4
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host pve01
-    HostName        172.16.254.5
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host pve-i7
-    HostName        172.16.254.6
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
 # Proxmox
 Host vpn-pve
     HostName        172.16.254.100
     User            nishi
     IdentityFile    ~/.ssh/gpg.pub
 
-Host openwrt-pve
-    HostName        172.16.254.10
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
 Host k3s
     HostName        172.16.254.115
-    User            nishi
-    ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v132-control-plane
-    HostName        172.16.254.135
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v132-worker-node-01
-    HostName        172.16.254.136
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k8s-v132-worker-node-02
-    HostName        172.16.254.137
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host mac-pve
-    HostName        172.16.100.20
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-# Hyper-V
-Host k3s-hyperv
-    HostName        172.16.254.40
     User            nishi
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
@@ -126,7 +79,8 @@ Host s2s-vpn-lightsail
     IdentityFile    ~/.ssh/gpg.pub
 
 Host k3s-lightsail
-    HostName        %h.akashisn.info
+    HostName        k3s-lightsail.akashisn.info
+    ProxyCommand    cloudflared access ssh --hostname %h
     User            ubuntu
     IdentityFile    ~/.ssh/gpg.pub
 
