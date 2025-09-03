@@ -63,14 +63,14 @@ is_shutting_down_al2023() {
 }
 
 is_ssh_connected() {
-  who | while read line; do
-    src_ip=$(echo "$line" | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)')
-    if [[ -n "$src_ip" && "$src_ip" != "(127.0.0.1)" ]]; then
-      return 0
-    fi
-  done
+    who | while read line; do
+        src_ip=$(echo "$line" | grep -oE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\)')
+        if [[ -n "$src_ip" && "$src_ip" != "(127.0.0.1)" ]]; then
+        return 0
+        fi
+    done
 
-  return 1
+    return 1
 }
 
 is_ssm_connected() {
