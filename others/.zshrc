@@ -65,6 +65,7 @@ setopt HIST_EXPAND # 補完時にヒストリを自動的に展開する
 setopt NO_PROMPTCR # 改行コードで終らない出力もちゃんと出力する
 setopt INTERACTIVE_COMMENTS # コマンドラインでも # 以降をコメントと見なす
 setopt COMPLETE_IN_WORD # 語の途中でもカーソル位置で補完
+setopt NULL_GLOB # ワイルドカードをゼロ個の文字列として展開
 
 HISTFILE=$HOME/.zsh_history  # ヒストリーファイルの設定
 HISTSIZE=1000000 # ヒストリーサイズ設定
@@ -115,26 +116,30 @@ fi
 # Zinit setting
 # -------------------------------------
 
-if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
-  print -P "%F{33}▓▒░ %F{220}Installing %F{33}DHARMA%F{220} Initiative Plugin Manager (%F{33}zdharma/zinit%F{220})…%f"
-  command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
-  command git clone https://github.com/zdharma-continuum/zinit "$HOME/.zinit/bin" && \
-    print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-    print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
+ZINIT_HOME="${HOME}/.local/share/zinit/zinit.git"
+[ ! -d $ZINIT_HOME ] && mkdir -p "$(dirname $ZINIT_HOME)"
+[ ! -d $ZINIT_HOME/.git ] && git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+source "${ZINIT_HOME}/zinit.zsh"
 
-source "$HOME/.zinit/bin/zinit.zsh"
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 
-zinit load momo-lab/zsh-abbrev-alias
-zinit ice wait'!0'; zinit load zsh-users/zsh-syntax-highlighting
+# Load powerlevel10k theme
+zinit ice depth"1"
+zinit light romkatv/powerlevel10k
 
-zinit ice compile'(pure|async).zsh' pick'async.zsh' src'pure.zsh'
-zinit light sindresorhus/pure
 
-zinit ice blockf
-zinit ice wait'!0'; zinit light zsh-users/zsh-completions
+#-------------------------------------
+# Powerlevel10k
+#-------------------------------------
+
+if [[ -r "$HOME/.cache/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "$HOME/.cache/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 
 #-------------------------------------
