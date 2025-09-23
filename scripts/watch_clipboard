@@ -1,0 +1,26 @@
+#!/bin/bash
+
+OUTPUT_FILE="urls.txt"
+INTERVAL=1  # クリップボードをチェックする間隔（秒）
+
+echo "URL監視を開始しました。URLがクリップボードにコピーされると $OUTPUT_FILE に書き出されます。"
+
+LAST_CONTENT=""
+
+while true; do
+  # クリップボードの内容を取得
+  CLIP_CONTENT=$(pbpaste)
+
+  # URLの正規表現パターン
+  if [[ "$CLIP_CONTENT" =~ ^https?://[^\ ]+$ ]]; then
+    # 前回と同じ内容ならスキップ
+    if [[ "$CLIP_CONTENT" != "$LAST_CONTENT" ]]; then
+      echo "$CLIP_CONTENT" >> "$OUTPUT_FILE"
+      echo "URLを保存しました: $CLIP_CONTENT"
+      LAST_CONTENT="$CLIP_CONTENT"
+    fi
+  fi
+
+  # 次のチェックまで待機
+  sleep $INTERVAL
+done
