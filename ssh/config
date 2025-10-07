@@ -34,7 +34,7 @@ Host truenas-suita
 Host gw-tokyo
     HostName        gw-tokyo.akashisn.info
     ProxyCommand    cloudflared access ssh --hostname %h
-    User            root
+    User            admin
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
 
@@ -49,23 +49,6 @@ Host truenas
     User            admin
     IdentityFile    ~/.ssh/gpg.pub
 
-Host pve-n100
-    HostName        172.16.254.3
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
-# Proxmox
-Host vpn-pve
-    HostName        172.16.254.100
-    User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host k3s
-    HostName        172.16.254.115
-    User            nishi
-    ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-
 # Travel
 Host gl-axt1800
     HostName        192.168.6.1
@@ -73,47 +56,11 @@ Host gl-axt1800
     IdentityFile    ~/.ssh/id_ed25519
 
 # AWS
-Host s2s-vpn-lightsail
-    HostName        %h.akashisn.info
-    User            ubuntu
-    IdentityFile    ~/.ssh/gpg.pub
-
 Host k3s-lightsail
     HostName        k3s-lightsail.akashisn.info
     ProxyCommand    cloudflared access ssh --hostname %h
     User            ubuntu
     IdentityFile    ~/.ssh/gpg.pub
-
-# TUT
-Host tut
-    HostName        xdev.edu.tut.ac.jp
-    User            s203359
-    IdentityFile    ~/.ssh/gpg.pub
-
-# Isec lab
-Host isec-er-lite3
-    HostName        172.16.50.1
-    User            isec
-    IdentityFile    ~/.ssh/isec-gpg.pub
-
-Host isec-pve
-    HostName        172.16.50.2
-    User            root
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host isec-truenas
-    HostName        172.16.50.50
-    User            admin
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host isec-k3s
-    HostName        172.16.50.15
-    User            isec
-    IdentityFile    ~/.ssh/gpg.pub
-
-Host isec-github
-    HostName        github.com
-    IdentityFile    ~/.ssh/isec-gpg.pub
 
 # Service
 Host gitlab.com
