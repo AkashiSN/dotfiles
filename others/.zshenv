@@ -36,19 +36,32 @@ path=(
   ${HOMEBREW_PATH}/opt/coreutils/libexec/gnubin(N-/) # coreutils
   ${HOMEBREW_PATH}/opt/ed/libexec/gnubin(N-/) # ed
   ${HOMEBREW_PATH}/opt/findutils/libexec/gnubin(N-/) # findutils
+  ${HOMEBREW_PATH}/opt/gawk/libexec/gnubin(N-/) # gawk
   ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnubin(N-/) # sed
   ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnubin(N-/) # tar
   ${HOMEBREW_PATH}/opt/grep/libexec/gnubin(N-/) # grep
-  ${HOMEBREW_PATH}/opt/node@20/bin(N-/) # node@20
+  ${HOMEBREW_PATH}/opt/unzip/bin(N-/) # unzip
+  ${HOMEBREW_PATH}/opt/curl/bin(N-/) # curl
   ${path}
 )
 manpath=(
   ${HOMEBREW_PATH}/opt/coreutils/libexec/gnuman(N-/) # coreutils
   ${HOMEBREW_PATH}/opt/ed/libexec/gnuman(N-/) # ed
   ${HOMEBREW_PATH}/opt/findutils/libexec/gnuman(N-/) # findutils
+  ${HOMEBREW_PATH}/opt/gawk/libexec/gnuman(N-/) # gawk
   ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnuman(N-/) # sed
   ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnuman(N-/) # tar
   ${HOMEBREW_PATH}/opt/grep/libexec/gnuman(N-/) # grep
-  ${HOMEBREW_PATH}/opt/node@20/share/man(N-/) # node@20
+  ${HOMEBREW_PATH}/opt/unzip/share/man(N-/) # unzip
+  ${HOMEBREW_PATH}/opt/curl/share/man(N-/) # curl
+  ${manpath}
+)
+
+path=(
+  /usr/local/MacGPG2/bin(N-/) # MacGPG
+  ${path}
+)
+manpath=(
+  /usr/local/MacGPG2/share/man(N-/) # MacGPG
   ${manpath}
 )

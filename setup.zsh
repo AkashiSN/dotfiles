@@ -29,6 +29,7 @@ mkdir -p $PREFIX/lib
 export PATH=$PREFIX/bin:${HOMEBREW_PATH:-}/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
 export TERM=xterm-256color
+typeset -U PATH path
 
 autoload -Uz colors && colors
 autoload -Uz compinit && compinit
@@ -104,6 +105,20 @@ if [[ "$(uname)" == "Darwin" ]]; then
 			brew install ${formula}
 		fi
 	done
+
+	path=(
+		${HOMEBREW_PATH}/opt/coreutils/libexec/gnubin(N-/) # coreutils
+		${HOMEBREW_PATH}/opt/ed/libexec/gnubin(N-/) # ed
+		${HOMEBREW_PATH}/opt/findutils/libexec/gnubin(N-/) # findutils
+		${HOMEBREW_PATH}/opt/gawk/libexec/gnubin(N-/) # gawk
+		${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnubin(N-/) # sed
+		${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnubin(N-/) # tar
+		${HOMEBREW_PATH}/opt/grep/libexec/gnubin(N-/) # grep
+		${HOMEBREW_PATH}/opt/unzip/bin(N-/) # unzip
+		${HOMEBREW_PATH}/opt/curl/bin(N-/) # curl
+		/usr/local/MacGPG2/bin(N-/) # MacGPG
+		${path}
+	)
 fi
 
 command_exists "curl" || exit 1;
@@ -307,6 +322,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		chmod 755 ${HOMEBREW_PATH}/share/zsh/site-functions && \
 		defaults write com.apple.desktopservices DSDontWriteNetworkStores True && \
 		killall Finder
+
+	command stow --override='settings.json' -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t "$HOME/Library/Application Support/Code/User" vscode
 fi
 
 if ! [ "${SSH_CONNECTION:-}" ]; then
@@ -331,6 +348,10 @@ if [[ ! -f $(gpgconf --list-dir homedir)/gpg-agent.conf ]]; then
 	if [[ "$(uname -r)" == *microsoft* ]]; then
 		cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
 pinentry-program  /usr/bin/pinentry-curses
+EOF
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		cat <<EOF > $(gpgconf --list-dir homedir)/gpg-agent.conf
+pinentry-program  /usr/local/MacGPG2/libexec/pinentry-mac.app/Contents/MacOS/pinentry-mac
 EOF
 	fi
 	cat <<EOF >> $(gpgconf --list-dir homedir)/gpg-agent.conf

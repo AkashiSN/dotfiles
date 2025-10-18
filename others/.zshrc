@@ -571,16 +571,6 @@ export EDITOR=vim
 
 
 # -------------------------------------
-# Vault setting
-# -------------------------------------
-export PASSWORD_STORE_DIR=$HOME/.password-store
-if [[ ! -d $PASSWORD_STORE_DIR ]]; then
-	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
-
-
-# -------------------------------------
 #  WSL 用の調整
 # -------------------------------------
 
@@ -644,6 +634,16 @@ if ! [ "$SSH_CONNECTION" ]; then
   else
     echo "gpg-agent is not exists"
   fi
+fi
+
+
+# -------------------------------------
+# Vault setting
+# -------------------------------------
+export PASSWORD_STORE_DIR=$HOME/.password-store
+if [[ ! -d $PASSWORD_STORE_DIR ]]; then
+	git clone git@github.com:AkashiSN/vault.git $PASSWORD_STORE_DIR || \
+		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
 
