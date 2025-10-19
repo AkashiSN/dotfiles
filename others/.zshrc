@@ -167,7 +167,7 @@ eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init -
 # Add GOPATH
 export GOENV_DISABLE_GOPATH=1
 export GOPATH=$HOME/Project
-export GHQ_ROOT=$GOPATH
+export GHQ_ROOT=$GOPATH/src
 
 # Setting for peco
 function peco-src () {
