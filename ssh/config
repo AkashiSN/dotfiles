@@ -25,7 +25,7 @@ Host er-x-suita
     IdentityFile    ~/.ssh/gpg.pub
 
 Host truenas-suita
-    HostName        172.16.10.10
+    HostName        172.16.0.3
     User            admin
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
@@ -45,7 +45,7 @@ Host ix2215-tokyo
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host truenas
-    HostName        172.16.254.2
+    HostName        172.16.100.10
     User            admin
     IdentityFile    ~/.ssh/gpg.pub
 
@@ -55,9 +55,10 @@ Host gl-axt1800
     User            root
     IdentityFile    ~/.ssh/id_ed25519
 
-# AWS
-Host k3s-lightsail
-    HostName        k3s-lightsail.akashisn.info
+
+# OCI
+Host k3s-oci.akashisn.info
+    HostName        k3s-oci.akashisn.info
     ProxyCommand    cloudflared access ssh --hostname %h
     User            ubuntu
     IdentityFile    ~/.ssh/gpg.pub
@@ -76,8 +77,8 @@ Host gist.github.com
     IdentityFile    ~/.ssh/gpg.pub
 
 # Match
-Match host 172.16.0.*,172.16.10.* !Exec "ping -c1 -t1 172.16.0.1"
+Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"
     ProxyJump gw-suita
 
-Match host 172.16.100.*,172.16.254.* !Exec "ping -c1 -t1 172.16.100.1"
+Match host 172.16.100.* !Exec "ping -c1 -t1 172.16.100.1"
     ProxyJump gw-tokyo
