@@ -287,6 +287,22 @@ fi
 export PATH=$HOME/.rd/bin:$PATH
 
 
+#-------------------------------------
+# NodeJS (Yarn)
+#-------------------------------------
+
+export PATH=$HOME/.yarn/bin:$PATH
+
+
+#-------------------------------------
+# Claude Code
+#-------------------------------------
+
+export CLAUDE_CODE_USE_BEDROCK=1
+export ANTHROPIC_MODEL='us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+export ANTHROPIC_SMALL_FAST_MODEL='us.anthropic.claude-haiku-4-5-20251001-v1:0'
+
+
 # -------------------------------------
 # Functions setting
 # -------------------------------------
