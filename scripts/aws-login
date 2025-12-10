@@ -1,0 +1,35 @@
+#!/bin/bash
+# AWS SSOログイン用スクリプト
+#
+# credential_processとして使用され、aws-mfaスクリプトから呼び出される
+# 各プロファイルごとに独立したSSOセッションを管理する
+#
+# 使用方法:
+#   aws-login <profile_name>
+#   - profile_name: ベースプロファイル名（自動的に"-signin"サフィックスが付与されます）
+#
+# 動作:
+#   1. 既存のSSOセッションがあればそれを使用
+#   2. セッションがない/期限切れの場合はブラウザでSSOログインを実行
+#   3. 認証情報をエクスポートして検証
+#
+# 注意:
+#   - プロファイルごとに異なるSSOキャッシュを持つため、
+#     ユーザー権限とAssume Role権限を別々に管理できる
+
+set -e
+
+# プロファイル名に"-signin"サフィックスを付与
+# 例: "my-profile" → "my-profile-signin"
+export AWS_PROFILE="$1-signin"
+
+# EC2インスタンスのメタデータサービスを無効化
+# ローカル環境でEC2の認証情報が誤って使用されるのを防ぐ
+export AWS_EC2_METADATA_DISABLED=true
+
+# AWSリージョンを東京に設定
+aws configure set region ap-northeast-1
+
+# 認証情報の取得と検証
+# まず既存のSSOセッションのエクスポートを試行し、失敗した場合はブラウザでSSOログインを実行
+aws configure export-credentials 2>/dev/null || (aws login >/dev/null 2>&1 && aws configure export-credentials)

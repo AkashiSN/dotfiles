@@ -1,39 +1,153 @@
 #!/bin/bash
+# AWS認証およびプロファイル切り替えスクリプト
+#
+# 2つの認証方式をサポート:
+#   1. 新認証方式: aws-login (credential_process) によるSSO認証
+#   2. レガシー認証方式: アクセスキー + MFA によるSTS認証
+#
+# 使用方法:
+#   aws-mfa [profile_name] [assume_role_arn]
+#   - profile_name: 使用するAWSプロファイル名（省略時はpecoで選択）
+#   - assume_role_arn: ロールを引き受ける場合のARN（省略時はユーザー権限のみ）
+#
+# 動作:
+#   - credential_processが設定されている場合: 新認証方式で実行
+#   - それ以外の場合: レガシー認証方式で実行
+
 set -e
 
 USER_DIR=${USER_DIR:-~}
 
+# 既存の環境変数をクリア
 unset AWS_PROFILE
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
 
+# プロファイル名の取得
 if [[ -z $1 ]]; then
-    AWS_PROFILE=$(aws configure list-profiles | peco --select-1 --query "$LBUFFER")
+    # 引数なしの場合、pecoでプロファイルを選択（mfa/admin/signinを除外）
+    AWS_PROFILE=$(aws configure list-profiles | grep -v -E "mfa|admin|signin" | peco --select-1 --query "$LBUFFER")
 else
+    # 引数でプロファイル名が指定された場合
     AWS_PROFILE=$1
-fi
-
-if [[ $AWS_PROFILE == *"-mfa" || $AWS_PROFILE == *"-admin" ]]; then
-    echo "Do not select '*-mfa' or '*-admin' profile."
-    exit 1
 fi
 
 export AWS_PROFILE
 echo "Current profile is \"${AWS_PROFILE}\"."
+# .envファイルから既存のAWS関連設定を削除
 sed -i '/AWS/d' ${USER_DIR}/.env
 
+
+# ========================================
+# 新しい認証方式（aws-login使用）
+# ========================================
+# credential_processが設定されている場合、aws-loginによるSSO認証を使用
+# レガシー方式（アクセスキー + MFA）は実行しない
+CREDENTIAL_PROCESS=$(aws configure get credential_process 2>/dev/null || echo "")
+if [[ -n $CREDENTIAL_PROCESS ]]; then
+    echo "Using aws-login authentication method. Skipping MFA token retrieval."
+
+    # 第2引数でロールARNが指定されているかをチェック
+    if [[ -n $2 ]]; then
+        # ========================================
+        # Assume Roleモード
+        # ========================================
+        # ユーザー権限とAssume Role権限のSSOキャッシュを分離するため、
+        # -admin付きプロファイルを使用
+        ASSUME_ROLE_ARN=$2
+        AWS_PROFILE_ADMIN="${AWS_PROFILE}-admin"
+
+        echo ""
+        echo "========================================="
+        echo "Assume Role Mode"
+        echo "========================================="
+        echo "Role ARN: ${ASSUME_ROLE_ARN}"
+        echo ""
+        echo "IMPORTANT: You must select the role above when authenticating in the browser."
+        echo "You need to log in as this role, not as a user."
+        echo "========================================="
+        echo ""
+
+        # -admin付きプロファイルの自動作成
+        # 初回実行時のみ、元のプロファイルと同じ設定で-admin付きプロファイルを作成
+        # これにより、ユーザー権限とAssume Role権限のSSOセッションが別々に管理される
+        ADMIN_CREDENTIAL_PROCESS=$(aws configure get credential_process --profile ${AWS_PROFILE_ADMIN} 2>/dev/null || echo "")
+        if [[ -z $ADMIN_CREDENTIAL_PROCESS ]]; then
+            echo "Creating profile ${AWS_PROFILE_ADMIN}..."
+
+            # 元のプロファイルから設定を読み取る
+            REGION=$(aws configure get region --profile ${AWS_PROFILE} 2>/dev/null || echo "ap-northeast-1")
+
+            # -admin付きプロファイルに設定を書き込む
+            # credential_processには-admin付きプロファイル名を渡すaws-loginコマンドを設定
+            aws configure set region "${REGION}" --profile ${AWS_PROFILE_ADMIN}
+            aws configure set credential_process "aws-login ${AWS_PROFILE_ADMIN}" --profile ${AWS_PROFILE_ADMIN}
+
+            echo "Profile ${AWS_PROFILE_ADMIN} created successfully."
+        fi
+
+        # aws-loginコマンドを-admin付きプロファイルで実行
+        # これにより、元のプロファイルとは別のSSOセッションが作成される
+        echo "Executing aws-login command for authentication..."
+        if aws-login ${AWS_PROFILE_ADMIN} >/dev/null 2>&1; then
+            echo "Authentication successful."
+        else
+            echo "Authentication failed."
+            exit 1
+        fi
+
+        # .envには-admin付きプロファイル名を書き込む
+        # 以降のAWS CLIコマンドはこのプロファイルを使用してAssume Role権限で実行される
+        echo "export AWS_PROFILE=${AWS_PROFILE_ADMIN}" >> ${USER_DIR}/.env
+        echo "Successful profile switch to ${AWS_PROFILE_ADMIN}."
+        exit 0
+    else
+        # ========================================
+        # ユーザー権限モード
+        # ========================================
+        echo "Logging in with user permissions."
+
+        # aws-loginコマンドを実行して認証を実施
+        echo "Executing aws-login command for authentication..."
+        if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
+            echo "Authentication successful."
+        else
+            echo "Authentication failed."
+            exit 1
+        fi
+
+        # ユーザー権限モードでは元のプロファイル名を使用
+        # Assume Roleせず、ユーザー自身の権限で実行される
+        echo "export AWS_PROFILE=${AWS_PROFILE}" >> ${USER_DIR}/.env
+        echo "Successful profile switch to ${AWS_PROFILE}."
+        exit 0
+    fi
+fi
+
+
+# ========================================
+# レガシー認証方式（アクセスキー + MFA使用）
+# ========================================
+# アクセスキーとMFAデバイスを使用してSTSトークンを取得
+# 取得したトークンは-admin/-mfaサフィックス付きプロファイルに保存される
+
+# 第2引数でロールARNが指定されているかどうかで動作を分岐
 if [[ -n $2 ]]; then
+    # Assume Roleモード（-adminプロファイルを使用）
     ASSUME_ROLE_ARN=$2
     AWS_PROFILE_NEW="${AWS_PROFILE}-admin"
     EXPIRATION_TIME="$(date --date $(aws --profile $AWS_PROFILE_NEW configure get aws_session_expiration) +%s 2> /dev/null || echo 0 )"
     echo "Assuming role to \"${ASSUME_ROLE_ARN}\" mode."
 else
+    # MFAセッショントークン取得モード（-mfaプロファイルを使用）
     AWS_PROFILE_NEW="${AWS_PROFILE}-mfa"
     EXPIRATION_TIME="$(date --date $(aws --profile $AWS_PROFILE_NEW configure get aws_session_expiration) +%s 2> /dev/null || echo 0 )"
-    echo "Get session token with mfa mode."
+    echo "Get session token with MFA mode."
 fi
 
+# 既存のセッショントークンの有効期限をチェック
+# 有効期限内であれば、新しいトークンを取得せず既存のトークンを使用
 CURRENT_TIME="$(date +%s)"
 if [ $CURRENT_TIME -lt $EXPIRATION_TIME ]; then # -lt : '<'
     echo "Existing session token is not expired, so use it."
@@ -42,35 +156,53 @@ if [ $CURRENT_TIME -lt $EXPIRATION_TIME ]; then # -lt : '<'
     exit 0
 fi
 
+# ========================================
+# MFA認証とSTSトークン取得
+# ========================================
+
+# アクセスキーIDの取得
 AccessKeyId=$(aws configure get aws_access_key_id)
 
+# アクセスキーからユーザー名を取得
+# 成功時はJSON形式、失敗時はエラーメッセージ形式で返ってくる
 output=$(aws iam get-access-key-last-used --access-key-id  ${AccessKeyId} 2>&1 || true)
 if echo "$output" | grep -q '"UserName"'; then
+    # JSON形式のレスポンスからユーザー名を取得
     UserName=$(echo "$output" | jq -r '.UserName')
 else
+    # エラーメッセージのARNからユーザー名を抽出
     UserName=$(echo "$output" | sed -n 's/.*arn:aws:iam::[0-9]\+:user\/\([^ ]*\).*/\1/p')
 fi
 
-echo "Fetching MFA device serial number for the user \"${UserName}\"..."
+# MFAデバイスのシリアル番号を取得
+# 複数のMFAデバイスがある場合はpecoで選択
+echo "Fetching MFA device serial number for user \"${UserName}\"..."
 SerialNumber=$(aws iam list-mfa-devices --user-name ${UserName} | jq -r '.MFADevices[].SerialNumber' | peco --select-1 --query "$LBUFFER")
 
+# MFAコードの入力
 echo "MFA Serial Number: ${SerialNumber}"
 read -p 'Enter MFA Code: ' code
 
+# STSトークンの取得（ロール引き受けまたはセッショントークン）
 if [[ -n $ASSUME_ROLE_ARN ]]; then
+    # Assume Roleでロール権限を取得（12時間有効）
     Credentials=$(aws sts assume-role --role-arn ${ASSUME_ROLE_ARN} --role-session-name switch-admin --serial-number ${SerialNumber} --token-code ${code} --duration-seconds $((60*60*12)))
     AWS_PROFILE="${AWS_PROFILE}-admin"
 else
+    # MFAセッショントークンを取得（12時間有効）
     Credentials=$(aws sts get-session-token --serial-number ${SerialNumber} --token-code ${code} --duration-seconds $((60*60*12)))
     AWS_PROFILE="${AWS_PROFILE}-mfa"
 fi
 
+# 取得した認証情報（一時クレデンシャル）をAWS CLIの設定に保存
+# 保存先は-admin/-mfaサフィックス付きプロファイル
 aws configure set region ap-northeast-1
 aws configure set aws_access_key_id "$(echo ${Credentials} | jq -r '.Credentials.AccessKeyId')"
 aws configure set aws_secret_access_key "$(echo ${Credentials} | jq -r '.Credentials.SecretAccessKey')"
 aws configure set aws_session_token "$(echo ${Credentials} | jq -r '.Credentials.SessionToken')"
 aws configure set aws_session_expiration "$(echo ${Credentials} | jq -r '.Credentials.Expiration')"
 
+# .envファイルにプロファイル設定を追加
 echo "export AWS_PROFILE=${AWS_PROFILE}" >> ${USER_DIR}/.env
 
-echo "Successful get session token."
+echo "Successfully obtained session token."
