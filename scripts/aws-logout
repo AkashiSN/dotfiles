@@ -1,0 +1,88 @@
+#!/bin/bash
+#
+# aws-logout - AWS SSOからログアウトするためのスクリプト
+#
+# 使用方法:
+#   aws-logout [profile-name]  : 特定のプロファイルからログアウト
+#   aws-logout --all           : すべてのプロファイルからログアウト
+#
+
+set -e
+
+# --all 引数をチェック
+# すべてのプロファイルからログアウトする場合
+if [ "$1" = "--all" ]; then
+    echo "Logging out from all profiles..."
+
+    # .envファイルから既存のAWS関連設定を削除
+    # AWS環境変数をクリーンアップ
+    sed -i '/AWS/d' ${USER_DIR}/.env
+
+    # AWS CLI: すべてのプロファイルからログアウト
+    aws logout --all
+
+    # .aws/configファイルのパスを取得（環境変数またはデフォルト）
+    CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
+
+    # .aws/configからすべてのlogin_session行を削除
+    if [ -f "$CONFIG_FILE" ]; then
+        # sedを使用してlogin_sessionで始まる行をすべて削除
+        sed -i '/^login_session/d' "$CONFIG_FILE"
+        echo "Removed all login_session entries from config"
+    fi
+
+    echo "Logout from all profiles completed"
+
+# 特定のプロファイルからログアウトする場合
+else
+    # 引数で指定されたプロファイル名、または環境変数AWS_PROFILEを使用
+    echo "Current profile is \"${1:-$AWS_PROFILE}\"."
+
+    # .envファイルから既存のAWS関連設定を削除
+    # AWS環境変数をクリーンアップ
+    sed -i '/AWS/d' ${USER_DIR}/.env
+
+    # プロファイル名に"-signin"サフィックスを付与
+    # AWS CLI v2のログアウトではサインインプロファイルを使用する必要がある
+    # 例: "my-profile" → "my-profile-signin"
+    export AWS_PROFILE="${1:-$AWS_PROFILE}-signin"
+
+    # AWS CLI: 指定したプロファイルからログアウト
+    aws logout
+
+    # .aws/configファイルのパスを取得（環境変数またはデフォルト）
+    CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
+
+    # .aws/configから特定プロファイルのlogin_session行を削除
+    if [ -f "$CONFIG_FILE" ]; then
+        # awkを使用して以下の処理を実行:
+        # 1. [profile PROFILE_NAME]セクションを検出
+        # 2. そのセクション内のlogin_session行のみを削除
+        # 3. 他のセクションや設定は保持
+        awk -v profile="$AWS_PROFILE" '
+        /^\[profile / {
+            # プロファイルセクションの開始を検出
+            in_section = 0
+            if ($0 == "[profile " profile "]") {
+                # 対象プロファイルのセクションに入る
+                in_section = 1
+            }
+        }
+        /^\[/ && !/^\[profile / {
+            # 他のセクション（[profile 以外）に入ったら対象セクションを抜ける
+            in_section = 0
+        }
+        {
+            # 対象セクション内のlogin_session行はスキップ
+            if (in_section && /^login_session/) {
+                next
+            }
+            # それ以外の行は出力
+            print
+        }
+        ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+        echo "Removed login_session for profile '$AWS_PROFILE'"
+    fi
+
+    echo "Logout completed"
+fi

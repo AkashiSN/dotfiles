@@ -223,6 +223,21 @@ if ! [[ -x $(command -v tenv) ]]; then
 		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 fi
 
+# terragrunt
+if ! [[ -x $(command -v terragrunt) ]]; then
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/terragrunt.tar.gz https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_linux_amd64.tar.gz && \
+			tar xvf /tmp/terragrunt.tar.gz -C /tmp
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		command curl -L -o /tmp/terragrunt.tar.gz https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_darwin_${ARCH}.tar.gz && \
+			tar xvf /tmp/terragrunt.tar.gz -C /tmp
+	fi
+	command mv /tmp/terragrunt* $PREFIX/bin/terragrunt && \
+		chmod +x $PREFIX/bin/terragrunt && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+fi
+
 # Nodenv
 if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
 	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app's Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
@@ -243,6 +258,20 @@ if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
 		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
+
+# direnv
+if ! [[ -x $(command -v direnv) ]]; then
+	if [[ "$(uname)" == "Linux" ]]; then
+		command curl -L -o /tmp/direnv https://github.com/direnv/direnv/releases/latest/download/direnv.linux-amd64
+	elif [[ "$(uname)" == "Darwin" ]]; then
+		command curl -L -o /tmp/direnv https://github.com/direnv/direnv/releases/latest/download/direnv.darwin-${ARCh}
+	fi
+	command mv /tmp/direnv $PREFIX/bin/ && \
+		chmod +x $PREFIX/bin/terragrunt && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+fi
+
 
 # AtomicParsley
 if ! [[ -x $(command -v AtomicParsley) ]]; then

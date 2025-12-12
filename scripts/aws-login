@@ -1,7 +1,7 @@
 #!/bin/bash
 # AWS SSOログイン用スクリプト
 #
-# credential_processとして使用され、aws-mfaスクリプトから呼び出される
+# credential_processとして使用される
 # 各プロファイルごとに独立したSSOセッションを管理する
 #
 # 使用方法:
