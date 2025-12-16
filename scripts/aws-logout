@@ -9,6 +9,8 @@
 
 set -e
 
+USER_DIR=${USER_DIR:-~}
+
 # --all 引数をチェック
 # すべてのプロファイルからログアウトする場合
 if [ "$1" = "--all" ]; then
