@@ -24,6 +24,21 @@ unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
 
+# AWS設定ファイルの整合性チェック
+# -signinプロファイルの重複によるエラーを検出して修復
+if ! aws configure list-profiles >/dev/null 2>&1; then
+    error_output=$(aws configure list-profiles 2>&1)
+    if echo "$error_output" | grep -q "Unable to parse config file"; then
+        echo "Warning: AWS config file integrity issue detected."
+        echo "Attempting to fix by removing -signin profiles..."
+        aws-logout --all
+        echo "Fixed. Continuing with authentication..."
+    else
+        echo "Error: Failed to read AWS profiles."
+        exit 1
+    fi
+fi
+
 # プロファイル名の取得
 if [[ -z $1 ]]; then
     # 引数なしの場合、pecoでプロファイルを選択（mfa/admin/signinを除外）

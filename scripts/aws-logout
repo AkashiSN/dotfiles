@@ -19,16 +19,34 @@ if [ "$1" = "--all" ]; then
     sed -i '/AWS/d' ${USER_DIR}/.env
 
     # AWS CLI: すべてのプロファイルからログアウト
-    aws logout --all
+    aws logout --all || true
 
     # .aws/configファイルのパスを取得（環境変数またはデフォルト）
     CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 
-    # .aws/configからすべてのlogin_session行を削除
+    # .aws/configから-signinサフィックスを持つすべてのプロファイルセクションを削除
     if [ -f "$CONFIG_FILE" ]; then
-        # sedを使用してlogin_sessionで始まる行をすべて削除
-        sed -i '/^login_session/d' "$CONFIG_FILE"
-        echo "Removed all login_session entries from config"
+        # awkを使用して-signinで終わる[profile ...]セクションを削除
+        awk '
+        /^\[profile .*-signin\]/ {
+            # -signinで終わるprofileセクションの開始を検出
+            in_signin_profile = 1
+            next
+        }
+        /^\[/ {
+            # 他のセクションに入ったら-signinプロファイルセクションを抜ける
+            in_signin_profile = 0
+        }
+        {
+            # -signinプロファイルセクション内の行はスキップ
+            if (in_signin_profile) {
+                next
+            }
+            # それ以外の行は出力
+            print
+        }
+        ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+        echo "Removed all -signin profile sections from config"
     fi
 
     echo "Logout from all profiles completed"
@@ -48,40 +66,41 @@ else
     export AWS_PROFILE="${1:-$AWS_PROFILE}-signin"
 
     # AWS CLI: 指定したプロファイルからログアウト
-    aws logout
+    aws logout || true
 
     # .aws/configファイルのパスを取得（環境変数またはデフォルト）
     CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 
-    # .aws/configから特定プロファイルのlogin_session行を削除
+    # .aws/configから特定プロファイルのセクション全体を削除
     if [ -f "$CONFIG_FILE" ]; then
         # awkを使用して以下の処理を実行:
         # 1. [profile PROFILE_NAME]セクションを検出
-        # 2. そのセクション内のlogin_session行のみを削除
+        # 2. そのセクション全体を削除
         # 3. 他のセクションや設定は保持
         awk -v profile="$AWS_PROFILE" '
         /^\[profile / {
             # プロファイルセクションの開始を検出
-            in_section = 0
+            in_target_section = 0
             if ($0 == "[profile " profile "]") {
                 # 対象プロファイルのセクションに入る
-                in_section = 1
+                in_target_section = 1
+                next
             }
         }
-        /^\[/ && !/^\[profile / {
-            # 他のセクション（[profile 以外）に入ったら対象セクションを抜ける
-            in_section = 0
+        /^\[/ {
+            # 他のセクションに入ったら対象セクションを抜ける
+            in_target_section = 0
         }
         {
-            # 対象セクション内のlogin_session行はスキップ
-            if (in_section && /^login_session/) {
+            # 対象セクション内の行はすべてスキップ
+            if (in_target_section) {
                 next
             }
             # それ以外の行は出力
             print
         }
         ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-        echo "Removed login_session for profile '$AWS_PROFILE'"
+        echo "Removed profile section '$AWS_PROFILE'"
     fi
 
     echo "Logout completed"
