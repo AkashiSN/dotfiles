@@ -1,9 +1,10 @@
 Host *
     ServerAliveInterval 1200
     ServerAliveCountMax 12
-    IdentitiesOnly yes
-    TCPKeepAlive yes
-    Compression yes
+    TCPKeepAlive        yes
+    Compression         yes
+    IdentitiesOnly      yes
+    IdentityAgent       ~/.1password/agent.sock
 
 # Suita
 Host gw-suita
@@ -54,8 +55,7 @@ Host cloudsa
     HostName        i-0125c81b19f9acbac
     User            ec2-user
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
-    IdentityAgent   ~/.gnupg/S.gpg-agent.ssh
+    IdentityFile    ~/.ssh/1password.pub
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
 
 # OCI
