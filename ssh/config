@@ -51,6 +51,12 @@ Host truenas
     IdentityFile    ~/.ssh/1password.pub
 
 # AWS
+Host k3s-lightsail.akashisn.info
+    HostName        k3s-lightsail.akashisn.info
+    ProxyCommand    cloudflared access ssh --hostname %h
+    User            ubuntu
+    IdentityFile    ~/.ssh/1password.pub
+
 Host cloudsa
     HostName        i-0125c81b19f9acbac
     User            ec2-user
