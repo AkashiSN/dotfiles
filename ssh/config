@@ -11,7 +11,7 @@ Host gw-suita
     ProxyCommand    cloudflared access ssh --hostname %h
     User            admin
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 Host ix2215-suita
     HostName        172.16.0.1
@@ -22,13 +22,13 @@ Host ix2215-suita
 Host er-x-suita
     HostName        172.16.0.2
     User            nishi
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 Host truenas-suita
     HostName        172.16.0.3
     User            admin
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 # Tokyo
 Host gw-tokyo
@@ -36,7 +36,7 @@ Host gw-tokyo
     ProxyCommand    cloudflared access ssh --hostname %h
     User            admin
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 Host ix2215-tokyo
     HostName        172.16.100.1
@@ -47,13 +47,7 @@ Host ix2215-tokyo
 Host truenas
     HostName        172.16.100.10
     User            admin
-    IdentityFile    ~/.ssh/gpg.pub
-
-# Travel
-Host gl-axt1800
-    HostName        192.168.6.1
-    User            root
-    IdentityFile    ~/.ssh/id_ed25519
+    IdentityFile    ~/.ssh/1password.pub
 
 # AWS
 Host cloudsa
@@ -61,6 +55,7 @@ Host cloudsa
     User            ec2-user
     ForwardAgent    yes
     IdentityFile    ~/.ssh/gpg.pub
+    IdentityAgent   ~/.gnupg/S.gpg-agent.ssh
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
 
 # OCI
@@ -68,20 +63,20 @@ Host k3s-oci.akashisn.info
     HostName        k3s-oci.akashisn.info
     ProxyCommand    cloudflared access ssh --hostname %h
     User            ubuntu
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 # Service
 Host gitlab.com
     HostName        gitlab.com
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 Host github.com
     HostName        github.com
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 Host gist.github.com
     HostName        github.com
-    IdentityFile    ~/.ssh/gpg.pub
+    IdentityFile    ~/.ssh/1password.pub
 
 # Match
 Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"

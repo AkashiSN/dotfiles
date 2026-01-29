@@ -25,12 +25,20 @@
 [user]
 	name = AkashiSN
 	email = btorntireinvynriy@gmail.com
-	signingkey = 058A1155F0E6572C
+	# signingkey = 058A1155F0E6572C
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip
+
+[gpg]
+	format = ssh
+
+[gpg "ssh"]
+	program = "op-ssh-sign"
 
 [url "https://"]
 	insteadOf = git://
 
 [init]
 	defaultBranch = main
+
 [push]
 	followTags = true

@@ -30,6 +30,5 @@
         "editor.formatOnSave": true,
         "editor.formatOnSaveMode": "file"
     },
-    "claudeCode.useTerminal": true,
-    "claudeCode.preferredLocation": "panel"
+    "claudeCode.useTerminal": true
 }

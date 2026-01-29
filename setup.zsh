@@ -250,14 +250,8 @@ if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
 		print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
-# Pyenv
-export PYENV_ROOT=$ANYENV_ROOT/envs/pyenv
-if [[ ! -f $ANYENV_ROOT/envs/pyenv/bin/pyenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}pyenv%F{220} Simple Python Version Management: pyenv (%F{33}pyenv/pyenv%F{220})…%f"
-	command anyenv install pyenv && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
+# uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # direnv
 if ! [[ -x $(command -v direnv) ]]; then
@@ -353,6 +347,15 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		killall Finder
 
 	command stow --override='settings.json' -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t "$HOME/Library/Application Support/Code/User" vscode
+
+	if [ -S "${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" ]; then
+		command mkdir -p ~/.1password && \
+			ln -s "${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" "${HOME}/.1password/agent.sock"
+	fi
+
+	if [ -x "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" ]; then
+		command ln -s "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" "${PREFIX}/bin/op-ssh-sign"
+	fi
 fi
 
 if ! [ "${SSH_CONNECTION:-}" ]; then

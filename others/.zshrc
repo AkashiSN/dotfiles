@@ -183,26 +183,6 @@ bindkey '^]' peco-src
 
 
 #-------------------------------------
-# Miniconda
-#-------------------------------------
-
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/opt/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/opt/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "/opt/miniconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/opt/miniconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
-
-
-#-------------------------------------
 # google cloud sdk
 #-------------------------------------
 
@@ -246,37 +226,12 @@ fi
 
 
 #-------------------------------------
-# opam
-#-------------------------------------
-
-if command -v opam &> /dev/null ;then
-  eval $(opam env)
-fi
-
-
-#-------------------------------------
 # kubectl
 #-------------------------------------
-
-if command -v mk &> /dev/null ;then
-  source <(mk completion zsh | sed "s/kubectl/mk/g" | sed "s/__custom_func/__mk_custom_func/g")
-  alias microk8s.kubectl=mk
-fi
 
 if command -v kubectl > /dev/null 2>&1;then
   source <(kubectl completion zsh)
   alias k="kubectl"
-fi
-
-if [[ "$(uname)" == "Linux" ]]; then
-  alias docker="sudo docker"
-  alias docker-compose="sudo docker compose"
-  alias dc-down="sudo docker compose down -t 23"
-  if command -v kind &> /dev/null ;then
-    alias kind="sudo kind"
-    alias kubectl="sudo kubectl"
-    alias tkn="sudo tkn"
-  fi
 fi
 
 
@@ -292,15 +247,6 @@ export PATH=$HOME/.rd/bin:$PATH
 #-------------------------------------
 
 export PATH=$HOME/.yarn/bin:$PATH
-
-
-#-------------------------------------
-# Claude Code
-#-------------------------------------
-
-export CLAUDE_CODE_USE_BEDROCK=1
-export ANTHROPIC_MODEL='global.anthropic.claude-sonnet-4-5-20250929-v1:0'
-export ANTHROPIC_SMALL_FAST_MODEL='global.anthropic.claude-haiku-4-5-20251001-v1:0'
 
 
 # -------------------------------------
@@ -615,11 +561,13 @@ fi
 
 
 #--------------------------------------
-# gpg agent
+# ssh agent
 #--------------------------------------
 
 if ! [ "$SSH_CONNECTION" ]; then
-  if [ -n "`which gpg-agent 2> /dev/null`" ];then
+  if [ -S "${HOME}/.1password/agent.sock" ]; then
+    export SSH_AUTH_SOCK="${HOME}/.1password/agent.sock"
+  elif [ -n "`which gpg-agent 2> /dev/null`" ];then
     export GPG_TTY=$(tty)
     LANG=C gpg-connect-agent reloadagent /bye 2>&1 > /dev/null
     LANG=C gpg-connect-agent updatestartuptty /bye 2>&1 > /dev/null
@@ -631,14 +579,6 @@ if ! [ "$SSH_CONNECTION" ]; then
     if [ "$result" = "0" ]; then
       (
         output=$(ssh git@github.com 2>&1)
-        if [[ $output == *"successfully authenticated"* ]]; then
-          echo $output | sed -n -r -e "s/(Hi .* authenticated).*/\1./p"
-          exit 0
-        else
-          exit 1
-        fi
-      ) || (
-        output=$(ssh git@isec-github 2>&1)
         if [[ $output == *"successfully authenticated"* ]]; then
           echo $output | sed -n -r -e "s/(Hi .* authenticated).*/\1./p"
           exit 0
