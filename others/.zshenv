@@ -65,3 +65,12 @@ manpath=(
   /usr/local/MacGPG2/share/man(N-/) # MacGPG
   ${manpath}
 )
+
+path=(
+  /opt/ffmpeg/bin(N-/) # FFmpeg
+  ${path}
+)
+manpath=(
+  /opt/ffmpeg/share/man(N-/) # MacGPG
+  ${manpath}
+)
