@@ -339,50 +339,6 @@ function search () {
   done
 }
 
-function ytdlp () {
-  yt-dlp --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" \
-    --referer "https://www.youtube.com/" \
-    --extract-audio \
-    --format "ba[ext=webm]" \
-    --keep-video \
-    --audio-format alac \
-    --embed-thumbnail \
-    --output "~/Music/Youtube/%(uploader)s/%(epoch)s-%(title)s.%(ext)s" $@
-}
-
-function extract-opus-from-webm () {
-  # foobar2000 "Tagging" -> "Batch Attach Picture" -> `../Artwork/%filename%.png`
-  mkdir -p ../Opus
-  find -type f -name "*.webm" -print0 \
-  | xargs -0 -I {} sh -c 'ffmpeg -y -i "$1" -vn -c:a copy "../Opus/$(basename -s .webm "$1").opus"' _ {}
-}
-
-function extract-artwork-from-m4a () {
-  mkdir -p ../Artwork
-  find -type f -name "*.m4a" -exec AtomicParsley '{}' -E \;
-  find -type f -name "*_artwork_1*" -print0 \
-  | xargs -0 -I {} sh -c 'mv -v "$1" "../Artwork/$(echo "$1" | sed -e "s/\(.*\)\_artwork_1.\(.*\)/\1\.\2/")"' _ {}
-}
-
-function post-process-for-ytdlp () {
-  for dir in ~/Music/Youtube/* ;do
-    (
-      cd $dir
-      pwd
-      mkdir -p Original
-      mkdir -p AAC
-      mv *.webm Original/
-      mv *.m4a AAC/
-
-      cd Original
-      extract-opus-from-webm
-      cd ../AAC
-      extract-artwork-from-m4a
-      cd ..
-    )
-  done
-}
-
 
 # -------------------------------------
 # Download functions
