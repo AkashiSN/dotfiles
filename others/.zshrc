@@ -212,6 +212,7 @@ fi
 if command -v tenv &> /dev/null ;then
   source <(tenv completion zsh)
   export TENV_AUTO_INSTALL=true
+  export TENV_VALIDATION=sha
 fi
 
 
@@ -344,107 +345,200 @@ function search () {
 # Download functions
 # -------------------------------------
 
-function donload-direnv () {
-  local version=$1
+# Sets os_lower (linux|darwin), os_title (Linux|Darwin),
+# arch_go (amd64|arm64), arch_x86 (x86_64|arm64) in the caller's scope.
+function _download_platform () {
+  case "$(uname -s)" in
+    Linux)  os_lower=linux;  os_title=Linux  ;;
+    Darwin) os_lower=darwin; os_title=Darwin ;;
+    *) print -P "%F{red}Unsupported OS:%f $(uname -s)" >&2; return 1 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64)  arch_go=amd64; arch_x86=x86_64 ;;
+    arm64|aarch64) arch_go=arm64; arch_x86=arm64  ;;
+    *) print -P "%F{red}Unsupported arch:%f $(uname -m)" >&2; return 1 ;;
+  esac
+}
 
-  wget -O ${LOCAL_PREFIX}/bin/direnv \
-    https://github.com/direnv/direnv/releases/download/v${version}/direnv.linux-amd64
+function _download_header () {
+  print -P "%F{34}==>%f %F{cyan}$1%f %F{yellow}v$2%f %F{244}(${os_lower}/${arch_go})%f"
+}
+
+function _download_step () {
+  print -P "  %F{244}->%f $1"
+}
+
+function _download_done () {
+  print -P "%F{34}==>%f %F{green}Done:%f $1"
+}
+
+function download-direnv () {
+  local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "direnv" "${version}"
+
+  _download_step "Downloading binary"
+  wget -q --show-progress -O ${LOCAL_PREFIX}/bin/direnv \
+    https://github.com/direnv/direnv/releases/download/v${version}/direnv.${os_lower}-${arch_go} || return 1
 
   chmod +x ${LOCAL_PREFIX}/bin/direnv
+  _download_done "${LOCAL_PREFIX}/bin/direnv"
 }
 
 function download-ghq () {
   local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "ghq" "${version}"
 
-  wget -O /tmp/ghq_linux_amd64.zip \
-    https://github.com/x-motemen/ghq/releases/download/v${version}/ghq_linux_amd64.zip
+  local archive=/tmp/ghq_${os_lower}_${arch_go}.zip
+  local extracted=/tmp/ghq_${os_lower}_${arch_go}
 
-  unzip -d /tmp /tmp/ghq_linux_amd64.zip
-  cp -v /tmp/ghq_linux_amd64/ghq ${LOCAL_PREFIX}/bin/
-  cp -v /tmp/ghq_linux_amd64/misc/zsh/_ghq ${LOCAL_PREFIX}/share/zsh/site-functions/
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/x-motemen/ghq/releases/download/v${version}/ghq_${os_lower}_${arch_go}.zip || return 1
 
-  rm -rv /tmp/ghq_linux_amd64*
+  _download_step "Extracting"
+  unzip -oq -d /tmp ${archive}
+
+  _download_step "Installing binary and completion"
+  cp ${extracted}/ghq ${LOCAL_PREFIX}/bin/
+  cp ${extracted}/misc/zsh/_ghq ${LOCAL_PREFIX}/share/zsh/site-functions/
+
+  rm -r ${extracted} ${archive}
+  _download_done "${LOCAL_PREFIX}/bin/ghq"
 }
 
 function download-peco () {
   local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "peco" "${version}"
 
-  wget -O /tmp/peco_linux_amd64.tar.gz \
-    https://github.com/peco/peco/releases/download/v${version}/peco_linux_amd64.tar.gz
+  local archive=/tmp/peco_${os_lower}_${arch_go}.tar.gz
+  local extracted=/tmp/peco_${os_lower}_${arch_go}
 
-  tar -C /tmp -xvf /tmp/peco_linux_amd64.tar.gz
-  cp -v /tmp/peco_linux_amd64/peco ${LOCAL_PREFIX}/bin/
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/peco/peco/releases/download/v${version}/peco_${os_lower}_${arch_go}.tar.gz || return 1
 
-  rm -rv /tmp/peco_linux_amd64*
+  _download_step "Extracting"
+  tar -C /tmp -xf ${archive}
+
+  _download_step "Installing binary"
+  cp ${extracted}/peco ${LOCAL_PREFIX}/bin/
+
+  rm -r ${extracted} ${archive}
+  _download_done "${LOCAL_PREFIX}/bin/peco"
 }
 
 function download-tenv () {
   local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "tenv" "${version}"
 
-  wget -O /tmp/tenv_v${version}_Linux_x86_64.tar.gz \
-    https://github.com/tofuutils/tenv/releases/download/v${version}/tenv_v${version}_Linux_x86_64.tar.gz
+  local archive=/tmp/tenv_v${version}_${os_title}_${arch_x86}.tar.gz
 
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/tofuutils/tenv/releases/download/v${version}/tenv_v${version}_${os_title}_${arch_x86}.tar.gz || return 1
+
+  _download_step "Extracting to ${LOCAL_PREFIX}/share/tenv"
   mkdir -p ${LOCAL_PREFIX}/share/tenv
-  tar -C ${LOCAL_PREFIX}/share/tenv -xvf /tmp/tenv_v${version}_Linux_x86_64.tar.gz
-  ln -snvf ${LOCAL_PREFIX}/share/tenv/{tenv,terraform,tf} ${LOCAL_PREFIX}/bin
+  tar -C ${LOCAL_PREFIX}/share/tenv -xf ${archive}
 
-  rm -rv /tmp/tenv_v${version}_Linux_x86_64.tar.gz
+  _download_step "Linking tenv/terraform/tf into ${LOCAL_PREFIX}/bin"
+  ln -snf ${LOCAL_PREFIX}/share/tenv/{tenv,terraform,tf} ${LOCAL_PREFIX}/bin
+
+  rm ${archive}
+  _download_done "${LOCAL_PREFIX}/bin/{tenv,terraform,tf}"
 }
 
 function download-tflint () {
   local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "tflint" "${version}"
 
-  wget -O /tmp/tflint_linux_amd64.zip \
-    https://github.com/terraform-linters/tflint/releases/download/v${version}/tflint_linux_amd64.zip
+  local archive=/tmp/tflint_${os_lower}_${arch_go}.zip
 
-  unzip -d /tmp /tmp/tflint_linux_amd64.zip
-  cp -v /tmp/tflint ${LOCAL_PREFIX}/bin/
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/terraform-linters/tflint/releases/download/v${version}/tflint_${os_lower}_${arch_go}.zip || return 1
 
-  rm -rv /tmp/tflint*
+  _download_step "Extracting and installing"
+  unzip -oq -d /tmp ${archive}
+  cp /tmp/tflint ${LOCAL_PREFIX}/bin/
+
+  rm /tmp/tflint ${archive}
+  _download_done "${LOCAL_PREFIX}/bin/tflint"
 }
 
 function download-tflint-ruleset () {
   local ruleset=$1
   local version=$2
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "tflint-ruleset-${ruleset}" "${version}"
 
   local ruleset_path=$HOME/.tflint.d/plugins/github.com/terraform-linters/tflint-ruleset-${ruleset}/${version}
+  local archive=/tmp/tflint-ruleset-${ruleset}_${os_lower}_${arch_go}.zip
 
-  wget -O /tmp/tflint-ruleset-${ruleset}_linux_amd64.zip \
-    https://github.com/terraform-linters/tflint-ruleset-${ruleset}/releases/download/v${version}/tflint-ruleset-${ruleset}_linux_amd64.zip
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/terraform-linters/tflint-ruleset-${ruleset}/releases/download/v${version}/tflint-ruleset-${ruleset}_${os_lower}_${arch_go}.zip || return 1
 
+  _download_step "Installing to ${ruleset_path}"
   mkdir -p ${ruleset_path}
-  unzip -d ${ruleset_path} /tmp/tflint-ruleset-${ruleset}_v${version}_linux_amd64.zip
+  unzip -oq -d ${ruleset_path} ${archive}
 
-  rm -v /tmp/tflint-ruleset-${ruleset}_linux_amd64.zip
+  rm ${archive}
+  _download_done "${ruleset_path}"
 }
 
 function download-tfmigrate () {
   local version=$1
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "tfmigrate" "${version}"
 
-  wget -O /tmp/tfmigrate_${version}_linux_amd64.tar.gz \
-    https://github.com/minamijoyo/tfmigrate/releases/download/v${version}/tfmigrate_${version}_linux_amd64.tar.gz
+  local archive=/tmp/tfmigrate_${version}_${os_lower}_${arch_go}.tar.gz
 
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://github.com/minamijoyo/tfmigrate/releases/download/v${version}/tfmigrate_${version}_${os_lower}_${arch_go}.tar.gz || return 1
+
+  _download_step "Extracting and installing"
   mkdir -p /tmp/tfmigrate
-  tar -C /tmp/tfmigrate -xvf /tmp/tfmigrate_${version}_linux_amd64.tar.gz
-  cp -v /tmp/tfmigrate/tfmigrate ${LOCAL_PREFIX}/bin
+  tar -C /tmp/tfmigrate -xf ${archive}
+  cp /tmp/tfmigrate/tfmigrate ${LOCAL_PREFIX}/bin
 
-  rm -rv /tmp/tfmigrate*
+  rm -r /tmp/tfmigrate ${archive}
+  _download_done "${LOCAL_PREFIX}/bin/tfmigrate"
 }
 
 function download-terraform-provider () {
   local provider=$1
   local version=$2
+  local os_lower os_title arch_go arch_x86
+  _download_platform || return 1
+  _download_header "terraform-provider-${provider}" "${version}"
 
-  local provider_base_path=$HOME/.terraform.d/plugins
-  local provider_path=${provider_base_path}/registry.terraform.io/hashicorp/${provider}/${version}/linux_amd64
+  local provider_path=$HOME/.terraform.d/plugins/registry.terraform.io/hashicorp/${provider}/${version}/${os_lower}_${arch_go}
+  local archive=/tmp/terraform-provider-${provider}_${version}_${os_lower}_${arch_go}.zip
 
-  wget -O /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip \
-    https://releases.hashicorp.com/terraform-provider-${provider}/${version}/terraform-provider-${provider}_${version}_linux_amd64.zip
+  _download_step "Downloading ${archive:t}"
+  wget -q --show-progress -O ${archive} \
+    https://releases.hashicorp.com/terraform-provider-${provider}/${version}/terraform-provider-${provider}_${version}_${os_lower}_${arch_go}.zip || return 1
 
+  _download_step "Installing to ${provider_path}"
   mkdir -p ${provider_path}
-  unzip -d ${provider_path} /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip
+  unzip -oq -d ${provider_path} ${archive}
 
-  rm -v /tmp/terraform-provider-${provider}_${version}_linux_amd64.zip
+  rm ${archive}
+  _download_done "${provider_path}"
 }
 
 
