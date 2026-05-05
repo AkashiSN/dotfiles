@@ -59,7 +59,11 @@ IMMICH_API_KEY="${IMMICH_GO_API_KEY:-}"
 IMMICH_ALBUM_NAME="DJI Osmo Pocket 4"
 
 # 写真として upload/ に hardlink する拡張子 (大文字小文字を問わず)
-PHOTO_EXTS=(JPG JPEG DNG HEIC)
+PHOTO_EXTS=(JPG)
+
+# SD カードから _originals/ にコピーする拡張子 (大文字)。
+# これ以外 (システムログ, 隠しファイル, サムネイルキャッシュ等) は rsync 時点で除外する
+COPY_EXTS=(MP4 "${PHOTO_EXTS[@]}")
 
 # 動作モード (デフォルトはドライランで安全側に倒す。本番は DRY_RUN=0)
 DRY_RUN="${DRY_RUN:-1}"                     # 1にするとimmich-goを--dry-runで実行
@@ -156,12 +160,17 @@ copy_from_sd() {
 
   mkdir -p "$ORIGINALS_DIR"
 
-  # チェックサムベース (-c) で 1 回だけ転送する。
-  # ・初回: 全ファイル転送 (rsync のロリングチェックサム + 終端 MD5 で完全性担保)
-  # ・再実行時: destination と source のチェックサムを比較し、差分のみ転送する
-  #   (mtime+size 判定より安全で、過去の中断や時刻ズレでも正しく差分検出できる)
-  rsync -ahc --progress --partial --stats \
-    --exclude='.*' \
+  # COPY_EXTS で指定された拡張子のファイルだけ転送する。
+  # mtime + size 比較で差分転送 (SD は DJI 録画後の read-only 運用前提)。
+  # (転送中の完全性は rsync の内部ロリングチェックサムで担保される)
+  local include_args=(--include='*/')   # ディレクトリは降りる必要があるので include
+  for ext in "${COPY_EXTS[@]}"; do
+    include_args+=(--include="*.${ext}")
+  done
+  include_args+=(--exclude='*')         # マッチしない残りはすべて除外
+
+  rsync -ah --progress --partial --stats \
+    "${include_args[@]}" \
     "${SRC_DCIM}/" "$ORIGINALS_DIR/"
 
   log "コピー済みファイル種別:"
@@ -269,7 +278,7 @@ merge_group() {
   log "結合: ${#files[@]}ファイル → $(basename "$out_path")"
   for f in "${files[@]}"; do log "  ← $(basename "$f")"; done
 
-  if ! ffmpeg -hide_banner -loglevel error -stats \
+  if ! ffmpeg -nostdin -hide_banner -loglevel error -stats \
         -f concat -safe 0 -i "$list_file" \
         -c copy -fflags +genpts \
         "$out_path"; then
@@ -305,14 +314,14 @@ merge_via_ts() {
   local concat_arg="" i=0
   for f in "${files[@]}"; do
     local ts="${tsdir}/part_$(printf '%03d' $i).ts"
-    ffmpeg -hide_banner -loglevel error \
+    ffmpeg -nostdin -hide_banner -loglevel error \
       -i "$f" -c copy -bsf:v "$vbsf" -f mpegts "$ts" || { rm -rf "$tsdir"; return 1; }
     [[ -n "$concat_arg" ]] && concat_arg+="|"
     concat_arg+="$ts"
     i=$((i + 1))
   done
 
-  ffmpeg -hide_banner -loglevel error -stats \
+  ffmpeg -nostdin -hide_banner -loglevel error -stats \
     -i "concat:${concat_arg}" -c copy -bsf:a aac_adtstoasc \
     "$out_path" || { rm -rf "$tsdir"; return 1; }
 
