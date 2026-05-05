@@ -1,21 +1,56 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # dji_workflow.sh - DJI Osmo Pocket 4 → コピー → 結合 → Immichアップロード (immich-go版)
 #
-# 依存: rsync, ffmpeg, ffprobe, immich-go (https://github.com/simulot/immich-go)
-# インストール: brew install immich-go  (または GitHub releases からバイナリ)
-# 使い方: ./dji_workflow.sh
+# 依存: bash >= 4.2 (printf '%(...)T' を使用), GNU coreutils, rsync, ffmpeg, ffprobe, immich-go
+# インストール: brew install bash coreutils rsync ffmpeg immich-go
+# 注: macOS 標準の /bin/bash は 3.2 で非対応のため、PATH に brew bash があることを前提
+#     PATH に /opt/homebrew/opt/coreutils/libexec/gnubin が含まれている前提
+#
+# 出力レイアウト ($DEST_DIR 配下):
+#   _originals/  rsync で SD から取り込んだそのままのファイル (LRF含む)
+#   upload/      immich-go の入力ディレクトリ。結合済みMP4 + 単独動画/写真の hardlink
+#
+# 実行例:
+#   # 1. Immich の接続情報を環境変数で渡す (~/.zshenv 等で永続化推奨)
+#   export IMMICH_GO_SERVER="https://immich.example.com"
+#   export IMMICH_GO_API_KEY="xxxxxxxxxxxxxxxxxxxx"
+#
+#   # 2. デフォルトはドライラン (immich-go --dry-run)。コピーと結合は実施され、
+#   #    Immichへの実アップロードはスキップ。挙動確認に使う
+#   ./scripts/dji_workflow.sh
+#
+#   # 3. 本番アップロード
+#   DRY_RUN=0 ./scripts/dji_workflow.sh
+#
+#   # 4. 本番アップロード + 完了後に結合元 (_originals/) を削除して容量節約
+#   DRY_RUN=0 DELETE_MERGED_SOURCES=1 ./scripts/dji_workflow.sh
+#
+#   # 5. ローカルへのコピーと結合のみ (Immich アクセス不要)
+#   SKIP_UPLOAD=1 ./scripts/dji_workflow.sh
+#
+#   # 6. SD カードを別の場所にマウントしている場合
+#   SD_MOUNT=/Volumes/Untitled DRY_RUN=0 ./scripts/dji_workflow.sh
+#
+#   # 7. 任意の DEST_DIR を指定 (デフォルトは SD 内最古撮影日 YYYYMMDD)。
+#   #    同じ SD を再投入した場合、自動で同じ DEST_DIR が選ばれて
+#   #    rsync が差分のみ転送する
+#   DEST_DIR=~/Movies/OsmoPocket4/myproject ./scripts/dji_workflow.sh
 
 set -euo pipefail
 
 # ============================================================
 # 設定 (環境に合わせて変更してください)
 # ============================================================
-SD_MOUNT="/Volumes/SD_Card"                 # SDカードのマウントポイント
-SRC_DCIM="${SD_MOUNT}/DCIM"                 # DJIファイルのDCIM
-DEST_BASE="${HOME}/Movies/OsmoPocket4"      # コピー先ベース
-DEST_DIR="${DEST_BASE}/$(date +%Y%m%d_%H%M%S)"
+SD_MOUNT="${SD_MOUNT:-/Volumes/SD_Card}"     # SDカードのマウントポイント
+SRC_DCIM="${SD_MOUNT}/DCIM"                  # DJIファイルのDCIM
+DEST_BASE="${DEST_BASE:-${HOME}/Movies/OsmoPocket4}"  # コピー先ベース
+# DEST_DIR を環境変数で渡せば既存ディレクトリに差分追加できる。
+# 未指定なら main 内で SD カードの最古撮影日 (YYYYMMDD) から自動生成し、
+# 同じ SD を再投入したときに同じディレクトリに rsync 差分追加されるようにする
+DEST_DIR="${DEST_DIR:-}"
 
 # 結合判定: 前のファイル終端と次のファイル開始の許容誤差(秒)
+# 実機計測: 連続録画ギャップ最大0.76秒、別録画最小10.95秒なので5秒で十分
 SPLIT_TOLERANCE=5
 
 # Immich設定 (環境変数 IMMICH_GO_SERVER / IMMICH_GO_API_KEY でも上書き可)
@@ -23,18 +58,32 @@ IMMICH_SERVER="${IMMICH_GO_SERVER:-}"
 IMMICH_API_KEY="${IMMICH_GO_API_KEY:-}"
 IMMICH_ALBUM_NAME="DJI Osmo Pocket 4"
 
-# 動作モード
-DRY_RUN="${DRY_RUN:-0}"                     # 1にするとimmich-goを--dry-runで実行
+# 写真として upload/ に hardlink する拡張子 (大文字小文字を問わず)
+PHOTO_EXTS=(JPG JPEG DNG HEIC)
+
+# 動作モード (デフォルトはドライランで安全側に倒す。本番は DRY_RUN=0)
+DRY_RUN="${DRY_RUN:-1}"                     # 1にするとimmich-goを--dry-runで実行
 SKIP_UPLOAD="${SKIP_UPLOAD:-0}"             # 1にするとアップロードをスキップ
 EJECT_AFTER="${EJECT_AFTER:-1}"             # 1にすると完了後にSDをアンマウント
-DELETE_MERGED_SOURCES="${DELETE_MERGED_SOURCES:-0}"  # 1にすると結合元の分割MP4を削除
+DELETE_MERGED_SOURCES="${DELETE_MERGED_SOURCES:-0}"  # 1にするとアップロード成功後に _originals/ を削除
+
+# 内部パス (main で確定)
+ORIGINALS_DIR=""
+UPLOAD_DIR=""
+GROUPS_FILE=""
 
 # ============================================================
 # ユーティリティ
 # ============================================================
-log()  { printf '\033[1;34m[%(%H:%M:%S)T]\033[0m %s\n' -1 "$*"; }
-warn() { printf '\033[1;33m[%(%H:%M:%S)T] WARN:\033[0m %s\n' -1 "$*" >&2; }
-err()  { printf '\033[1;31m[%(%H:%M:%S)T] ERROR:\033[0m %s\n' -1 "$*" >&2; }
+if [[ -t 1 ]]; then
+  C_INFO=$'\033[1;34m'; C_WARN=$'\033[1;33m'; C_ERR=$'\033[1;31m'; C_RST=$'\033[0m'
+else
+  C_INFO=""; C_WARN=""; C_ERR=""; C_RST=""
+fi
+
+log()  { printf '%s[%(%H:%M:%S)T]%s %s\n' "$C_INFO" -1 "$C_RST" "$*"; }
+warn() { printf '%s[%(%H:%M:%S)T] WARN:%s %s\n' "$C_WARN" -1 "$C_RST" "$*" >&2; }
+err()  { printf '%s[%(%H:%M:%S)T] ERROR:%s %s\n' "$C_ERR" -1 "$C_RST" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 confirm() {
@@ -43,8 +92,12 @@ confirm() {
   [[ "$yn" =~ ^[yY]$ ]]
 }
 
-# 依存コマンドチェック
 check_deps() {
+  # bash >= 4.2 が必要 (printf '%(...)T' を使うため)
+  if (( BASH_VERSINFO[0] < 4 )) || { (( BASH_VERSINFO[0] == 4 )) && (( BASH_VERSINFO[1] < 2 )); }; then
+    die "bash >= 4.2 が必要です (現在: ${BASH_VERSION})。brew install bash を実行してください"
+  fi
+
   local missing=()
   for cmd in rsync ffmpeg ffprobe; do
     command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
@@ -52,22 +105,46 @@ check_deps() {
   if [[ "$SKIP_UPLOAD" != "1" ]]; then
     command -v immich-go >/dev/null 2>&1 || missing+=("immich-go")
   fi
+  # GNU date が必要 (BSD date は -d/--date 構文を解さない)
+  if ! date --version 2>/dev/null | grep -q 'GNU coreutils'; then
+    missing+=("GNU date (brew install coreutils)")
+  fi
   if [[ ${#missing[@]} -gt 0 ]]; then
     die "以下のコマンドが見つかりません: ${missing[*]}
 - immich-go: https://github.com/simulot/immich-go/releases から取得"
   fi
 }
 
+# 同一ファイルシステムなら hardlink、違うFSなら cp にフォールバック
+# dst が既に存在する場合は何もしない (再実行時の冪等性のため)
+hardlink_or_copy() {
+  local src="$1" dst="$2"
+  [[ -e "$dst" ]] && return 0
+  ln "$src" "$dst" 2>/dev/null || cp "$src" "$dst"
+}
+
+# SDカード内の最古撮影日 (YYYYMMDD) を返す。DJIファイルが無ければ今日の日付
+get_session_id() {
+  local oldest
+  oldest=$(find "$SRC_DCIM" -maxdepth 3 -name 'DJI_*_D.MP4' -type f -printf '%f\n' 2>/dev/null \
+    | sed -E 's/^DJI_([0-9]{8}).*/\1/' \
+    | sort -u | head -1)
+  if [[ -z "$oldest" ]]; then
+    oldest=$(date +%Y%m%d)
+  fi
+  echo "$oldest"
+}
+
 # ============================================================
-# Step 1: SDカードからコピー
+# Step 1: SDカードから _originals/ へコピー
 # ============================================================
 copy_from_sd() {
-  log "=== Step 1: SDカードからコピー ==="
+  log "=== Step 1: SDカードから _originals/ へコピー ==="
 
   [[ -d "$SRC_DCIM" ]] || die "SDカードのDCIMが見つかりません: $SRC_DCIM"
 
   log "コピー元: $SRC_DCIM"
-  log "コピー先: $DEST_DIR"
+  log "コピー先: $ORIGINALS_DIR"
 
   log "転送元サイズ:"
   du -sh "$SRC_DCIM" | sed 's/^/  /'
@@ -77,25 +154,18 @@ copy_from_sd() {
 
   confirm "コピーを開始しますか?" || die "中断しました"
 
-  mkdir -p "$DEST_DIR"
+  mkdir -p "$ORIGINALS_DIR"
 
-  rsync -ah --progress --partial \
+  # チェックサムベース (-c) で 1 回だけ転送する。
+  # ・初回: 全ファイル転送 (rsync のロリングチェックサム + 終端 MD5 で完全性担保)
+  # ・再実行時: destination と source のチェックサムを比較し、差分のみ転送する
+  #   (mtime+size 判定より安全で、過去の中断や時刻ズレでも正しく差分検出できる)
+  rsync -ahc --progress --partial --stats \
     --exclude='.*' \
-    "${SRC_DCIM}/" "$DEST_DIR/"
-
-  log "チェックサム検証中..."
-  local rsync_out
-  rsync_out=$(rsync -ahc --stats \
-    --exclude='.*' \
-    "${SRC_DCIM}/" "$DEST_DIR/")
-  if echo "$rsync_out" | grep -E '^Number of regular files transferred:' | grep -qv ': 0'; then
-    warn "再転送が発生しました。SDカードのデータに問題がないか確認してください"
-  else
-    log "✓ 全ファイルのチェックサム一致"
-  fi
+    "${SRC_DCIM}/" "$ORIGINALS_DIR/"
 
   log "コピー済みファイル種別:"
-  find "$DEST_DIR" -type f | sed -E 's/.*\.([^.]+)$/\1/' | sort | uniq -c | sed 's/^/  /'
+  find "$ORIGINALS_DIR" -type f | sed -E 's/.*\.([^.]+)$/\1/' | sort | uniq -c | sed 's/^/  /'
 }
 
 # ============================================================
@@ -105,7 +175,8 @@ filename_to_epoch() {
   local f="$1"
   local ts
   ts=$(basename "$f" | sed -E 's/DJI_([0-9]{14})_.*/\1/')
-  date -j -f "%Y%m%d%H%M%S" "$ts" "+%s" 2>/dev/null
+  # 14桁文字列を ISO 風に整形して GNU date に渡す
+  date -d "${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:8:2}:${ts:10:2}:${ts:12:2}" +%s 2>/dev/null
 }
 
 get_duration() {
@@ -121,11 +192,11 @@ detect_groups() {
 
   while IFS= read -r f; do
     all_files+=("$f")
-  done < <(find "$target_dir" -maxdepth 2 -name 'DJI_*_D.MP4' -type f \
-            ! -path '*/_merged/*' | sort)
+  done < <(find "$target_dir" -maxdepth 3 -name 'DJI_*_D.MP4' -type f | sort)
 
   [[ ${#all_files[@]} -eq 0 ]] && return 0
 
+  local first=1
   local prev_end=0
   local -a current_group=()
 
@@ -133,9 +204,16 @@ detect_groups() {
     local start dur end gap abs_gap
     start=$(filename_to_epoch "$f") || { warn "タイムスタンプ抽出失敗: $f"; continue; }
     dur=$(get_duration "$f")
+    if [[ -z "$dur" ]]; then
+      warn "duration取得失敗、グループ判定スキップ: $f"
+      continue
+    fi
     end=$((start + dur))
 
-    if [[ $prev_end -ne 0 ]]; then
+    if [[ $first -eq 1 ]]; then
+      current_group=("$f")
+      first=0
+    else
       gap=$((start - prev_end))
       abs_gap=${gap#-}
       if [[ $abs_gap -le $SPLIT_TOLERANCE ]]; then
@@ -144,8 +222,6 @@ detect_groups() {
         printf '%s\n' "$(IFS=$'\t'; echo "${current_group[*]}")"
         current_group=("$f")
       fi
-    else
-      current_group=("$f")
     fi
 
     prev_end=$end
@@ -156,8 +232,15 @@ detect_groups() {
   fi
 }
 
+cache_groups() {
+  log "=== Step 2: 分割ファイル検出 ==="
+  detect_groups "$ORIGINALS_DIR" > "$GROUPS_FILE"
+  local count
+  count=$(wc -l < "$GROUPS_FILE" | tr -d ' ')
+  log "検出グループ数: ${count}"
+}
+
 merge_group() {
-  local merged_dir="$1"; shift
   local -a files=("$@")
 
   [[ ${#files[@]} -lt 2 ]] && return 0
@@ -169,7 +252,14 @@ merge_group() {
   last_seq=$(echo "$last_name"  | sed -E 's/.*_([0-9]{4})_D/\1/')
   first_ts=$(echo "$first_name" | sed -E 's/DJI_([0-9]{14})_.*/\1/')
   out_name="DJI_${first_ts}_${first_seq}-${last_seq}_MERGED.MP4"
-  out_path="${merged_dir}/${out_name}"
+  out_path="${UPLOAD_DIR}/${out_name}"
+
+  # 既に結合済みならスキップ (再実行時の冪等性)
+  if [[ -e "$out_path" ]]; then
+    log "結合済みのためスキップ: $(basename "$out_path")"
+    return 0
+  fi
+
   list_file=$(mktemp -t dji_concat.XXXXXX)
 
   for f in "${files[@]}"; do
@@ -194,17 +284,6 @@ merge_group() {
 
   rm -f "$list_file"
   log "✓ 結合完了: $(du -h "$out_path" | cut -f1) $(basename "$out_path")"
-
-  # 元ファイル削除オプション
-  if [[ "$DELETE_MERGED_SOURCES" == "1" ]]; then
-    for f in "${files[@]}"; do
-      rm -f "$f"
-      # 対応するLRFも削除
-      local lrf="${f%.MP4}.LRF"
-      [[ -f "$lrf" ]] && rm -f "$lrf"
-    done
-    log "  結合元ファイルを削除しました"
-  fi
 }
 
 merge_via_ts() {
@@ -230,7 +309,7 @@ merge_via_ts() {
       -i "$f" -c copy -bsf:v "$vbsf" -f mpegts "$ts" || { rm -rf "$tsdir"; return 1; }
     [[ -n "$concat_arg" ]] && concat_arg+="|"
     concat_arg+="$ts"
-    ((i++))
+    i=$((i + 1))
   done
 
   ffmpeg -hide_banner -loglevel error -stats \
@@ -240,95 +319,74 @@ merge_via_ts() {
   rm -rf "$tsdir"
 }
 
-# 結合元ファイルのbasename一覧を返す(アップロード除外用)
-list_merged_source_basenames() {
-  local target_dir="$1"
-  detect_groups "$target_dir" | while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    # タブ区切りで分解
-    local IFS=$'\t'
-    local -a files=($line)
-    if [[ ${#files[@]} -ge 2 ]]; then
-      for f in "${files[@]}"; do
-        basename "$f"
-      done
-    fi
-  done
-}
-
 merge_splits() {
-  log "=== Step 2: 分割ファイルの検出と結合 ==="
-
-  local merged_dir="${DEST_DIR}/_merged"
-  mkdir -p "$merged_dir"
-
-  local groups_file
-  groups_file=$(mktemp -t dji_groups.XXXXXX)
-  detect_groups "$DEST_DIR" > "$groups_file"
-
-  local group_count merge_count=0 single_count=0
-  group_count=$(wc -l < "$groups_file" | tr -d ' ')
-  log "検出グループ数: ${group_count}"
+  mkdir -p "$UPLOAD_DIR"
+  local merge_count=0 single_count=0
 
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    local IFS=$'\t'
-    local -a files=($line)
+    local -a files
+    IFS=$'\t' read -r -a files <<< "$line"
     if [[ ${#files[@]} -ge 2 ]]; then
-      ((merge_count++)) || true
-      merge_group "$merged_dir" "${files[@]}" || warn "1グループ失敗"
+      merge_count=$((merge_count + 1))
+      merge_group "${files[@]}" || warn "1グループ失敗"
     else
-      ((single_count++)) || true
+      single_count=$((single_count + 1))
     fi
-  done < "$groups_file"
-
-  rm -f "$groups_file"
+  done < "$GROUPS_FILE"
 
   log "単独動画: ${single_count}本 / 結合グループ: ${merge_count}個"
-
-  if [[ $merge_count -eq 0 ]]; then
-    rmdir "$merged_dir" 2>/dev/null || true
-    log "結合対象なし"
-  fi
 }
 
 # ============================================================
-# Step 3: Immich-Goでアップロード
+# Step 3: upload/ を構築 (単独動画と写真を hardlink)
+# ============================================================
+organize_for_upload() {
+  log "=== Step 3: upload/ ディレクトリを構築 ==="
+  mkdir -p "$UPLOAD_DIR"
+
+  local linked_videos=0 linked_photos=0
+
+  # 単独動画 (1ファイル1グループ) を hardlink
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local -a files
+    IFS=$'\t' read -r -a files <<< "$line"
+    if [[ ${#files[@]} -eq 1 ]]; then
+      hardlink_or_copy "${files[0]}" "${UPLOAD_DIR}/$(basename "${files[0]}")"
+      linked_videos=$((linked_videos + 1))
+    fi
+  done < "$GROUPS_FILE"
+
+  # 写真を hardlink
+  local find_args=()
+  for ext in "${PHOTO_EXTS[@]}"; do
+    [[ ${#find_args[@]} -gt 0 ]] && find_args+=(-o)
+    find_args+=(-iname "*.${ext}")
+  done
+  while IFS= read -r f; do
+    hardlink_or_copy "$f" "${UPLOAD_DIR}/$(basename "$f")"
+    linked_photos=$((linked_photos + 1))
+  done < <(find "$ORIGINALS_DIR" -maxdepth 3 -type f \( "${find_args[@]}" \))
+
+  log "単独動画 ${linked_videos}本 / 写真 ${linked_photos}枚を upload/ に配置"
+}
+
+# ============================================================
+# Step 4: Immich-Goでアップロード
 # ============================================================
 upload_to_immich() {
-  log "=== Step 3: immich-goでアップロード ==="
+  log "=== Step 4: immich-goでアップロード ==="
 
   if [[ "$SKIP_UPLOAD" == "1" ]]; then
     log "SKIP_UPLOAD=1 のためスキップ"
     return 0
   fi
 
-  [[ -z "$IMMICH_API_KEY" ]] && die "IMMICH_API_KEY が設定されていません"
+  [[ -z "$IMMICH_SERVER" ]] && die "IMMICH_GO_SERVER が設定されていません"
+  [[ -z "$IMMICH_API_KEY" ]] && die "IMMICH_GO_API_KEY が設定されていません"
 
-  # 結合元になったMP4をban-fileに記録(重複アップロード防止)
-  local ban_file_args=()
-  local merged_sources_file
-  merged_sources_file=$(mktemp -t dji_merged_src.XXXXXX)
-  list_merged_source_basenames "$DEST_DIR" > "$merged_sources_file"
-
-  local source_count
-  source_count=$(wc -l < "$merged_sources_file" | tr -d ' ')
-
-  if [[ $source_count -gt 0 ]]; then
-    log "結合元になった ${source_count} 個の分割MP4をban-fileで除外します"
-    while IFS= read -r bn; do
-      [[ -z "$bn" ]] && continue
-      ban_file_args+=(--ban-file "$bn")
-    done < "$merged_sources_file"
-  fi
-
-  rm -f "$merged_sources_file"
-
-  # LRFは編集用プロキシなのでアップロード対象外
-  ban_file_args+=(--ban-file "*.LRF")
-  ban_file_args+=(--ban-file "*.lrf")
-
-  log "アップロード対象ディレクトリ: $DEST_DIR"
+  log "アップロード対象ディレクトリ: $UPLOAD_DIR"
   log "アップロード先: $IMMICH_SERVER"
   log "アルバム: $IMMICH_ALBUM_NAME"
 
@@ -337,10 +395,10 @@ upload_to_immich() {
     --server "$IMMICH_SERVER"
     --api-key "$IMMICH_API_KEY"
     --album-name "$IMMICH_ALBUM_NAME"
+    --exclude-extensions LRF
   )
   [[ "$DRY_RUN" == "1" ]] && cmd_args+=(--dry-run)
-  cmd_args+=("${ban_file_args[@]}")
-  cmd_args+=("$DEST_DIR")
+  cmd_args+=("$UPLOAD_DIR")
 
   immich-go "${cmd_args[@]}"
 
@@ -348,11 +406,23 @@ upload_to_immich() {
 }
 
 # ============================================================
-# Step 4: アンマウント
+# Step 5: ローカル整理
+# ============================================================
+cleanup_originals() {
+  if [[ "$DELETE_MERGED_SOURCES" != "1" ]]; then return 0; fi
+  log "=== Step 5: _originals/ を削除 ==="
+  if confirm "アップロード元 (_originals/) を削除しますか? upload/ は保持されます"; then
+    rm -rf "$ORIGINALS_DIR"
+    log "✓ _originals/ 削除完了"
+  fi
+}
+
+# ============================================================
+# Step 6: アンマウント
 # ============================================================
 eject_sd() {
   if [[ "$EJECT_AFTER" != "1" ]]; then return 0; fi
-  log "=== Step 4: SDカードをアンマウント ==="
+  log "=== Step 6: SDカードをアンマウント ==="
   if confirm "SDカードを取り出しますか?"; then
     diskutil eject "$SD_MOUNT" && log "✓ アンマウント完了"
   fi
@@ -362,12 +432,30 @@ eject_sd() {
 # メイン
 # ============================================================
 main() {
-  log "DJI Osmo Pocket 4 ワークフロー開始"
   check_deps
+  [[ -d "$SRC_DCIM" ]] || die "SDカードのDCIMが見つかりません: $SRC_DCIM"
+
+  # DEST_DIR が未指定なら SD の最古撮影日から自動決定 (再投入時の差分追加を可能にする)
+  DEST_DIR="${DEST_DIR:-${DEST_BASE}/$(get_session_id)}"
+  ORIGINALS_DIR="${DEST_DIR}/_originals"
+  UPLOAD_DIR="${DEST_DIR}/upload"
+  GROUPS_FILE="${DEST_DIR}/.groups.tsv"
+
+  mkdir -p "$DEST_DIR"
+
+  log "DJI Osmo Pocket 4 ワークフロー開始"
+  log "作業ディレクトリ: $DEST_DIR"
+  [[ -d "$ORIGINALS_DIR" ]] && log "(既存ディレクトリに差分追加します)"
+
   copy_from_sd
+  cache_groups
   merge_splits
+  organize_for_upload
   upload_to_immich
+  cleanup_originals
+  rm -f "$GROUPS_FILE"
   eject_sd
+
   log "✓ 全工程完了: $DEST_DIR"
 }
 
