@@ -1,0 +1,597 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["rich"]
+# ///
+"""DJI Osmo Pocket 4 → コピー → 結合 → Immich アップロードのワークフロー.
+
+依存:
+  - uv (`brew install uv`)         # PEP 723 を解釈し依存を裏で解決する
+  - rsync, ffmpeg, ffprobe, immich-go
+  - macOS の `diskutil` (アンマウント用)
+
+設定:
+  - 通常設定値は CLI 引数のみで指定する
+  - 機密情報のみ環境変数フォールバックを許可:
+      IMMICH_GO_SERVER  → --immich-server の既定値
+      IMMICH_GO_API_KEY → --immich-api-key の既定値
+
+出力レイアウト ($DEST_DIR 配下):
+  _originals/  rsync で SD から取り込んだそのままのファイル (LRF含む)
+  upload/      immich-go の入力ディレクトリ。結合済みMP4 + 単独動画/写真の hardlink
+
+実行例:
+  # 環境変数で Immich 認証 (~/.zshenv 等で永続化推奨)
+  export IMMICH_GO_SERVER=https://immich.example.com
+  export IMMICH_GO_API_KEY=XXXX
+
+  # デフォルトはドライラン (immich-go --dry-run)
+  ./scripts/dji_workflow.py
+
+  # 本番アップロード
+  ./scripts/dji_workflow.py --no-dry-run
+
+  # ローカル処理のみ (Immich 不要)
+  ./scripts/dji_workflow.py --skip-upload
+
+  # SD カードを抜いた状態で結合からやり直す (自動でコピーがスキップされる)
+  ./scripts/dji_workflow.py --skip-upload
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from rich.console import Console
+
+console = Console()
+
+# ============================================================
+# ログ
+# ============================================================
+def log(msg: str) -> None:
+    console.log(f"[bold blue]{msg}[/bold blue]")
+
+
+def warn(msg: str) -> None:
+    console.log(f"[bold yellow]WARN:[/bold yellow] {msg}")
+
+
+def err(msg: str) -> None:
+    console.log(f"[bold red]ERROR:[/bold red] {msg}")
+
+
+def die(msg: str) -> None:
+    err(msg)
+    sys.exit(1)
+
+
+def confirm(prompt: str) -> bool:
+    try:
+        ans = input(f"{prompt} (y/N): ")
+    except EOFError:
+        return False
+    return ans.strip().lower() in ("y", "yes")
+
+
+# ============================================================
+# Config
+# ============================================================
+@dataclass
+class Config:
+    sd_mount: Path
+    dest_base: Path
+    dest_dir: Path | None
+    immich_server: str
+    immich_api_key: str
+    album_name: str
+    split_tolerance: int
+    photo_exts: list[str]
+    copy_exts: list[str]
+    dry_run: bool
+    skip_upload: bool
+    skip_copy: bool
+    eject_after: bool
+    delete_merged_sources: bool
+
+    @property
+    def src_dcim(self) -> Path:
+        return self.sd_mount / "DCIM"
+
+    @classmethod
+    def from_args(cls, ns: argparse.Namespace) -> Config:
+        photo_exts = [e.upper() for e in (ns.photo_ext or ["JPG"])]
+        # LRF は編集用プロキシで Immich には上げないが、ローカル保管のため _originals/ にはコピーする
+        copy_exts = [e.upper() for e in (ns.copy_ext or ["MP4", "LRF", *photo_exts])]
+        return cls(
+            sd_mount=Path(ns.sd_mount),
+            dest_base=Path(ns.dest_base).expanduser(),
+            dest_dir=Path(ns.dest_dir).expanduser() if ns.dest_dir else None,
+            immich_server=ns.immich_server,
+            immich_api_key=ns.immich_api_key,
+            album_name=ns.album_name,
+            split_tolerance=ns.split_tolerance,
+            photo_exts=photo_exts,
+            copy_exts=copy_exts,
+            dry_run=ns.dry_run,
+            skip_upload=ns.skip_upload,
+            skip_copy=ns.skip_copy,
+            eject_after=ns.eject,
+            delete_merged_sources=ns.delete_merged_sources,
+        )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__.split("\n\n")[0],
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--sd-mount", default="/Volumes/SD_Card",
+                        help="SD カードのマウントポイント")
+    parser.add_argument("--dest-base", default="~/Movies/OsmoPocket4",
+                        help="コピー先ベースディレクトリ")
+    parser.add_argument("--dest-dir", default=None,
+                        help="既存ディレクトリ再利用時に指定。未指定なら自動決定")
+    parser.add_argument("--immich-server",
+                        default=os.environ.get("IMMICH_GO_SERVER", ""),
+                        help="Immich サーバー URL (未指定時は環境変数 IMMICH_GO_SERVER)")
+    parser.add_argument("--immich-api-key",
+                        default=os.environ.get("IMMICH_GO_API_KEY", ""),
+                        help="Immich API キー (未指定時は環境変数 IMMICH_GO_API_KEY)")
+    parser.add_argument("--album-name", default="DJI Osmo Pocket 4",
+                        help="Immich アルバム名")
+    parser.add_argument("--split-tolerance", type=int, default=5,
+                        help="連続録画と判定するギャップ許容秒")
+    parser.add_argument("--photo-ext", action="append",
+                        help="写真拡張子。複数指定可。未指定時は JPG")
+    parser.add_argument("--copy-ext", action="append",
+                        help="rsync で取り込む拡張子。未指定時は MP4 + LRF + photo-ext")
+    parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help="immich-go を --dry-run で実行")
+    parser.add_argument("--skip-upload", action="store_true",
+                        help="アップロードをスキップ")
+    parser.add_argument("--skip-copy", action="store_true",
+                        help="SD があってもコピーをスキップして結合以降のみ実行")
+    parser.add_argument("--eject", action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help="完了後に SD をアンマウント")
+    parser.add_argument("--delete-merged-sources", action="store_true",
+                        help="アップロード成功後に _originals/ を削除")
+    return parser
+
+
+# ============================================================
+# 依存チェック
+# ============================================================
+def check_deps(cfg: Config) -> None:
+    missing: list[str] = []
+    for cmd in ("rsync", "ffmpeg", "ffprobe"):
+        if shutil.which(cmd) is None:
+            missing.append(cmd)
+    if not cfg.skip_upload and shutil.which("immich-go") is None:
+        missing.append("immich-go")
+    if missing:
+        die(f"以下のコマンドが見つかりません: {' '.join(missing)}")
+
+
+# ============================================================
+# DEST_DIR 解決
+# ============================================================
+SESSION_RE = re.compile(r"^DJI_(\d{8})")
+TS_RE = re.compile(r"^DJI_(\d{14})_")
+SEQ_RE = re.compile(r"_(\d{4})_D$")
+
+
+def get_session_id_from_sd(src_dcim: Path) -> str | None:
+    """SD 内の最古撮影日 (YYYYMMDD) を返す。見つからなければ None"""
+    days = sorted({
+        m.group(1)
+        for p in src_dcim.rglob("DJI_*_D.MP4")
+        if (m := SESSION_RE.match(p.name))
+    })
+    return days[0] if days else None
+
+
+def find_latest_existing_dest(dest_base: Path) -> Path | None:
+    """dest_base 配下で _originals/ にデータがあるディレクトリのうち、
+    名前順最新を返す"""
+    if not dest_base.is_dir():
+        return None
+    candidates: list[Path] = []
+    for child in dest_base.iterdir():
+        if not child.is_dir():
+            continue
+        originals = child / "_originals"
+        if originals.is_dir() and any(originals.rglob("DJI_*_D.MP4")):
+            candidates.append(child)
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda p: p.name)[-1]
+
+
+def resolve_dest_dir(cfg: Config, sd_mounted: bool) -> Path:
+    if cfg.dest_dir is not None:
+        return cfg.dest_dir
+    if sd_mounted:
+        session_id = (get_session_id_from_sd(cfg.src_dcim)
+                      or datetime.now().strftime("%Y%m%d"))
+        return cfg.dest_base / session_id
+    latest = find_latest_existing_dest(cfg.dest_base)
+    if latest is None:
+        die(f"SD カード ({cfg.sd_mount}) もマウントされておらず、"
+            f"{cfg.dest_base} 配下に既存の _originals/ もありません")
+    log(f"SD 未マウント。最新の既存ディレクトリを採用: {latest}")
+    return latest  # type: ignore[unreachable]
+
+
+# ============================================================
+# Step 1: SD からコピー
+# ============================================================
+def copy_from_sd(cfg: Config, originals_dir: Path) -> None:
+    log("=== Step 1: SDカードから _originals/ へコピー ===")
+
+    src = cfg.src_dcim
+    if not src.is_dir():
+        die(f"SD カードの DCIM が見つかりません: {src}")
+
+    log(f"コピー元: {src}")
+    log(f"コピー先: {originals_dir}")
+    log("転送元サイズ:")
+    subprocess.run(["du", "-sh", str(src)])
+    log("転送先空き容量:")
+    df_target = cfg.dest_base if cfg.dest_base.exists() else cfg.dest_base.parent
+    subprocess.run(["df", "-h", str(df_target)])
+
+    if not confirm("コピーを開始しますか?"):
+        die("中断しました")
+
+    originals_dir.mkdir(parents=True, exist_ok=True)
+
+    # mtime + size 比較で差分転送 (SD は read-only 運用前提)
+    cmd = [
+        "rsync", "-ah", "--progress", "--partial", "--stats",
+        "--include=*/",
+        *[f"--include=*.{ext}" for ext in cfg.copy_exts],
+        "--exclude=*",
+        f"{src}/", f"{originals_dir}/",
+    ]
+    subprocess.run(cmd, check=True)
+
+    log("コピー済みファイル種別:")
+    counts: dict[str, int] = {}
+    for p in originals_dir.rglob("*"):
+        if p.is_file():
+            ext = p.suffix.lstrip(".") or "(none)"
+            counts[ext] = counts.get(ext, 0) + 1
+    for ext, n in sorted(counts.items()):
+        console.print(f"  {n:5d} {ext}")
+
+
+# ============================================================
+# Step 2: 分割検出 + 結合
+# ============================================================
+def filename_to_epoch(p: Path) -> int | None:
+    m = TS_RE.match(p.name)
+    if not m:
+        return None
+    try:
+        return int(datetime.strptime(m.group(1), "%Y%m%d%H%M%S").timestamp())
+    except ValueError:
+        return None
+
+
+def get_duration(p: Path) -> float | None:
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error",
+             "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1",
+             str(p)],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        return float(out) if out else None
+    except (subprocess.CalledProcessError, ValueError):
+        return None
+
+
+def detect_groups(originals_dir: Path, tolerance: int) -> list[list[Path]]:
+    files = sorted(originals_dir.rglob("DJI_*_D.MP4"))
+    if not files:
+        return []
+
+    groups: list[list[Path]] = []
+    current: list[Path] = []
+    prev_end: int | None = None
+
+    for f in files:
+        start = filename_to_epoch(f)
+        if start is None:
+            warn(f"タイムスタンプ抽出失敗: {f.name}")
+            continue
+        dur = get_duration(f)
+        if dur is None:
+            warn(f"duration 取得失敗、スキップ: {f.name}")
+            continue
+        end = int(start + dur)
+
+        if prev_end is None:
+            current = [f]
+        else:
+            gap = abs(start - prev_end)
+            if gap <= tolerance:
+                current.append(f)
+            else:
+                groups.append(current)
+                current = [f]
+        prev_end = end
+
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _detect_codec(path: Path) -> str:
+    return subprocess.run(
+        ["ffprobe", "-v", "error",
+         "-select_streams", "v:0",
+         "-show_entries", "stream=codec_name",
+         "-of", "csv=p=0", str(path)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+def merge_via_ts(out_path: Path, files: list[Path]) -> bool:
+    """TS 経由で再結合する concat demuxer のフォールバック."""
+    with tempfile.TemporaryDirectory(prefix="dji_ts_") as tsdir_str:
+        tsdir = Path(tsdir_str)
+        codec = _detect_codec(files[0])
+        if codec == "h264":
+            vbsf = "h264_mp4toannexb"
+        elif codec == "hevc":
+            vbsf = "hevc_mp4toannexb"
+        else:
+            warn(f"未知のコーデック: {codec}")
+            vbsf = "h264_mp4toannexb"
+
+        ts_paths: list[Path] = []
+        for i, f in enumerate(files):
+            ts_path = tsdir / f"part_{i:03d}.ts"
+            r = subprocess.run(
+                ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+                 "-i", str(f), "-c", "copy", "-bsf:v", vbsf,
+                 "-f", "mpegts", str(ts_path)])
+            if r.returncode != 0:
+                return False
+            ts_paths.append(ts_path)
+
+        concat_arg = "concat:" + "|".join(str(p) for p in ts_paths)
+        r = subprocess.run(
+            ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-stats",
+             "-i", concat_arg, "-c", "copy", "-bsf:a", "aac_adtstoasc",
+             str(out_path)])
+        return r.returncode == 0
+
+
+def merge_group(files: list[Path], upload_dir: Path) -> None:
+    if len(files) < 2:
+        return
+
+    first_stem = files[0].stem
+    last_stem = files[-1].stem
+    first_seq_m = SEQ_RE.search(first_stem)
+    last_seq_m = SEQ_RE.search(last_stem)
+    first_ts_m = TS_RE.match(first_stem)
+    if not (first_seq_m and last_seq_m and first_ts_m):
+        warn(f"ファイル名パース失敗、スキップ: {first_stem}")
+        return
+
+    out_name = (f"DJI_{first_ts_m.group(1)}"
+                f"_{first_seq_m.group(1)}-{last_seq_m.group(1)}_MERGED.MP4")
+    out_path = upload_dir / out_name
+
+    if out_path.exists():
+        log(f"結合済みのためスキップ: {out_name}")
+        return
+
+    log(f"結合: {len(files)} ファイル → {out_name}")
+    for f in files:
+        log(f"  ← {f.name}")
+
+    # ffmpeg concat の ' エスケープ規則: ' → '\''
+    list_lines = [
+        "file '" + str(f).replace("'", r"'\''") + "'\n"
+        for f in files
+    ]
+    with tempfile.NamedTemporaryFile("w", prefix="dji_concat_",
+                                     suffix=".txt", delete=False,
+                                     encoding="utf-8") as lf:
+        list_file = Path(lf.name)
+        lf.writelines(list_lines)
+
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-stats",
+             "-f", "concat", "-safe", "0",
+             "-i", str(list_file),
+             "-c", "copy", "-fflags", "+genpts",
+             str(out_path)])
+        if r.returncode != 0:
+            warn("concat demuxer 失敗。TS フォールバックを試行...")
+            out_path.unlink(missing_ok=True)
+            if not merge_via_ts(out_path, files):
+                err(f"結合失敗: {out_name}")
+                return
+        size_mb = out_path.stat().st_size / (1024 * 1024)
+        log(f"✓ 結合完了: {size_mb:.1f}MB {out_name}")
+    finally:
+        list_file.unlink(missing_ok=True)
+
+
+def merge_splits(groups: list[list[Path]], upload_dir: Path) -> None:
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    merge_count = 0
+    single_count = 0
+    for g in groups:
+        if len(g) >= 2:
+            merge_count += 1
+            try:
+                merge_group(g, upload_dir)
+            except Exception as e:
+                warn(f"結合中エラー: {e}")
+        else:
+            single_count += 1
+    log(f"単独動画: {single_count} 本 / 結合グループ: {merge_count} 個")
+
+
+# ============================================================
+# Step 3: upload/ 構築
+# ============================================================
+def hardlink_or_copy(src: Path, dst: Path) -> None:
+    if dst.exists():
+        return
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def organize_for_upload(groups: list[list[Path]], originals_dir: Path,
+                        upload_dir: Path, photo_exts: list[str]) -> None:
+    log("=== Step 3: upload/ ディレクトリを構築 ===")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    linked_videos = 0
+    for g in groups:
+        if len(g) == 1:
+            src = g[0]
+            hardlink_or_copy(src, upload_dir / src.name)
+            linked_videos += 1
+
+    photo_exts_lower = {e.lower() for e in photo_exts}
+    linked_photos = 0
+    for p in originals_dir.rglob("*"):
+        if p.is_file() and p.suffix.lstrip(".").lower() in photo_exts_lower:
+            hardlink_or_copy(p, upload_dir / p.name)
+            linked_photos += 1
+
+    log(f"単独動画 {linked_videos} 本 / 写真 {linked_photos} 枚を upload/ に配置")
+
+
+# ============================================================
+# Step 4: Immich アップロード
+# ============================================================
+def upload_to_immich(cfg: Config, upload_dir: Path) -> None:
+    log("=== Step 4: immich-go でアップロード ===")
+    if cfg.skip_upload:
+        log("--skip-upload のためスキップ")
+        return
+    if not cfg.immich_server:
+        die("--immich-server もしくは IMMICH_GO_SERVER が設定されていません")
+    if not cfg.immich_api_key:
+        die("--immich-api-key もしくは IMMICH_GO_API_KEY が設定されていません")
+
+    log(f"アップロード対象: {upload_dir}")
+    log(f"アップロード先: {cfg.immich_server}")
+    log(f"アルバム: {cfg.album_name}")
+
+    cmd = [
+        "immich-go", "upload", "from-folder",
+        "--server", cfg.immich_server,
+        "--api-key", cfg.immich_api_key,
+        "--album-name", cfg.album_name,
+        "--exclude-extensions", "LRF",
+    ]
+    if cfg.dry_run:
+        cmd.append("--dry-run")
+    cmd.append(str(upload_dir))
+
+    subprocess.run(cmd, check=True)
+    log("✓ アップロード完了")
+
+
+# ============================================================
+# Step 5: クリーンアップ
+# ============================================================
+def cleanup_originals(cfg: Config, originals_dir: Path) -> None:
+    if not cfg.delete_merged_sources:
+        return
+    log("=== Step 5: _originals/ を削除 ===")
+    if not originals_dir.is_dir():
+        return
+    if confirm(f"アップロード元 ({originals_dir}) を削除しますか? "
+               f"upload/ は保持されます"):
+        shutil.rmtree(originals_dir)
+        log("✓ _originals/ 削除完了")
+
+
+# ============================================================
+# Step 6: アンマウント
+# ============================================================
+def eject_sd(cfg: Config) -> None:
+    if not cfg.eject_after:
+        return
+    log("=== Step 6: SD カードをアンマウント ===")
+    if confirm("SD カードを取り出しますか?"):
+        r = subprocess.run(["diskutil", "eject", str(cfg.sd_mount)])
+        if r.returncode == 0:
+            log("✓ アンマウント完了")
+
+
+# ============================================================
+# main
+# ============================================================
+def main(argv: list[str]) -> int:
+    parser = build_parser()
+    ns = parser.parse_args(argv)
+    cfg = Config.from_args(ns)
+
+    check_deps(cfg)
+
+    sd_mounted = cfg.src_dcim.is_dir()
+    dest_dir = resolve_dest_dir(cfg, sd_mounted)
+    originals_dir = dest_dir / "_originals"
+    upload_dir = dest_dir / "upload"
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    log("DJI Osmo Pocket 4 ワークフロー開始")
+    log(f"作業ディレクトリ: {dest_dir}")
+    if originals_dir.is_dir() and any(originals_dir.iterdir()):
+        log("(既存ディレクトリに差分追加します)")
+
+    has_originals = (originals_dir.is_dir()
+                     and any(originals_dir.rglob("DJI_*_D.MP4")))
+    if cfg.skip_copy:
+        log("--skip-copy 指定のためコピーをスキップ")
+    elif sd_mounted:
+        copy_from_sd(cfg, originals_dir)
+    elif has_originals:
+        log("SD 未マウント、_originals/ に既存データを検出 → コピーをスキップ")
+    else:
+        die("SD カードがマウントされておらず、_originals/ にもデータがありません")
+
+    log("=== Step 2: 分割ファイル検出 ===")
+    groups = detect_groups(originals_dir, cfg.split_tolerance)
+    log(f"検出グループ数: {len(groups)}")
+
+    merge_splits(groups, upload_dir)
+    organize_for_upload(groups, originals_dir, upload_dir, cfg.photo_exts)
+    upload_to_immich(cfg, upload_dir)
+    cleanup_originals(cfg, originals_dir)
+    if sd_mounted:
+        eject_sd(cfg)
+
+    log(f"✓ 全工程完了: {dest_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
