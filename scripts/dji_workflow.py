@@ -602,7 +602,7 @@ def upload_to_immich(cfg: Config, upload_dir: Path) -> None:
     log(f"タグ: {', '.join(cfg.all_tags)}")
 
     cmd = [
-        "immich-go", "upload", "from-folder",
+        "immich-go", "upload", "--no-ui", "from-folder",
         "--server", cfg.immich_server,
         "--api-key", cfg.immich_api_key,
         *[arg for tag in cfg.all_tags for arg in ("--tag", tag)],
