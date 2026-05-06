@@ -92,7 +92,7 @@ class Config:
     dest_dir: Path | None
     immich_server: str
     immich_api_key: str
-    album_name: str
+    tags: list[str]
     split_tolerance: int
     photo_exts: list[str]
     copy_exts: list[str]
@@ -110,14 +110,20 @@ class Config:
     def from_args(cls, ns: argparse.Namespace) -> Config:
         photo_exts = [e.upper() for e in (ns.photo_ext or ["JPG"])]
         # LRF は編集用プロキシで Immich には上げないが、ローカル保管のため _originals/ にはコピーする
-        copy_exts = [e.upper() for e in (ns.copy_ext or ["MP4", "LRF", *photo_exts])]
+        copy_exts = [e.upper() for e in (ns.copy_ext or ["MP4", *photo_exts])]
+        # タグのデフォルト("DJI Osmo Pocket 4")。--tag を複数指定すれば追加できる
+        tags = ns.tag or ["DJI Osmo Pocket 4"]
+        # 機密情報は --help に値を露出させないため、parser default ではなく
+        # ここで環境変数フォールバックする
+        immich_server = ns.immich_server or os.environ.get("IMMICH_GO_SERVER", "")
+        immich_api_key = ns.immich_api_key or os.environ.get("IMMICH_GO_API_KEY", "")
         return cls(
             sd_mount=Path(ns.sd_mount),
             dest_base=Path(ns.dest_base).expanduser(),
             dest_dir=Path(ns.dest_dir).expanduser() if ns.dest_dir else None,
-            immich_server=ns.immich_server,
-            immich_api_key=ns.immich_api_key,
-            album_name=ns.album_name,
+            immich_server=immich_server,
+            immich_api_key=immich_api_key,
+            tags=tags,
             split_tolerance=ns.split_tolerance,
             photo_exts=photo_exts,
             copy_exts=copy_exts,
@@ -129,10 +135,23 @@ class Config:
         )
 
 
+class _NonEmptyDefaultsFormatter(argparse.ArgumentDefaultsHelpFormatter):
+    """既定値が None / 空文字 / 空リストのときは ``(default: ...)`` を出さない。
+
+    機密情報を `default=os.environ.get(...)` で渡すと help に値が露出するので、
+    parser 側ではデフォルトを設定せず help にも default 行を出さないようにする。
+    """
+
+    def _get_help_string(self, action: argparse.Action) -> str | None:
+        if action.default in (None, "", [], argparse.SUPPRESS):
+            return action.help
+        return super()._get_help_string(action)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__.split("\n\n")[0],
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=_NonEmptyDefaultsFormatter,
     )
     parser.add_argument("--sd-mount", default="/Volumes/SD_Card",
                         help="SD カードのマウントポイント")
@@ -140,20 +159,19 @@ def build_parser() -> argparse.ArgumentParser:
                         help="コピー先ベースディレクトリ")
     parser.add_argument("--dest-dir", default=None,
                         help="既存ディレクトリ再利用時に指定。未指定なら自動決定")
-    parser.add_argument("--immich-server",
-                        default=os.environ.get("IMMICH_GO_SERVER", ""),
+    parser.add_argument("--immich-server", default=None,
                         help="Immich サーバー URL (未指定時は環境変数 IMMICH_GO_SERVER)")
-    parser.add_argument("--immich-api-key",
-                        default=os.environ.get("IMMICH_GO_API_KEY", ""),
+    parser.add_argument("--immich-api-key", default=None,
                         help="Immich API キー (未指定時は環境変数 IMMICH_GO_API_KEY)")
-    parser.add_argument("--album-name", default="DJI Osmo Pocket 4",
-                        help="Immich アルバム名")
+    parser.add_argument("--tag", action="append",
+                        help="Immich タグ (`/` で階層化可、複数指定可)。"
+                             "未指定時は 'DJI Osmo Pocket 4'")
     parser.add_argument("--split-tolerance", type=int, default=5,
                         help="連続録画と判定するギャップ許容秒")
     parser.add_argument("--photo-ext", action="append",
                         help="写真拡張子。複数指定可。未指定時は JPG")
     parser.add_argument("--copy-ext", action="append",
-                        help="rsync で取り込む拡張子。未指定時は MP4 + LRF + photo-ext")
+                        help="rsync で取り込む拡張子。未指定時は MP4 + photo-ext")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction,
                         default=True,
                         help="immich-go を --dry-run で実行")
@@ -501,13 +519,13 @@ def upload_to_immich(cfg: Config, upload_dir: Path) -> None:
 
     log(f"アップロード対象: {upload_dir}")
     log(f"アップロード先: {cfg.immich_server}")
-    log(f"アルバム: {cfg.album_name}")
+    log(f"タグ: {', '.join(cfg.tags)}")
 
     cmd = [
         "immich-go", "upload", "from-folder",
         "--server", cfg.immich_server,
         "--api-key", cfg.immich_api_key,
-        "--album-name", cfg.album_name,
+        *[arg for tag in cfg.tags for arg in ("--tag", tag)],
         "--exclude-extensions", "LRF",
     ]
     if cfg.dry_run:
