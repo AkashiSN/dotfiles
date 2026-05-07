@@ -102,6 +102,8 @@ class Config:
     dest_dir: Path | None
     immich_server: str
     immich_api_key: str
+    immich_client_timeout: str
+    immich_concurrency: int
     device_tag: str
     extra_tags: list[str]
     split_tolerance: int
@@ -140,6 +142,8 @@ class Config:
             dest_dir=Path(ns.dest_dir).expanduser() if ns.dest_dir else None,
             immich_server=immich_server,
             immich_api_key=immich_api_key,
+            immich_client_timeout=ns.immich_client_timeout,
+            immich_concurrency=ns.immich_concurrency,
             device_tag=ns.device_tag,
             extra_tags=ns.tag or [],
             split_tolerance=ns.split_tolerance,
@@ -179,6 +183,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Immich サーバー URL (未指定時は環境変数 IMMICH_GO_SERVER)")
     parser.add_argument("--immich-api-key", default=None,
                         help="Immich API キー (未指定時は環境変数 IMMICH_GO_API_KEY)")
+    parser.add_argument("--immich-client-timeout", default="24h",
+                        help="immich-go の HTTP クライアントタイムアウト "
+                             "(Go duration 形式。巨大動画想定で既定は 24h)")
+    parser.add_argument("--immich-concurrency", type=int, default=2,
+                        help="immich-go の並列アップロード数 (1-20)。"
+                             "巨大ファイル時はサーバ負荷を抑えるため 1〜2 推奨")
     parser.add_argument("--device-tag", default=DEFAULT_DEVICE_TAG,
                         help="常に付与されるデバイス識別タグ")
     parser.add_argument("--tag", action="append",
@@ -600,9 +610,14 @@ def upload_to_immich(cfg: Config, upload_dir: Path) -> None:
     log(f"アップロード対象: {upload_dir}")
     log(f"アップロード先: {cfg.immich_server}")
     log(f"タグ: {', '.join(cfg.all_tags)}")
+    log(f"client-timeout={cfg.immich_client_timeout} "
+        f"concurrent-tasks={cfg.immich_concurrency}")
 
     cmd = [
-        "immich-go", "upload", "--no-ui", "from-folder",
+        "immich-go", "upload",
+        "--client-timeout", cfg.immich_client_timeout,
+        "--concurrent-tasks", str(cfg.immich_concurrency),
+        "from-folder",
         "--server", cfg.immich_server,
         "--api-key", cfg.immich_api_key,
         *[arg for tag in cfg.all_tags for arg in ("--tag", tag)],
