@@ -727,10 +727,6 @@ def main(argv: list[str]) -> int:
             warn(f"  - {staged}  ({g[0].name} 〜 {g[-1].name}, {len(g)} ファイル)")
         warn("再実行や手動結合は failed_merges/ を確認してユーザ側で判断してください")
 
-    if not cfg.skip_upload and cfg.dry_run:
-        console.log("[bold yellow]※ Dry-run モードのため Immich には反映されていません "
-                    "(本番アップロードは --no-dry-run)[/bold yellow]")
-
     log(f"✓ 全工程完了: {dest_dir}")
     return 0
 
