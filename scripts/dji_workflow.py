@@ -458,6 +458,36 @@ def merge_via_ts(out_path: Path, files: list[Path]) -> bool:
         return r.returncode == 0
 
 
+def compute_recording_end_epoch(files: list[Path]) -> int | None:
+    """連続録画グループの録画終了時刻 (epoch 秒) を返す。
+
+    ファイル名の DJI_YYYYMMDDHHMMSS は録画開始時刻なので、
+    最後の分割ファイルの開始時刻 + その duration が全体の録画終了時刻。
+    """
+    last = files[-1]
+    start = filename_to_epoch(last)
+    if start is None:
+        return None
+    dur = get_duration(last)
+    if dur is None:
+        return None
+    return int(start + dur)
+
+
+def set_mtime_to_recording_end(out_path: Path, files: list[Path]) -> None:
+    """結合後ファイルの mtime/atime を録画終了時刻に揃える。
+
+    macOS APFS では mtime を現在より過去に下げると birthtime もそれに
+    追従するため、結果として birthtime=mtime=録画終了時刻 となり、
+    分割前のオリジナルファイルと同じタイムスタンプ規約に揃う。
+    """
+    end = compute_recording_end_epoch(files)
+    if end is None:
+        warn(f"録画終了時刻を算出できず、mtime を更新せず: {out_path.name}")
+        return
+    os.utime(out_path, (end, end))
+
+
 def merge_group(files: list[Path], upload_dir: Path) -> bool:
     """結合に成功したら True、失敗 (or パース不能) なら False を返す。"""
     if len(files) < 2:
@@ -478,6 +508,7 @@ def merge_group(files: list[Path], upload_dir: Path) -> bool:
 
     if out_path.exists():
         log(f"結合済みのためスキップ: {out_name}")
+        set_mtime_to_recording_end(out_path, files)
         return True
 
     log(f"結合: {len(files)} ファイル → {out_name}")
@@ -511,6 +542,7 @@ def merge_group(files: list[Path], upload_dir: Path) -> bool:
                 return False
         size_mb = out_path.stat().st_size / (1024 * 1024)
         log(f"✓ 結合完了: {size_mb:.1f}MB {out_name}")
+        set_mtime_to_recording_end(out_path, files)
         return True
     finally:
         list_file.unlink(missing_ok=True)
