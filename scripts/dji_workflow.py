@@ -110,6 +110,7 @@ class Config:
     device_tag: str
     extra_tags: list[str]
     split_tolerance: int
+    split_min_size_bytes: int
     exts: list[str]
     dry_run: bool
     skip_copy: bool
@@ -147,6 +148,7 @@ class Config:
             device_tag=ns.device_tag,
             extra_tags=ns.tag or [],
             split_tolerance=ns.split_tolerance,
+            split_min_size_bytes=int(ns.split_min_size_gib * 1024**3),
             exts=exts,
             dry_run=ns.dry_run,
             skip_copy=ns.skip_copy,
@@ -194,6 +196,11 @@ def build_parser() -> argparse.ArgumentParser:
                              "(`/` で階層化可、複数指定可)")
     parser.add_argument("--split-tolerance", type=int, default=5,
                         help="連続録画と判定するギャップ許容秒")
+    parser.add_argument("--split-min-size-gib", type=float, default=15.0,
+                        help="分割と判定する直前ファイルの最小サイズ (GiB)。"
+                             "DJI は ~16GiB でファイルを自動分割するので、"
+                             "これを下回るサイズのファイルの直後は "
+                             "別グループ (連続録画ではない) として扱う")
     parser.add_argument("--ext", action="append",
                         help=f"取り込む拡張子 (動画/写真両方を一括指定)。"
                              f"動画 ({', '.join(sorted(VIDEO_EXTS))}) は内部で結合対象として扱う。"
@@ -372,7 +379,16 @@ def get_duration(p: Path) -> float | None:
         return None
 
 
-def detect_groups(originals_dir: Path, tolerance: int) -> list[list[Path]]:
+def detect_groups(originals_dir: Path, tolerance: int,
+                  min_split_size: int) -> list[list[Path]]:
+    """連続録画グループを検出する。
+
+    同一録画と判定する条件 (全て満たす必要あり):
+      - 直前ファイル終端と次ファイル開始時刻の差が ``tolerance`` 秒以内
+      - 直前ファイルサイズが ``min_split_size`` バイト以上
+        (DJI は ~16GiB で自動分割するため、これ未満なら分割ではなく
+        ユーザ操作などで終了した別録画とみなす)
+    """
     files = sorted(originals_dir.rglob("DJI_*_D.MP4"))
     if not files:
         return []
@@ -380,13 +396,15 @@ def detect_groups(originals_dir: Path, tolerance: int) -> list[list[Path]]:
     groups: list[list[Path]] = []
     current: list[Path] = []
     prev_end: int | None = None
+    prev_size: int | None = None
 
     def flush_current() -> None:
-        nonlocal current, prev_end
+        nonlocal current, prev_end, prev_size
         if current:
             groups.append(current)
             current = []
         prev_end = None
+        prev_size = None
 
     for f in files:
         start = filename_to_epoch(f)
@@ -399,23 +417,29 @@ def detect_groups(originals_dir: Path, tolerance: int) -> list[list[Path]]:
             warn(f"duration 取得失敗、グループ区切り: {f.name}")
             flush_current()
             continue
+        size = f.stat().st_size
         end = int(start + dur)
 
         if prev_end is None:
             current = [f]
         else:
             gap = start - prev_end
+            prev_at_limit = (prev_size or 0) >= min_split_size
             if gap < 0:
                 # オーバーラップしている=連続録画ではない
                 warn(f"前ファイル終端より {-gap}s 前に開始、別グループ扱い: {f.name}")
                 groups.append(current)
                 current = [f]
-            elif gap <= tolerance:
+            elif gap <= tolerance and prev_at_limit:
                 current.append(f)
             else:
+                if gap <= tolerance and not prev_at_limit:
+                    log(f"前ファイル {fmt_gib(prev_size or 0)} < 分割閾値 "
+                        f"{fmt_gib(min_split_size)}、別グループ扱い: {f.name}")
                 groups.append(current)
                 current = [f]
         prev_end = end
+        prev_size = size
 
     if current:
         groups.append(current)
@@ -742,8 +766,10 @@ def main(argv: list[str]) -> int:
         die("SD カードがマウントされておらず、originals/ にもデータがありません")
 
     log("=== Step 2: 分割ファイル検出 ===")
-    groups = detect_groups(originals_dir, cfg.split_tolerance)
-    log(f"検出グループ数: {len(groups)}")
+    groups = detect_groups(originals_dir, cfg.split_tolerance,
+                           cfg.split_min_size_bytes)
+    log(f"検出グループ数: {len(groups)} "
+        f"(分割閾値: {fmt_gib(cfg.split_min_size_bytes)} 以上で連続録画と判定)")
 
     failed = merge_splits(groups, upload_dir, failed_dir, cfg.dry_run)
     organize_for_upload(groups, originals_dir, upload_dir, cfg.photo_exts,
