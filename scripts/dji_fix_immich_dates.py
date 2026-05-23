@@ -14,8 +14,8 @@
   4. --tz (既定 Asia/Tokyo) オフセット付き ISO 8601 で PUT /assets/{id}
 
 API 認証は環境変数経由 (CLI に渡しても --help に値が露出するため):
-  IMMICH_GO_SERVER   サーバ URL (--immich-server で上書き可)
-  IMMICH_GO_API_KEY  API キー (CLI 引数では受け取らない)
+  IMMICH_SERVER   サーバ URL (--immich-server で上書き可)
+  IMMICH_API_KEY  API キー (CLI 引数では受け取らない)
 
 実行フロー:
   プラン構築 → 件数サマリと例示 → 確認 → 適用
@@ -264,7 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--immich-server", default=None,
-                        help="Immich サーバ URL (未指定時は環境変数 IMMICH_GO_SERVER)")
+                        help="Immich サーバ URL (未指定時は環境変数 IMMICH_SERVER)")
     parser.add_argument("--dest-base", default=DEFAULT_DEST_BASE,
                         help=f"ローカルファイル探索のベースディレクトリ "
                              f"(default: {DEFAULT_DEST_BASE})")
@@ -285,12 +285,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str]) -> int:
     ns = build_parser().parse_args(argv)
 
-    server = ns.immich_server or os.environ.get("IMMICH_GO_SERVER")
+    server = ns.immich_server or os.environ.get("IMMICH_SERVER")
     if not server:
-        die("Immich サーバを --immich-server か IMMICH_GO_SERVER で指定してください")
-    api_key = os.environ.get("IMMICH_GO_API_KEY")
+        die("Immich サーバを --immich-server か IMMICH_SERVER で指定してください")
+    api_key = os.environ.get("IMMICH_API_KEY")
     if not api_key:
-        die("IMMICH_GO_API_KEY 環境変数を設定してください")
+        die("IMMICH_API_KEY 環境変数を設定してください")
 
     tz = ZoneInfo(ns.tz)
     dest_base = Path(ns.dest_base).expanduser()
