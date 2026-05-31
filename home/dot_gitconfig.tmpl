@@ -31,8 +31,10 @@
 [gpg]
 	format = ssh
 
+{{- if eq .chezmoi.os "darwin" }}
 [gpg "ssh"]
 	program = "op-ssh-sign"
+{{- end }}
 
 [url "https://"]
 	insteadOf = git://

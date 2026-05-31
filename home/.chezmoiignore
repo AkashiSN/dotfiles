@@ -1,0 +1,13 @@
+README.md
+.DS_Store
+**/.DS_Store
+**/__pycache__
+
+{{- if ne .chezmoi.os "darwin" }}
+Library/Application Support/Code/User/settings.json
+Library/Application Support/Code/User/extensions.json
+{{- end }}
+
+{{- if env "SSH_CONNECTION" }}
+.ssh
+{{- end }}

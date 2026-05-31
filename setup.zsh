@@ -92,7 +92,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		grep
 		gzip
 		pass
-		stow
+		chezmoi
 		unzip
 		wget
 		zsh
@@ -125,7 +125,15 @@ command_exists "curl" || exit 1;
 command_exists "git" || exit 1;
 command_exists "gpg" || exit 1;
 command_exists "unzip" || exit 1;
-command_exists "stow" || exit 1;
+
+# chezmoi (dotfile manager). On macOS it is installed via Homebrew above;
+# on other platforms install the prebuilt binary into $PREFIX/bin.
+if ! [[ -x $(command -v chezmoi) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}chezmoi%F{220} dotfile manager (%F{33}twpayne/chezmoi%F{220})…%f"
+	command sh -c "$(curl -fsLS get.chezmoi.io)" -- -b $PREFIX/bin && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+fi
 
 
 #
@@ -333,12 +341,15 @@ else
 	print -P "%F{160}▓▒░ The clone has failed.%f%b"
 fi
 
-print -P "%F{33}▓▒░ %F{220}Linking %F{33}dotfiles%F{220}%f"
-if [[ ! -L $HOME/.gitconfig ]]; then
-  rm -f $HOME/.gitconfig
-fi
-command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME others
-command stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $PREFIX/bin scripts
+print -P "%F{33}▓▒░ %F{220}Applying %F{33}dotfiles%F{220} with chezmoi%f"
+# Point chezmoi at this repository (the .chezmoiroot file selects the home/ subdir).
+# VS Code settings (macOS only) and ~/.ssh (skipped over SSH connections) are
+# handled by home/.chezmoiignore.
+command mkdir -p $HOME/.config/chezmoi
+cat <<EOF > $HOME/.config/chezmoi/chezmoi.toml
+sourceDir = "$GOPATH/src/github.com/AkashiSN/dotfiles"
+EOF
+command chezmoi apply
 
 if [[ "$(uname)" == "Darwin" ]]; then
 	command chmod 755 ${HOMEBREW_PATH}/share/zsh && \
@@ -346,22 +357,14 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		defaults write com.apple.desktopservices DSDontWriteNetworkStores True && \
 		killall Finder
 
-	command stow --override='settings.json' -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t "$HOME/Library/Application Support/Code/User" vscode
-
 	if [ -S "${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" ]; then
 		command mkdir -p ~/.1password && \
-			ln -s "${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" "${HOME}/.1password/agent.sock"
+			ln -sf "${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" "${HOME}/.1password/agent.sock"
 	fi
 
 	if [ -x "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" ]; then
-		command ln -s "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" "${PREFIX}/bin/op-ssh-sign"
+		command ln -sf "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" "${PREFIX}/bin/op-ssh-sign"
 	fi
-fi
-
-if ! [ "${SSH_CONNECTION:-}" ]; then
-	print -P "%F{33}▓▒░ %F{220}Linking %F{33}.ssh%F{220}%f"
-	command mkdir -p $HOME/.ssh && \
-		stow -v -d $GOPATH/src/github.com/AkashiSN/dotfiles -t $HOME/.ssh ssh
 fi
 
 
