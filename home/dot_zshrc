@@ -152,20 +152,10 @@ fi
 
 
 # -------------------------------------
-# anyenv setting
-# -------------------------------------
-
-export ANYENV_ROOT="$HOME/.anyenv"
-export PATH=$ANYENV_ROOT/bin:$PATH
-eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
-
-
-# -------------------------------------
 # Golang setting
 # -------------------------------------
 
-# Add GOPATH
-export GOENV_DISABLE_GOPATH=1
+# Add GOPATH (go itself is provided by aqua)
 export GOPATH=$HOME/Project
 export GHQ_ROOT=$GOPATH/src
 

@@ -1,0 +1,59 @@
+{
+  "checksums": [
+    {
+      "id": "github_release/github.com/astral-sh/uv/0.11.18/uv-aarch64-apple-darwin.tar.gz",
+      "checksum": "1A7ADF8DADAE3B55853115D13A8BF564D219597AD13824B93B213706933863E5",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/direnv/direnv/v2.37.1/direnv.darwin-arm64",
+      "checksum": "4F569F3A36732BFD8B8FEA7BFCC6AD87A59745C109022164D0CA4832451D5369",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/peco/peco/v0.6.0/peco_0.6.0_darwin_arm64.zip",
+      "checksum": "778A4ED7B254294451B5EC1695097E72CE0C70B2E753EE32BFDE2158A72C4ED7",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tofuutils/tenv/v4.12.2/tenv_v4.12.2_Darwin_arm64.tar.gz",
+      "checksum": "5BC587BC3B462E3DE5880BAAE8C291440FAF6ED8D5B141E05C8CCFBF66E41D49",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/twpayne/chezmoi/v2.70.4/chezmoi_2.70.4_darwin_arm64.tar.gz",
+      "checksum": "0093FA436E9CCCCF423323315C0146F6DC77985294BD845CEE1F3CF3F63EEB0F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/wez/atomicparsley/20240608.083822.1ed9031/AtomicParsleyMacOS.zip",
+      "checksum": "48D5D977C6D0B4BE64F0A065DA698CDC2E7AC31D6D195E9CED3B2BD6194A1E9F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/x-motemen/ghq/v1.10.1/ghq_darwin_arm64.zip",
+      "checksum": "5E3100DE0C5A248EEBE6AB176AD94D6E12386AF70A58C535368A4301861B1398",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.03.17/yt-dlp_macos",
+      "checksum": "E80C47B3CE712ACEE51D5E3D4EACE2D181B44D38F1942C3A32E3C7FF53CD9ED5",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.03.17/yt-dlp_macos.zip",
+      "checksum": "6335A1D6C2D2D5D018D9ED348631A1CF1C63E3C1621C284A97B6196DD75645F5",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/golang.org/dl/go1.25.3.darwin-arm64.tar.gz",
+      "checksum": "7C083E3D2C00DEBFEB2F77D9A4C00A1AAC97113B89B9CCC42A90487AF3437382",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/nodejs.org/dist/v24.11.1/node-v24.11.1-darwin-arm64.tar.gz",
+      "checksum": "B05AA3A66EFE680023F930BD5AF3FDBBD542794DA5644CA2AD711D68CBD4DC35",
+      "algorithm": "sha256"
+    }
+  ]
+}

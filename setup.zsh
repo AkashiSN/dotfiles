@@ -26,7 +26,8 @@ cd $HOME
 PREFIX=$HOME/.local
 mkdir -p $PREFIX/bin
 mkdir -p $PREFIX/lib
-export PATH=$PREFIX/bin:${HOMEBREW_PATH:-}/bin:$PATH
+export GOPATH=$HOME/Project
+export PATH=$PREFIX/bin:$GOPATH/bin:${HOMEBREW_PATH:-}/bin:$PATH
 export LD_LIBRARY_PATH=$PREFIX/lib:${LD_LIBRARY_PATH:-}
 export TERM=xterm-256color
 typeset -U PATH path
@@ -46,28 +47,6 @@ command_exists () {
 		return 1
 	fi
 	return 0
-}
-
-get_latest_version_tag() {
-	local repo_url=$1
-	local prefix="${2:-""}"
-
-	local version_pattern="^${prefix}\K[0-9]+(\.[0-9]+)+$"
-
-	local latest_tag=$(git ls-remote --tags "$repo_url" | awk -F/ '{print $NF}' | \
-		grep -oP "$version_pattern" | \
-		sort -V | tail -n1)
-
-	echo "$latest_tag"
-}
-
-get_latest_tag() {
-	local repo_url=$1
-
-	local latest_tag=$(git ls-remote --tags --sort='v:refname' "$repo_url" | \
-		tail --line 1 | cut --delimiter='/' --fields=3)
-
-	echo "$latest_tag"
 }
 
 
@@ -93,6 +72,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
 		gzip
 		pass
 		chezmoi
+		aqua
+		ffmpeg
 		unzip
 		wget
 		zsh
@@ -137,190 +118,23 @@ fi
 
 
 #
-# Anyenv
+# Install aqua (declarative CLI version manager)
 #
 
-export ANYENV_ROOT="$HOME/.anyenv"
-
-if [[ ! -f $ANYENV_ROOT/bin/anyenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}anyenv%F{220} All in one for **env (%F{33}anyenv/anyenv%F{220})…%f"
-	command git clone https://github.com/anyenv/anyenv "$ANYENV_ROOT" && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	command mkdir -p $ANYENV_ROOT/plugins
-	command git clone https://github.com/znz/anyenv-update.git $ANYENV_ROOT/plugins/anyenv-update && \
-		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-update successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	command git clone https://github.com/znz/anyenv-git.git $ANYENV_ROOT/plugins/anyenv-git && \
-		print -P "%F{33}▓▒░ %F{34}Installation plugin anyenv-git successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	export PATH="$ANYENV_ROOT/bin:$PATH"
-	command yes | anyenv install --init
-fi
-
-# Initial setting of anyenv.
-export PATH="$ANYENV_ROOT/bin:$PATH"
-eval "$(env PATH="$ANYENV_ROOT/libexec:$PATH" $ANYENV_ROOT/libexec/anyenv-init - --no-rehash)"
-
-
-#
-# Golang
-#
-
-# Add GOPATH
-export GOENV_DISABLE_GOPATH=1
-export GOPATH=$HOME/Project
-export PATH=$GOPATH/bin:$PATH
-
-# Goenv
-if [[ ! -f $ANYENV_ROOT/envs/goenv/bin/goenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}goenv%F{220} Go Version Management (%F{33}syndbg/goenv%F{220})…%f"
-	command anyenv install goenv && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
-
-# ghq
-if ! [[ -x $(command -v ghq) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}ghq%F{220} Manage remote repository clones (%F{33}x-motemen/ghq%F{220})…%f"
+# On macOS aqua is installed via Homebrew above; on other platforms download the
+# prebuilt binary into $PREFIX/bin. The tools themselves are declared in
+# ~/.config/aquaproj-aqua/aqua.yaml and installed by `aqua install` after chezmoi apply.
+if ! [[ -x $(command -v aqua) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}aqua%F{220} Declarative CLI Version Manager (%F{33}aquaproj/aqua%F{220})…%f"
 	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_linux_amd64.zip
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/ghq.zip https://github.com/x-motemen/ghq/releases/latest/download/ghq_darwin_${ARCH}.zip
-	fi
-	command unzip -qq /tmp/ghq.zip -d /tmp && \
-		mv /tmp/ghq_*/ghq $PREFIX/bin/ && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-	command rm -rf /tmp/ghq*
-fi
-
-# Peco
-if ! [[ -x $(command -v peco) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}peco%F{220} Simplistic interactive filtering tool (%F{33}peco/peco%F{220})…%f"
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/peco.tar.gz https://github.com/peco/peco/releases/latest/download/peco_linux_amd64.tar.gz && \
-			tar xvf /tmp/peco.tar.gz -C /tmp
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/peco.zip https://github.com/peco/peco/releases/latest/download/peco_darwin_${ARCH}.zip && \
-			unzip -qq /tmp/peco.zip -d /tmp
-	fi
-	command mv /tmp/peco_*/peco $PREFIX/bin/ && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-	command rm -rf /tmp/peco*
-fi
-
-# tenv
-if ! [[ -x $(command -v tenv) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}tenv%F{220} OpenTofu, Terraform, Terragrunt, and Atmos version manager, written in Go. (%F{33}tofuutils/tenv%F{220})…%f"
-	TENV_VERSION=$(get_latest_version_tag https://github.com/tofuutils/tenv.git v)
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/tenv.tar.gz https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_Linux_x86_64.tar.gz && \
-			tar xvf /tmp/tenv.tar.gz -C /tmp
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		TENV_ARCH="x86_64"
-		if [[ "${ARCH}" == "arm64" ]]; then
-			TENV_ARCH="arm64"
-		fi
-		command curl -L -o /tmp/tenv.tar.gz https://github.com/tofuutils/tenv/releases/download/v${TENV_VERSION}/tenv_v${TENV_VERSION}_Darwin_${TENV_ARCH}.tar.gz && \
-			tar xvf /tmp/tenv.tar.gz -C /tmp
-	fi
-	command mv /tmp/{tofu,tf,terragrunt,terraform,tenv,atmos} $PREFIX/bin/ && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-fi
-
-# terragrunt
-if ! [[ -x $(command -v terragrunt) ]]; then
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/terragrunt.tar.gz https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_linux_amd64.tar.gz && \
-			tar xvf /tmp/terragrunt.tar.gz -C /tmp
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/terragrunt.tar.gz https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_darwin_${ARCH}.tar.gz && \
-			tar xvf /tmp/terragrunt.tar.gz -C /tmp
-	fi
-	command mv /tmp/terragrunt* $PREFIX/bin/terragrunt && \
-		chmod +x $PREFIX/bin/terragrunt && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-fi
-
-# Nodenv
-if [[ ! -f $ANYENV_ROOT/envs/nodenv/bin/nodenv ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}nodenv%F{220} Groom your app's Node environment with nodenv. (%F{33}nodenv/nodenv%F{220})…%f"
-	command anyenv install nodenv && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-	command mkdir -p "$ANYENV_ROOT/envs/nodenv/plugins" && \
-		git clone https://github.com/pine/nodenv-yarn-install.git "$ANYENV_ROOT/envs/nodenv/plugins/nodenv-yarn-install" && \
-		print -P "%F{33}▓▒░ %F{34}Installation yarn plugin successful.%f%b" || \
-		print -P "%F{160}▓▒░ The clone has failed.%f%b"
-fi
-
-# uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# direnv
-if ! [[ -x $(command -v direnv) ]]; then
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/direnv https://github.com/direnv/direnv/releases/latest/download/direnv.linux-amd64
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/direnv https://github.com/direnv/direnv/releases/latest/download/direnv.darwin-${ARCh}
-	fi
-	command mv /tmp/direnv $PREFIX/bin/ && \
-		chmod +x $PREFIX/bin/terragrunt && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-fi
-
-
-# AtomicParsley
-if ! [[ -x $(command -v AtomicParsley) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}AtomicParsley%F{220} AtomicParsley is a lightweight command line program for reading, parsing and setting metadata into MPEG-4 files, in particular, iTunes-style metadata. (%F{33}wez/atomicparsley%F{220})…%f"
-	ATOMICPARSLEY_VERSION=$(get_latest_tag https://github.com/wez/atomicparsley.git)
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/AtomicParsleyLinux.zip https://github.com/wez/atomicparsley/releases/download/${ATOMICPARSLEY_VERSION}/AtomicParsleyLinux.zip && \
-			unzip -qq /tmp/AtomicParsleyLinux.zip -d /tmp
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		command curl -L -o /tmp/AtomicParsleyMacOS.zip https://github.com/wez/atomicparsley/releases/download/${ATOMICPARSLEY_VERSION}/AtomicParsleyMacOS.zip && \
-			unzip -qq /tmp/AtomicParsleyMacOS.zip -d /tmp
-	fi
-	command mv /tmp/AtomicParsley $PREFIX/bin/ && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
-fi
-
-# ffmpeg
-if [[ "$(uname)" == "Linux" ]]; then
-	if ! [[ -x $(command -v ffmpeg) ]]; then
-		print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} A complete, cross-platform solution to record, convert and stream audio and video. (%F{33}AkashiSN/ffmpeg-docker%F{220})…%f"
-		FFMPEG_VERSION=$(get_latest_version_tag https://github.com/AkashiSN/ffmpeg-docker v)
-		command curl -L -o /tmp/ffmpeg.tar.xz https://github.com/AkashiSN/ffmpeg-docker/releases/download/v${FFMPEG_VERSION}/ffmpeg-7.0.2-linux-amd64.tar.xz && \
-			tar xvf /tmp/ffmpeg.tar.xz -C /tmp/
-		command mv /tmp/ffmpeg-7.0.2-linux-amd64/bin/* $PREFIX/bin/ && \
-			mv /tmp/ffmpeg-7.0.2-linux-amd64/lib/* $PREFIX/lib/ && \
+		command curl -fsSL -o /tmp/aqua.tar.gz https://github.com/aquaproj/aqua/releases/latest/download/aqua_linux_amd64.tar.gz && \
+			tar xf /tmp/aqua.tar.gz -C /tmp aqua && \
+			mv /tmp/aqua $PREFIX/bin/aqua && \
+			chmod +x $PREFIX/bin/aqua && \
 			print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
 			print -P "%F{160}▓▒░ The installation has failed.%f%b"
+		command rm -f /tmp/aqua.tar.gz
 	fi
-fi
-
-# yt-dlp
-if ! [[ -x $(command -v yt-dlp) ]]; then
-	print -P "%F{33}▓▒░ %F{220}Installing %F{33}yt-dlp%F{220} yt-dlp is a feature-rich command-line audio/video downloader with support for thousands of sites. (%F{33}yt-dlp/yt-dlp%F{220})…%f"
-	if [[ "$(uname)" == "Linux" ]]; then
-		command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
-	elif [[ "$(uname)" == "Darwin" ]]; then
-		if [[ "${ARCH}" == "arm64" ]]; then
-			command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
-		else
-			command curl -L -o /tmp/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos_legacy
-		fi
-	fi
-	command mv /tmp/yt-dlp $PREFIX/bin/ && \
-		chmod +x $PREFIX/bin/yt-dlp && \
-		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
-		print -P "%F{160}▓▒░ The installation has failed.%f%b"
 fi
 
 
@@ -365,6 +179,32 @@ if [[ "$(uname)" == "Darwin" ]]; then
 	if [ -x "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" ]; then
 		command ln -sf "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" "${PREFIX}/bin/op-ssh-sign"
 	fi
+fi
+
+
+#
+# Install tools with aqua
+#
+
+print -P "%F{33}▓▒░ %F{220}Installing tools with %F{33}aqua%F{220}%f"
+command env \
+	AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml" \
+	AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml" \
+	aqua install --all
+
+# ffmpeg (macOS: Homebrew above; Linux: BtbN static GPL build into $PREFIX/bin)
+if [[ "$(uname)" == "Linux" ]] && ! [[ -x $(command -v ffmpeg) ]]; then
+	print -P "%F{33}▓▒░ %F{220}Installing %F{33}ffmpeg%F{220} static build (%F{33}BtbN/FFmpeg-Builds%F{220})…%f"
+	FFMPEG_ARCH="linux64"
+	if [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]]; then
+		FFMPEG_ARCH="linuxarm64"
+	fi
+	command curl -fsSL -o /tmp/ffmpeg.tar.xz "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-${FFMPEG_ARCH}-gpl.tar.xz" && \
+		tar xf /tmp/ffmpeg.tar.xz -C /tmp && \
+		find /tmp/ffmpeg-master-latest-${FFMPEG_ARCH}-gpl/bin -type f -exec mv {} $PREFIX/bin/ \; && \
+		print -P "%F{33}▓▒░ %F{34}Installation successful.%f%b" || \
+		print -P "%F{160}▓▒░ The installation has failed.%f%b"
+	command rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-master-latest-${FFMPEG_ARCH}-gpl
 fi
 
 

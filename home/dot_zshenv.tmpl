@@ -66,11 +66,11 @@ manpath=(
   ${manpath}
 )
 
+# aqua - Declarative CLI Version Manager (https://aquaproj.github.io/)
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+export AQUA_POLICY_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua-policy.yaml"
 path=(
-  /opt/ffmpeg/bin(N-/) # FFmpeg
+  $AQUA_ROOT_DIR/bin(N-/) # aqua
   ${path}
-)
-manpath=(
-  /opt/ffmpeg/share/man(N-/) # MacGPG
-  ${manpath}
 )

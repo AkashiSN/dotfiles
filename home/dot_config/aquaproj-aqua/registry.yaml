@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/registry.json
+# Local registry for tools not in the aqua standard registry.
+packages:
+  - type: github_release
+    repo_owner: yt-dlp
+    repo_name: yt-dlp
+    description: A feature-rich command-line audio/video downloader
+    format: raw
+    asset: yt-dlp_{{.OS}}
+    replacements:
+      darwin: macos
+    overrides:
+      - goos: linux
+        goarch: amd64
+        asset: yt-dlp_linux
+      - goos: linux
+        goarch: arm64
+        asset: yt-dlp_linux_aarch64
+      - goos: windows
+        asset: yt-dlp.exe
+    supported_envs:
+      - darwin
+      - linux
+      - windows/amd64
+
+  - type: github_release
+    repo_owner: wez
+    repo_name: atomicparsley
+    description: A lightweight command line program for reading, parsing and setting iTunes-style MPEG-4 metadata
+    asset: AtomicParsley{{.OS}}.{{.Format}}
+    format: zip
+    replacements:
+      darwin: MacOS
+      linux: Linux
+      windows: Windows
+    files:
+      - name: AtomicParsley
+    supported_envs:
+      - darwin
+      - linux/amd64
+      - windows/amd64
