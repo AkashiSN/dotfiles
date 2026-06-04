@@ -8,6 +8,10 @@ Library/Application Support/Code/User/settings.json
 Library/Application Support/Code/User/extensions.json
 {{- end }}
 
+{{- if ne .chezmoi.os "windows" }}
+Documents
+{{- end }}
+
 {{- if env "SSH_CONNECTION" }}
 .ssh
 {{- end }}

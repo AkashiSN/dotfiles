@@ -7,8 +7,10 @@
 [color]
 	ui = true
 
+{{- if eq .chezmoi.os "darwin" }}
 [commit]
 	gpgsign = true
+{{- end }}
 
 [ghq]
 	root = ~/Project/src
@@ -25,7 +27,6 @@
 [user]
 	name = AkashiSN
 	email = btorntireinvynriy@gmail.com
-	# signingkey = 058A1155F0E6572C
 	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip
 
 [gpg]

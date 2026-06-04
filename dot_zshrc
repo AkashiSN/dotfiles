@@ -277,51 +277,6 @@ EOF
 }
 compdef _ssh tssh=ssh
 
-# https://callanbryant.co.uk/blog/how-to-get-the-best-out-of-your-yubikey-with-gpg/#a-better-solution
-# Add below into remote /etc/ssh/sshd_config
-#
-# StreamLocalBindUnlink yes
-#
-function gssh () {
-  echo "Preparing host for forwarded GPG agent..." >&2
-  # prepare remote for agent forwarding, get socket
-  # Remove the socket in this pre-command as an alternative to requiring
-  # StreamLocalBindUnlink to be set on the remote SSH server.
-  # Find the path of the agent socket remotely to avoid manual configuration
-  # client side. The location of the socket varies per version of GPG,
-  # username, and host OS.
-  remote_socket=$(cat <<'EOF' | command \ssh -T "$@" bash
-    set -e
-    socket=$(gpgconf --list-dirs agent-socket)
-    # killing agent works over socket, which might be dangling, so time it out.
-    timeout -k 2 1 gpgconf --kill gpg-agent || true
-    test -S $socket && rm $socket
-    echo $socket
-EOF
-)
-  if [ ! $? -eq 0 ]; then
-    echo "Problem with remote GPG. use ssh -A $@ for ssh with agent forwarding only." >&2
-    return
-  fi
-
-  if [ "$SSH_CONNECTION" ]; then
-    # agent on this host is forwarded, allow chaining
-    local_socket=$(gpgconf --list-dirs agent-socket)
-  else
-    # agent on this host is running locally, use special remote socket
-    local_socket=$(gpgconf --list-dirs agent-extra-socket)
-  fi
-
-  if [ ! -S $local_socket ]; then
-    echo "Could not find suitable local GPG agent socket" 2>&1
-    return
-  fi
-
-  echo "Connecting..." >&2
-  tssh -A -R $remote_socket:$local_socket "$@"
-}
-compdef _ssh gssh=ssh
-
 function convert-crlf-to-lf () {
   find . -type f | xargs file | grep CRLF \
     | awk -F: '{print $1}' | xargs nkf -Lu --overwrite
@@ -382,23 +337,6 @@ if [[ "$(uname -r)" == *microsoft* ]]; then
   alias code="/mnt/c/Users/$(whoami)/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
   unalias docker
   unalias docker-compose
-
-  result=0
-  # Yubikeyが接続されているか確認
-  output=$(lsusb | grep -i Yubico 2>&1 > /dev/null) || result=$?
-  if [ "$result" = "0" ]; then
-    echo "Yubikey is connected. Checking if gpg-agent recognizes Yubikey."
-    result=0
-    # gpg-agentがYubikeyを認識しているか確認
-    output=$(gpg --card-status 2>&1 > /dev/null) || result=$?
-    if [ ! "$result" = "0" ]; then
-      echo "gpg-agent is not recognizes Yubikey. Restarting pcscd..."
-      sudo service pcscd restart
-    fi
-    echo "OK"
-  else
-    echo "Yubikey is not connected. Please connect your Yubikey."
-  fi
 fi
 
 
@@ -409,28 +347,6 @@ fi
 if ! [ "$SSH_CONNECTION" ]; then
   if [ -S "${HOME}/.1password/agent.sock" ]; then
     export SSH_AUTH_SOCK="${HOME}/.1password/agent.sock"
-  elif [ -n "`which gpg-agent 2> /dev/null`" ];then
-    export GPG_TTY=$(tty)
-    LANG=C gpg-connect-agent reloadagent /bye 2>&1 > /dev/null
-    LANG=C gpg-connect-agent updatestartuptty /bye 2>&1 > /dev/null
-    export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
-
-    result=0
-    # gpg-agentがYubikeyを認識しているか確認
-    output=$(gpg --card-status 2>&1 > /dev/null) || result=$?
-    if [ "$result" = "0" ]; then
-      (
-        output=$(ssh git@github.com 2>&1)
-        if [[ $output == *"successfully authenticated"* ]]; then
-          echo $output | sed -n -r -e "s/(Hi .* authenticated).*/\1./p"
-          exit 0
-        else
-          exit 1
-        fi
-      ) || true
-    fi
-  else
-    echo "gpg-agent is not exists"
   fi
 fi
 
