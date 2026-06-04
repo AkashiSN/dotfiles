@@ -5,7 +5,7 @@ set -eu
 export PATH="/usr/local/MacGPG2/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
 if ! gpg --list-keys nishi >/dev/null 2>&1; then
-	gpg --import "{{ .chezmoi.workingTree }}/gpg/nishi.gpg"
+	gpg --import "${CHEZMOI_WORKING_TREE}/gpg/nishi.gpg"
 	printf '5\ny\n' | gpg --command-fd 0 --edit-key nishi trust
 fi
 
