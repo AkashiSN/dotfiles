@@ -1,0 +1,12 @@
+#!/bin/sh
+# Install/sync all aqua-managed tools. Re-runs whenever the aqua config changes.
+# aqua.yaml      hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
+# registry.yaml  hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
+set -eu
+
+# Make sure aqua (brew on macOS, ~/.local/bin on Linux) is resolvable.
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
+export AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
+
+aqua install --all

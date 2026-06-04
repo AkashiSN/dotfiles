@@ -1,0 +1,40 @@
+#!/bin/sh
+# Provision package prerequisites that must exist before chezmoi applies files
+# and before `aqua install` runs. Tools themselves are declared in aqua.yaml.
+set -eu
+
+PREFIX="$HOME/.local"
+mkdir -p "$PREFIX/bin" "$PREFIX/lib"
+
+{{ if eq .chezmoi.os "darwin" -}}
+# --- macOS: Homebrew (GNU userland + a few system tools not in aqua) ---
+if ! command -v brew >/dev/null 2>&1; then
+	/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+eval "$({{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}/bin/brew shellenv)"
+
+for formula in \
+	coreutils diffutils ed findutils gawk git gnu-sed gnu-tar grep gzip \
+	pass wget zsh aqua ffmpeg
+do
+	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
+done
+{{- else -}}
+# --- Linux: aqua prebuilt binary + ffmpeg static build ---
+if ! command -v aqua >/dev/null 2>&1; then
+	curl -fsSL -o /tmp/aqua.tar.gz https://github.com/aquaproj/aqua/releases/latest/download/aqua_linux_amd64.tar.gz
+	tar xf /tmp/aqua.tar.gz -C /tmp aqua
+	mv /tmp/aqua "$PREFIX/bin/aqua"
+	chmod +x "$PREFIX/bin/aqua"
+	rm -f /tmp/aqua.tar.gz
+fi
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+	arch=linux64
+	case "$(uname -m)" in aarch64|arm64) arch=linuxarm64 ;; esac
+	curl -fsSL -o /tmp/ffmpeg.tar.xz "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-${arch}-gpl.tar.xz"
+	tar xf /tmp/ffmpeg.tar.xz -C /tmp
+	find "/tmp/ffmpeg-master-latest-${arch}-gpl/bin" -type f -exec mv {} "$PREFIX/bin/" \;
+	rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${arch}-gpl"
+fi
+{{- end }}

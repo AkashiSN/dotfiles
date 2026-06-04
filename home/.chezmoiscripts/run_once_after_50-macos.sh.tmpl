@@ -1,0 +1,22 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/sh
+# macOS-only provisioning: Finder defaults, zsh completion perms, 1Password.
+set -eu
+
+HOMEBREW_PATH={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
+chmod 755 "$HOMEBREW_PATH/share/zsh" "$HOMEBREW_PATH/share/zsh/site-functions" 2>/dev/null || true
+
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+killall Finder 2>/dev/null || true
+
+# 1Password SSH agent socket
+if [ -S "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" ]; then
+	mkdir -p "$HOME/.1password"
+	ln -sf "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" "$HOME/.1password/agent.sock"
+fi
+
+# 1Password op-ssh-sign (used by git commit signing)
+if [ -x "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" ]; then
+	ln -sf "/Applications/1Password.app/Contents/MacOS/op-ssh-sign" "$HOME/.local/bin/op-ssh-sign"
+fi
+{{- end }}
