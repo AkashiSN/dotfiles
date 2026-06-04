@@ -1,0 +1,35 @@
+# sheldon plugin manager — https://sheldon.cli.rs/
+# Load order matters and is preserved from this file's order:
+#   zsh-completions (fpath) -> compinit -> fzf-tab -> zsh-autosuggestions
+# (fzf-tab must load after compinit and before widget-wrapping plugins;
+#  zsh-autosuggestions must load last.)
+shell = "zsh"
+
+# 1) Before compinit: only extend fpath (no sourcing).
+[plugins.zsh-completions]
+github = "zsh-users/zsh-completions"
+apply = ["fpath"]
+
+# 2) Run compinit here (after fpath additions, before fzf-tab).
+#    Daily-cached: skip the security check when ~/.zcompdump is < 24h old.
+[plugins.compinit]
+inline = '''
+autoload -Uz compinit
+_zcompdump="${ZDOTDIR:-$HOME}/.zcompdump"
+if [[ -n ${_zcompdump}(#qNmh-24) ]]; then
+  compinit -C -d "$_zcompdump"
+else
+  compinit -i -d "$_zcompdump"
+fi
+autoload -Uz bashcompinit && bashcompinit
+'''
+
+# 3) After compinit, before widget-wrapping plugins.
+[plugins.fzf-tab]
+github = "Aloxaf/fzf-tab"
+apply = ["source"]
+
+# 4) Last (wraps ZLE widgets).
+[plugins.zsh-autosuggestions]
+github = "zsh-users/zsh-autosuggestions"
+apply = ["source"]

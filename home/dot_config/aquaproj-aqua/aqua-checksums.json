@@ -11,8 +11,23 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/junegunn/fzf/v0.73.1/fzf-0.73.1-darwin_arm64.tar.gz",
+      "checksum": "D27FD68C04FB9B42F7C73A3F7D38069A74D308E40174F64A072C747213E97286",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/peco/peco/v0.6.0/peco_0.6.0_darwin_arm64.zip",
       "checksum": "778A4ED7B254294451B5EC1695097E72CE0C70B2E753EE32BFDE2158A72C4ED7",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/rossmacarthur/sheldon/0.8.5/sheldon-0.8.5-aarch64-apple-darwin.tar.gz",
+      "checksum": "6E47F10A25F165B095EB2BDE1AB617D4D34AD6F3FF2CA984167CA94FADD52730",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/starship/starship/v1.25.1/starship-aarch64-apple-darwin.tar.gz",
+      "checksum": "1062A2363489B9335529B83204472F02633C08FC3609F1B325BE5EBA36FEB631",
       "algorithm": "sha256"
     },
     {

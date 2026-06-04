@@ -12,9 +12,8 @@ fi
 export TERM=xterm-256color # 色空間
 export WORDCHARS="*?_-.[]~=&;!#$%^(){}<>" # 区切り文字
 
-autoload bashcompinit && bashcompinit
-autoload -Uz compinit && compinit # 補完機能を有効にして、実行する
 autoload -Uz colors && colors # 色を有効にして、実行する
+# compinit / bashcompinit は sheldon の inline プラグイン（plugins.toml）で実行
 
 zstyle ':completion::complete:*' use-cache true # キャッシュの利用による補完の高速化
 zstyle ':completion:*:default' menu select=1 # 補完候補をハイライト
@@ -113,33 +112,43 @@ fi
 
 
 # -------------------------------------
-# Zinit setting
+# Plugins (sheldon)
 # -------------------------------------
 
-ZINIT_HOME="${HOME}/.local/share/zinit/zinit.git"
-[ ! -d $ZINIT_HOME ] && mkdir -p "$(dirname $ZINIT_HOME)"
-[ ! -d $ZINIT_HOME/.git ] && git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
-source "${ZINIT_HOME}/zinit.zsh"
-
-autoload -Uz _zinit
-(( ${+_comps} )) && _comps[zinit]=_zinit
-
-# Load powerlevel10k theme
-zinit ice depth"1"
-zinit light romkatv/powerlevel10k
-
-
-#-------------------------------------
-# Powerlevel10k
-#-------------------------------------
-
-if [[ -r "$HOME/.cache/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "$HOME/.cache/p10k-instant-prompt-${(%):-%n}.zsh"
+# sheldon の plugins.toml が fpath -> compinit -> fzf-tab -> zsh-autosuggestions
+# の順で展開する（plugins.toml 参照）。autosuggestions の設定はロード前に置く。
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+ZSH_AUTOSUGGEST_USE_ASYNC=1
+ZSH_AUTOSUGGEST_MANUAL_REBIND=1
+if command -v sheldon &> /dev/null ;then
+  eval "$(sheldon source)"
 fi
 
-POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+# fzf-tab 用 zstyle（上の menu select=1 を上書き）
+zstyle ':completion:*' menu no
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls -1 --color=always $realpath'
 
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+# 補完のキャッシュ用ヘルパ（compinit 済みのこの位置で定義）
+_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions"
+[[ -d $_cache_dir ]] || mkdir -p "$_cache_dir"
+_load_completion () {  # name, generate-command, binary-path(for mtime check)
+  local name=$1 gen=$2 bin=$3
+  local cache="$_cache_dir/${name}.zsh"
+  if [[ ! -s $cache || ( -n $bin && $bin -nt $cache ) ]]; then
+    eval "$gen" > "$cache" 2>/dev/null
+  fi
+  [[ -s $cache ]] && source "$cache"
+}
+
+
+#-------------------------------------
+# Prompt (starship)
+#-------------------------------------
+
+# starship は aqua 管理。初回起動は aqua proxy の解決で数秒待つことがある。
+if command -v starship &> /dev/null ;then
+  eval "$(starship init zsh)"
+fi
 
 
 #-------------------------------------
@@ -158,6 +167,7 @@ fi
 # Add GOPATH (go itself is provided by aqua)
 export GOPATH=$HOME/Project
 export GHQ_ROOT=$GOPATH/src
+export PATH=$GOPATH/bin:$PATH
 
 # Setting for peco
 function peco-src () {
@@ -200,7 +210,7 @@ fi
 #-------------------------------------
 
 if command -v tenv &> /dev/null ;then
-  source <(tenv completion zsh)
+  _load_completion tenv 'tenv completion zsh' "$(command -v tenv)"
   export TENV_AUTO_INSTALL=true
   export TENV_VALIDATION=sha
 fi
@@ -221,7 +231,7 @@ fi
 #-------------------------------------
 
 if command -v kubectl > /dev/null 2>&1;then
-  source <(kubectl completion zsh)
+  _load_completion kubectl 'kubectl completion zsh' "$(command -v kubectl)"
   alias k="kubectl"
 fi
 
@@ -332,207 +342,6 @@ function search () {
 
 
 # -------------------------------------
-# Download functions
-# -------------------------------------
-
-# Sets os_lower (linux|darwin), os_title (Linux|Darwin),
-# arch_go (amd64|arm64), arch_x86 (x86_64|arm64) in the caller's scope.
-function _download_platform () {
-  case "$(uname -s)" in
-    Linux)  os_lower=linux;  os_title=Linux  ;;
-    Darwin) os_lower=darwin; os_title=Darwin ;;
-    *) print -P "%F{red}Unsupported OS:%f $(uname -s)" >&2; return 1 ;;
-  esac
-  case "$(uname -m)" in
-    x86_64|amd64)  arch_go=amd64; arch_x86=x86_64 ;;
-    arm64|aarch64) arch_go=arm64; arch_x86=arm64  ;;
-    *) print -P "%F{red}Unsupported arch:%f $(uname -m)" >&2; return 1 ;;
-  esac
-}
-
-function _download_header () {
-  print -P "%F{34}==>%f %F{cyan}$1%f %F{yellow}v$2%f %F{244}(${os_lower}/${arch_go})%f"
-}
-
-function _download_step () {
-  print -P "  %F{244}->%f $1"
-}
-
-function _download_done () {
-  print -P "%F{34}==>%f %F{green}Done:%f $1"
-}
-
-function download-direnv () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "direnv" "${version}"
-
-  _download_step "Downloading binary"
-  wget -q --show-progress -O ${LOCAL_PREFIX}/bin/direnv \
-    https://github.com/direnv/direnv/releases/download/v${version}/direnv.${os_lower}-${arch_go} || return 1
-
-  chmod +x ${LOCAL_PREFIX}/bin/direnv
-  _download_done "${LOCAL_PREFIX}/bin/direnv"
-}
-
-function download-ghq () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "ghq" "${version}"
-
-  local archive=/tmp/ghq_${os_lower}_${arch_go}.zip
-  local extracted=/tmp/ghq_${os_lower}_${arch_go}
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/x-motemen/ghq/releases/download/v${version}/ghq_${os_lower}_${arch_go}.zip || return 1
-
-  _download_step "Extracting"
-  unzip -oq -d /tmp ${archive}
-
-  _download_step "Installing binary and completion"
-  cp ${extracted}/ghq ${LOCAL_PREFIX}/bin/
-  cp ${extracted}/misc/zsh/_ghq ${LOCAL_PREFIX}/share/zsh/site-functions/
-
-  rm -r ${extracted} ${archive}
-  _download_done "${LOCAL_PREFIX}/bin/ghq"
-}
-
-function download-peco () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "peco" "${version}"
-
-  local archive=/tmp/peco_${os_lower}_${arch_go}.tar.gz
-  local extracted=/tmp/peco_${os_lower}_${arch_go}
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/peco/peco/releases/download/v${version}/peco_${os_lower}_${arch_go}.tar.gz || return 1
-
-  _download_step "Extracting"
-  tar -C /tmp -xf ${archive}
-
-  _download_step "Installing binary"
-  cp ${extracted}/peco ${LOCAL_PREFIX}/bin/
-
-  rm -r ${extracted} ${archive}
-  _download_done "${LOCAL_PREFIX}/bin/peco"
-}
-
-function download-tenv () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "tenv" "${version}"
-
-  local archive=/tmp/tenv_v${version}_${os_title}_${arch_x86}.tar.gz
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/tofuutils/tenv/releases/download/v${version}/tenv_v${version}_${os_title}_${arch_x86}.tar.gz || return 1
-
-  _download_step "Extracting to ${LOCAL_PREFIX}/share/tenv"
-  mkdir -p ${LOCAL_PREFIX}/share/tenv
-  tar -C ${LOCAL_PREFIX}/share/tenv -xf ${archive}
-
-  _download_step "Linking tenv/terraform/tf into ${LOCAL_PREFIX}/bin"
-  ln -snf ${LOCAL_PREFIX}/share/tenv/{tenv,terraform,tf} ${LOCAL_PREFIX}/bin
-
-  rm ${archive}
-  _download_done "${LOCAL_PREFIX}/bin/{tenv,terraform,tf}"
-}
-
-function download-tflint () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "tflint" "${version}"
-
-  local archive=/tmp/tflint_${os_lower}_${arch_go}.zip
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/terraform-linters/tflint/releases/download/v${version}/tflint_${os_lower}_${arch_go}.zip || return 1
-
-  _download_step "Extracting and installing"
-  unzip -oq -d /tmp ${archive}
-  cp /tmp/tflint ${LOCAL_PREFIX}/bin/
-
-  rm /tmp/tflint ${archive}
-  _download_done "${LOCAL_PREFIX}/bin/tflint"
-}
-
-function download-tflint-ruleset () {
-  local ruleset=$1
-  local version=$2
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "tflint-ruleset-${ruleset}" "${version}"
-
-  local ruleset_path=$HOME/.tflint.d/plugins/github.com/terraform-linters/tflint-ruleset-${ruleset}/${version}
-  local archive=/tmp/tflint-ruleset-${ruleset}_${os_lower}_${arch_go}.zip
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/terraform-linters/tflint-ruleset-${ruleset}/releases/download/v${version}/tflint-ruleset-${ruleset}_${os_lower}_${arch_go}.zip || return 1
-
-  _download_step "Installing to ${ruleset_path}"
-  mkdir -p ${ruleset_path}
-  unzip -oq -d ${ruleset_path} ${archive}
-
-  rm ${archive}
-  _download_done "${ruleset_path}"
-}
-
-function download-tfmigrate () {
-  local version=$1
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "tfmigrate" "${version}"
-
-  local archive=/tmp/tfmigrate_${version}_${os_lower}_${arch_go}.tar.gz
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://github.com/minamijoyo/tfmigrate/releases/download/v${version}/tfmigrate_${version}_${os_lower}_${arch_go}.tar.gz || return 1
-
-  _download_step "Extracting and installing"
-  mkdir -p /tmp/tfmigrate
-  tar -C /tmp/tfmigrate -xf ${archive}
-  cp /tmp/tfmigrate/tfmigrate ${LOCAL_PREFIX}/bin
-
-  rm -r /tmp/tfmigrate ${archive}
-  _download_done "${LOCAL_PREFIX}/bin/tfmigrate"
-}
-
-function download-terraform-provider () {
-  local provider=$1
-  local version=$2
-  local os_lower os_title arch_go arch_x86
-  _download_platform || return 1
-  _download_header "terraform-provider-${provider}" "${version}"
-
-  local provider_path=$HOME/.terraform.d/plugins/registry.terraform.io/hashicorp/${provider}/${version}/${os_lower}_${arch_go}
-  local archive=/tmp/terraform-provider-${provider}_${version}_${os_lower}_${arch_go}.zip
-
-  _download_step "Downloading ${archive:t}"
-  wget -q --show-progress -O ${archive} \
-    https://releases.hashicorp.com/terraform-provider-${provider}/${version}/terraform-provider-${provider}_${version}_${os_lower}_${arch_go}.zip || return 1
-
-  _download_step "Installing to ${provider_path}"
-  mkdir -p ${provider_path}
-  unzip -oq -d ${provider_path} ${archive}
-
-  rm ${archive}
-  _download_done "${provider_path}"
-}
-
-
-# -------------------------------------
 # Aliases setting
 # -------------------------------------
 
@@ -556,13 +365,6 @@ esac
 
 alias rsync="rsync -azP"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-
-
-# -------------------------------------
-# Other Path setting
-# -------------------------------------
-
-export PATH=$GOPATH/bin:$PATH
 
 
 # -------------------------------------
@@ -659,10 +461,3 @@ if [[ "$(uname)" != Darwin ]]; then
     fi
   fi
 fi
-
-
-# -------------------------------------
-# 補完
-# -------------------------------------
-
-compinit -i # 補完を再読込
