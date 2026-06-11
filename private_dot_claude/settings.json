@@ -5,7 +5,8 @@
   },
   "enabledPlugins": {
     "example-skills@anthropic-agent-skills": true,
-    "code-simplifier@claude-plugins-official": true
+    "code-simplifier@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   },
   "language": "Japanese"
 }

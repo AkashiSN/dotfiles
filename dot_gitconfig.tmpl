@@ -8,6 +8,7 @@
 	ui = true
 
 {{- if eq .chezmoi.os "darwin" }}
+
 [commit]
 	gpgsign = true
 {{- end }}
@@ -33,8 +34,10 @@
 	format = ssh
 
 {{- if eq .chezmoi.os "darwin" }}
+
 [gpg "ssh"]
 	program = "op-ssh-sign"
+	allowedSignersFile = ~/.ssh/allowed_signers
 {{- end }}
 
 [url "https://"]
