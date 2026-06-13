@@ -300,6 +300,11 @@ function search () {
   done
 }
 
+# nvim を VSCode ライクな IDE レイアウトで起動する
+function ide () {
+  NVIM_IDE=1 nvim "$@"
+}
+
 
 # -------------------------------------
 # Aliases setting
