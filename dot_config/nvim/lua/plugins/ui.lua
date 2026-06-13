@@ -7,7 +7,7 @@ return {
     event = "VeryLazy",
     opts = {
       options = {
-        theme = "catppuccin",
+        theme = "catppuccin-mocha", -- catppuccin はフレーバー別テーマ名を使う
         globalstatus = true,
         section_separators = "",
         component_separators = "|",
