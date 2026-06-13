@@ -1,0 +1,13 @@
+#!/bin/sh
+# Provision a default LTS Node via fnm (installed by aqua) so mason can install
+# npm-based language servers (ts_ls, pyright, bash-language-server).
+# Runs after aqua install (20) so fnm is already on disk.
+set -eu
+
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+if command -v fnm >/dev/null 2>&1; then
+	eval "$(fnm env)"
+	fnm install --lts
+	fnm alias default lts-latest 2>/dev/null || fnm default lts-latest 2>/dev/null || true
+fi

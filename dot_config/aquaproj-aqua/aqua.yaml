@@ -24,6 +24,10 @@ packages:
   - name: rossmacarthur/sheldon@0.8.5
   - name: starship/starship@v1.25.1
   - name: junegunn/fzf@v0.73.1
+  # --- editor: neovim + search backends (fzf-lua) ---
+  - name: neovim/neovim@v0.12.3
+  - name: BurntSushi/ripgrep@15.1.0
+  - name: sharkdp/fd@v10.4.2
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09
     registry: local

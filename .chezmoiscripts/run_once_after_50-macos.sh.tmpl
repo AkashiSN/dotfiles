@@ -6,6 +6,9 @@ set -eu
 HOMEBREW_PATH={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
 chmod 755 "$HOMEBREW_PATH/share/zsh" "$HOMEBREW_PATH/share/zsh/site-functions" 2>/dev/null || true
 
+# nvim-treesitter のパーサビルド用に C コンパイラ(Xcode Command Line Tools)を確保
+xcode-select -p >/dev/null 2>&1 || xcode-select --install || true
+
 defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
 killall Finder 2>/dev/null || true
 
