@@ -45,31 +45,23 @@ Host ix2215-tokyo
     HostKeyAlgorithms ssh-rsa
     PubkeyAcceptedAlgorithms +ssh-rsa
 
+Host develop-server
+    HostName        172.16.100.2
+    User            ubuntu
+    IdentityFile    ~/.ssh/1password.pub
+
 Host truenas
     HostName        172.16.100.10
     User            admin
     IdentityFile    ~/.ssh/1password.pub
 
 # AWS
-Host k3s-lightsail.akashisn.info
-    HostName        k3s-lightsail.akashisn.info
-    ProxyCommand    cloudflared access ssh --hostname %h
-    User            ubuntu
-    IdentityFile    ~/.ssh/1password.pub
-
 Host cloudsa
     HostName        i-0125c81b19f9acbac
     User            ec2-user
     ForwardAgent    yes
     IdentityFile    ~/.ssh/1password.pub
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
-
-# OCI
-Host k3s-oci.akashisn.info
-    HostName        k3s-oci.akashisn.info
-    ProxyCommand    cloudflared access ssh --hostname %h
-    User            ubuntu
-    IdentityFile    ~/.ssh/1password.pub
 
 # Service
 Host gitlab.com
