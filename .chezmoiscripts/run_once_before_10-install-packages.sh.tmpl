@@ -19,6 +19,11 @@ for formula in \
 do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
 done
+
+# GUI アプリ / フォント (cask)。ghostty: ターミナル, symbols-only-nerd-font: nvim のアイコン用
+for cask in ghostty font-symbols-only-nerd-font; do
+	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --cask "$cask"
+done
 {{- else -}}
 # --- Linux: aqua prebuilt binary + ffmpeg static build ---
 if ! command -v aqua >/dev/null 2>&1; then

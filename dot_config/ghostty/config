@@ -1,0 +1,19 @@
+# Ghostty configuration (macOS)
+
+# SSH + tmux 互換のため標準 terminfo を使う
+# (xterm-ghostty はリモート Linux に無く、tmux 起動が失敗するため)
+term = xterm-256color
+
+# 本文フォントは Menlo。アイコン(nvim-web-devicons)は Symbols Nerd Font に自動フォールバック
+font-family = Menlo
+font-size = 13
+
+# nvim(catppuccin) と色味を揃える
+theme = Catppuccin Mocha
+
+# zsh のシェル統合
+shell-integration = zsh
+
+# OSC52 クリップボード (nvim の yank <-> システムクリップボード)
+clipboard-write = allow
+clipboard-read = allow
