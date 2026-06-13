@@ -7,7 +7,7 @@ checksum:
   require_checksum: false
 registries:
   - type: standard
-    ref: v4.520.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.524.0 # renovate: depName=aquaproj/aqua-registry
   - name: local
     type: local
     path: registry.yaml
@@ -15,18 +15,17 @@ packages:
   # --- standard registry ---
   - name: x-motemen/ghq@v1.10.1
   - name: peco/peco@v0.6.0
-  - name: tofuutils/tenv@v4.12.2
+  - name: tofuutils/tenv@v4.14.8
   - name: direnv/direnv@v2.37.1
-  - name: astral-sh/uv@0.11.18
-  - name: twpayne/chezmoi@v2.70.4
-  - name: golang/go@go1.25.3
-  - name: nodejs/node@v24.11.1
+  - name: astral-sh/uv@0.11.21
+  - name: golang/go@go1.26.4
+  - name: Schniz/fnm@v1.39.0
   # --- shell: plugin manager / prompt / fuzzy finder ---
   - name: rossmacarthur/sheldon@0.8.5
   - name: starship/starship@v1.25.1
   - name: junegunn/fzf@v0.73.1
   # --- local registry (standard registry に無いもの) ---
-  - name: yt-dlp/yt-dlp@2026.03.17
+  - name: yt-dlp/yt-dlp@2026.06.09
     registry: local
-  - name: wez/atomicparsley@20240608.083822.1ed9031
+  - name: wez/atomicparsley@20221229.172126.d813aa6
     registry: local

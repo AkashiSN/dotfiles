@@ -15,7 +15,7 @@ eval "$({{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end
 
 for formula in \
 	coreutils diffutils ed findutils gawk git gnu-sed gnu-tar grep gzip \
-	pass wget zsh aqua ffmpeg
+	wget zsh aqua ffmpeg
 do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
 done
