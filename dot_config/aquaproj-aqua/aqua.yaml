@@ -28,6 +28,8 @@ packages:
   - name: neovim/neovim@v0.12.3
   - name: BurntSushi/ripgrep@15.1.0
   - name: sharkdp/fd@v10.4.2
+  # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
+  - name: tree-sitter/tree-sitter@v0.26.9
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09
     registry: local

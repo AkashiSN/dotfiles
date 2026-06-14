@@ -10,15 +10,58 @@ return {
     },
     cmd = "Neotree",
     keys = {
-      { "<leader>e", "<cmd>Neotree toggle<cr>", desc = "Explorer toggle" },
+      -- トグル: 開いていれば閉じる(閉じると IDE モードでは右の claude ペインが
+      -- 画面幅の 50% まで広がる / 開くと残り幅を 50/50 に取り直す)。
+      { "<leader>e", "<cmd>Neotree toggle filesystem left<cr>", desc = "Explorer toggle" },
       { "<leader>E", "<cmd>Neotree reveal<cr>", desc = "Explorer reveal file" },
+      -- VSCode のソース管理パネル相当: 左ツリーを Git モードに切り替える
+      { "<leader>gg", "<cmd>Neotree git_status left<cr>", desc = "Git status panel" },
     },
     opts = {
       close_if_last_window = true,
+      sources = { "filesystem", "buffers", "git_status" },
+      -- 上部にクリック可能なタブ(Files / Buffers / Git)を表示。
+      -- マウスでタブをクリックして左ツリーの表示ソースを切り替えられる。
+      source_selector = {
+        winbar = true,
+        statusline = false,
+        sources = {
+          { source = "filesystem", display_name = "  Files " },
+          { source = "buffers", display_name = "  Buffers " },
+          { source = "git_status", display_name = "  Git " },
+        },
+      },
       filesystem = {
         follow_current_file = { enabled = true },
         use_libuv_file_watcher = true,
         filtered_items = { hide_dotfiles = false, hide_gitignored = false },
+      },
+      git_status = {
+        window = {
+          mappings = {
+            -- 変更ファイルを選ぶと diffview を専用タブで開く(左=HEAD / 右=作業ツリー)。
+            -- diffview は1つの vim タブページとして開くので、別ファイルを編集して
+            -- 戻ってきても diff 状態は失われない。見終わったら diffview 内で `q`
+            -- または <leader>gq (:DiffviewClose) で閉じると元のレイアウトに戻る。
+            -- (キーボードの <cr> でもマウスのダブルクリックでも)
+            ["<cr>"] = "diff_in_editor",
+            ["<2-LeftMouse>"] = "diff_in_editor",
+            -- 差分にせず通常どおりファイルを開きたいとき
+            ["o"] = "open",
+          },
+        },
+      },
+      commands = {
+        -- neo-tree の Git タブで選んだファイルを diffview の専用タブで開く。
+        -- 全変更ファイルをまとめて見たいときは <leader>gd を使う。
+        diff_in_editor = function(state)
+          local node = state.tree:get_node()
+          if not node or node.type ~= "file" then
+            return
+          end
+          -- `-- <path>` で対象ファイルだけにスコープした作業ツリー vs HEAD 差分。
+          vim.cmd("DiffviewOpen -- " .. vim.fn.fnameescape(node.path))
+        end,
       },
       window = {
         width = 32,
@@ -70,14 +113,46 @@ return {
     },
   },
 
-  -- diff / ファイル履歴
+  -- diff / ファイル履歴 (サイドバイサイド差分・ステージング)
   {
     "sindrets/diffview.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
-    cmd = { "DiffviewOpen", "DiffviewFileHistory" },
+    cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewToggleFiles", "DiffviewFileHistory" },
     keys = {
-      { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diffview open" },
-      { "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", desc = "File history" },
+      -- 作業ツリー vs HEAD の差分を開く
+      { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diffview (working tree)" },
+      { "<leader>gq", "<cmd>DiffviewClose<cr>", desc = "Diffview close" },
+      { "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", desc = "File history (current)" },
+      { "<leader>gH", "<cmd>DiffviewFileHistory<cr>", desc = "File history (repo)" },
+    },
+    -- diffview のファイルパネル内では既定で以下が使える:
+    --   -  : カーソル下のファイル/hunk を stage / unstage
+    --   S  : 全て stage    U : 全て unstage
+    --   X  : 変更を破棄    R : 全ファイル refresh
+    opts = {
+      -- diffview のタブを見ている間は上部のファイルタブ(bufferline)を隠す。
+      -- (出ていると誤ってタブをクリックした際、diff ウィンドウに通常ファイルが
+      --  読み込まれてレイアウトが壊れ戻れなくなるため)。diffview は専用タブ
+      --  ページなので、そのタブに入ったら隠し・離れたら(=他タブ/閉じる)戻す。
+      hooks = {
+        view_enter = function() vim.o.showtabline = 0 end,
+        view_leave = function() vim.o.showtabline = 2 end,
+        view_closed = function() vim.o.showtabline = 2 end,
+      },
+      keymaps = {
+        -- diff/パネルどこでも `q` で確実に diffview ごと閉じて元に戻る。
+        -- (IDE モードでは :q が SmartQ に化けて片ペインだけ消える事故が
+        --  起きるため、専用に潰しておく)
+        view = {
+          { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Close Diffview" } },
+        },
+        file_panel = {
+          { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Close Diffview" } },
+        },
+        file_history_panel = {
+          { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Close Diffview" } },
+        },
+      },
     },
   },
 

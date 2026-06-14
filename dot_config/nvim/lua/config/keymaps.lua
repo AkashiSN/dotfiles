@@ -20,3 +20,27 @@ end, { desc = "Format" })
 -- ビジュアルモードでインデントを保持
 map("v", "<", "<gv")
 map("v", ">", ">gv")
+
+-- クリックでそのウィンドウにフォーカスが移ったら自動で挿入モードに入る
+-- (VSCode ライクなモードレス感覚)。毎回 i を押す手間がなくなり、IME が全角の
+-- ままでも半角へ戻して i を押す必要がなくなる。スクロール後もクリックすれば
+-- この仕組みでそのまま入力を再開できる。
+--   通常の編集バッファ      … 挿入モード
+--   ターミナル(claude/下部)  … ターミナルジョブモード(そのまま打てる)
+--   neo-tree/ダッシュボード等 … 何もしない(ツリー操作などを維持)
+-- ドラッグ選択・ダブルクリック選択はビジュアルモードで <LeftRelease> が発火する
+-- ため、ノーマルモードだけを対象にすれば選択操作は壊れない。
+-- vim.g.click_to_insert = false で無効化できる。
+vim.g.click_to_insert = true
+map("n", "<LeftRelease>", function()
+  if not vim.g.click_to_insert then
+    return
+  end
+  local buf = vim.api.nvim_get_current_buf()
+  local bt = vim.bo[buf].buftype
+  if bt == "terminal" then
+    vim.cmd("startinsert")
+  elseif bt == "" and vim.bo[buf].modifiable and not vim.bo[buf].readonly then
+    vim.cmd("startinsert")
+  end
+end, { desc = "Focus pane by click then enter insert" })

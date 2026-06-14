@@ -6,8 +6,43 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.1.0/ripgrep-15.1.0-aarch64-unknown-linux-gnu.tar.gz",
+      "checksum": "2B661C6EF508E902F388E9098D9C4C5ACA72C87B55922D94ABDBA830B4DC885E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.1.0/ripgrep-15.1.0-x86_64-apple-darwin.tar.gz",
+      "checksum": "64811CB24E77CAC3057D6C40B63AC9BECF9082EEDD54CA411B475B755D334882",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.1.0/ripgrep-15.1.0-x86_64-pc-windows-msvc.zip",
+      "checksum": "124510B94B6BAA3380D051FDF4650EAA80A302C876D611E9DBA0B2E18D87493A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/BurntSushi/ripgrep/15.1.0/ripgrep-15.1.0-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "1C9297BE4A084EEA7ECAEDF93EB03D058D6FAAE29BBC57ECDAF5063921491599",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/Schniz/fnm/v1.39.0/fnm-arm64.zip",
+      "checksum": "4EAFF58B2C5BF30D0934027572DD0B5BBB60D2A1AF309230B53662D4B1D45599",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/Schniz/fnm/v1.39.0/fnm-linux.zip",
+      "checksum": "7807664F39D39FC518DA1C35BA0181E4B3267603C4B1DEDEB4B5FC6AE440A224",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/Schniz/fnm/v1.39.0/fnm-macos.zip",
       "checksum": "F046483E85C53B3278EFE49A3620C8680F22EFA58A8DABFD03EAFC6B59B31A25",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/Schniz/fnm/v1.39.0/fnm-windows.zip",
+      "checksum": "8183BED4348CB78FDFD8ABB3D1247FBEAB7B2082F941363929C61E747C001E10",
       "algorithm": "sha256"
     },
     {
@@ -96,8 +131,28 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-linux-arm64.tar.gz",
+      "checksum": "E055AF73FA9C72B37456DA8D204FA5C09850BC07E80E9176FE3B87D4AFB7A3FC",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-linux-x86_64.tar.gz",
+      "checksum": "C441B547142860BF01BCCE39E36CBED185C41112813E15443B16E5237750724D",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-macos-arm64.tar.gz",
       "checksum": "532DA1D00E465A660FA01C3D4991333D09C52107DCE7DF937368545DACA0A14E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-macos-x86_64.tar.gz",
+      "checksum": "4B40E318EB7073321FA5FC06D7F60C3C0DE1D7EA50FFBAA8B04286F5484D294F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-win64.zip",
+      "checksum": "63DAA0A0374F2255D2FB4C0867FCACC64A09C8D7EC1C349F781AFF1B8350A8AD",
       "algorithm": "sha256"
     },
     {
@@ -143,6 +198,26 @@
     {
       "id": "github_release/github.com/sharkdp/fd/v10.4.2/fd-v10.4.2-aarch64-apple-darwin.tar.gz",
       "checksum": "623DC0AFC81B92E4D4606B380D7BC91916BA7B97814263E554D50923A39E480A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sharkdp/fd/v10.4.2/fd-v10.4.2-aarch64-pc-windows-msvc.zip",
+      "checksum": "4F9110C2D5B33A7F760BFA5510F4C113D828109F7277D421B1053A9943C0FC92",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sharkdp/fd/v10.4.2/fd-v10.4.2-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "F32D3657473FBA74E2600BABC8DB0B93420D51169223B7E8143B2ED55D8FD9E8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sharkdp/fd/v10.4.2/fd-v10.4.2-x86_64-pc-windows-msvc.zip",
+      "checksum": "B2816E506390A89941C63C9187D58A3CC10E9A55F2EF0685F9EA0ECCAF7C98C8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sharkdp/fd/v10.4.2/fd-v10.4.2-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "E3257D48E29A6BE965187DBD24CE9AF564E0FE67B3E73C9BDCD180F4EC11BDDE",
       "algorithm": "sha256"
     },
     {
@@ -203,6 +278,36 @@
     {
       "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Windows_x86_64.zip",
       "checksum": "6BAFB4E2CCB4498B47659B8B39A0A644F44985FC63641FD2E43A1D12B89C7882",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-linux-arm64.gz",
+      "checksum": "C8FEEB32115958CB44442CA4D68F6D66CF7605DBD65681E62342181EBDD6DB3B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-linux-x64.gz",
+      "checksum": "9CE82137CAA65864E7CA8B869FD391CEF88C9BD2A01C4371B9C4DD26C2585EFB",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-macos-arm64.gz",
+      "checksum": "E46725B2417C085B0761948ABC0CC240BFF6A3AB5D2128E3AD0DE467DED3388D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-macos-x64.gz",
+      "checksum": "A57B6044AD739CA3164CC20637DB65352CCC9C69E1C34A7CDA3E5A62D529B164",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-windows-arm64.gz",
+      "checksum": "77422E257649158B91296D340D8430B7A0B469DF41734EFC9B261F1A16A33E95",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/tree-sitter/tree-sitter/v0.26.9/tree-sitter-windows-x64.gz",
+      "checksum": "DBB5309FCC76EAEB4EC358FCB72AC2EAE5CD653E12967246CC63F84038D16CD8",
       "algorithm": "sha256"
     },
     {
