@@ -21,18 +21,20 @@ end, { desc = "Format" })
 map("v", "<", "<gv")
 map("v", ">", ">gv")
 
--- クリックでそのウィンドウにフォーカスが移ったら自動で挿入モードに入る
+-- ダブルクリックでそのウィンドウにフォーカスを移しつつ自動で挿入モードに入る
 -- (VSCode ライクなモードレス感覚)。毎回 i を押す手間がなくなり、IME が全角の
--- ままでも半角へ戻して i を押す必要がなくなる。スクロール後もクリックすれば
--- この仕組みでそのまま入力を再開できる。
+-- ままでも半角へ戻して i を押す必要がなくなる。
 --   通常の編集バッファ      … 挿入モード
 --   ターミナル(claude/下部)  … ターミナルジョブモード(そのまま打てる)
 --   neo-tree/ダッシュボード等 … 何もしない(ツリー操作などを維持)
--- ドラッグ選択・ダブルクリック選択はビジュアルモードで <LeftRelease> が発火する
--- ため、ノーマルモードだけを対象にすれば選択操作は壊れない。
+-- シングルクリックは既定動作(フォーカス移動+カーソル位置決めのみ)に任せる。
+-- これにより、ターミナルのログをシングルクリック+ドラッグでビジュアル選択して
+-- y でコピーできる(以前のシングルクリック→即 insert だと terminal-job モードへ
+-- 入ってしまい選択コピーできなかった)。ダブルクリックの1回目で既にカーソルが
+-- 位置決めされているので、2 回目(<2-LeftMouse>)で startinsert すれば足りる。
 -- vim.g.click_to_insert = false で無効化できる。
 vim.g.click_to_insert = true
-map("n", "<LeftRelease>", function()
+map("n", "<2-LeftMouse>", function()
   if not vim.g.click_to_insert then
     return
   end
@@ -43,4 +45,4 @@ map("n", "<LeftRelease>", function()
   elseif bt == "" and vim.bo[buf].modifiable and not vim.bo[buf].readonly then
     vim.cmd("startinsert")
   end
-end, { desc = "Focus pane by click then enter insert" })
+end, { desc = "Focus pane by double-click then enter insert" })
