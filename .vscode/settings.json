@@ -1,0 +1,20 @@
+{
+  // VSCode の言語判定用。VSCode も modeline を読まないため、chezmoi の
+  // ソース名 (dot_ / private_ などの接頭辞付き) に言語を割り当てる。
+  // 先頭の `*` が接頭辞 (dot_, private_dot_ ...) を吸収するので prefix 非依存。
+  // 拡張子付きファイルは VSCode が自動判定するため列挙不要。
+  "files.associations": {
+    "*zshrc": "shellscript",
+    "*zshenv*": "shellscript",
+    "*zlogout": "shellscript",
+    "*zprofile": "shellscript",
+    "*bash_profile": "shellscript",
+    "*bashrc": "shellscript",
+    "*envrc": "shellscript",
+    "*.sh.tmpl": "shellscript",
+    "*gitconfig*": "properties",
+    "*gitignore_global": "ignore",
+    "private_config": "properties",
+    "*allowed_signers": "properties"
+  }
+}

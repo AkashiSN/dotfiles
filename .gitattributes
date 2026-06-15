@@ -1,0 +1,24 @@
+# GitHub の言語判定 (Linguist) 用。
+# Linguist は Vim の modeline を読まないため、chezmoi のソース名
+# (dot_ / private_ などの接頭辞付き・拡張子なし) に言語を明示する。
+# `*` が接頭辞 (dot_, private_dot_ ...) を吸収するので prefix 非依存で効く。
+# 拡張子付き (.lua/.toml 等) や shebang 付きスクリプトは自動判定されるため不要。
+
+# zsh
+*zshrc            linguist-language=Shell
+*zshenv*          linguist-language=Shell
+*zlogout          linguist-language=Shell
+*zprofile         linguist-language=Shell
+# bash
+*bash_profile     linguist-language=Shell
+*bashrc           linguist-language=Shell
+# direnv
+*envrc            linguist-language=Shell
+# chezmoi スクリプトテンプレート (.sh.tmpl)
+*.sh.tmpl         linguist-language=Shell
+# git
+*gitconfig*       linguist-language=Git Config
+*gitignore_global linguist-language=Ignore List
+# ssh
+private_dot_ssh/*config  linguist-language=SSH Config
+private_dot_ssh/*signers linguist-language=SSH Config
