@@ -10,7 +10,7 @@ declaratively with [aqua](https://aquaproj.github.io/); zsh plugins with
 On a fresh machine (macOS: install [Homebrew](https://brew.sh/) first):
 
 ```sh
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply AkashiSN
+sh -c "$(curl -fsLS https://get.chezmoi.io/lb)" -- init --apply AkashiSN
 chsh -s "$(command -v zsh)"   # change the login shell (one-time, manual)
 ```
 

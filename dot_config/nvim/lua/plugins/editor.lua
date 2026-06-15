@@ -70,6 +70,29 @@ return {
         },
       },
     },
+    config = function(_, opts)
+      require("neo-tree").setup(opts)
+
+      -- 5秒ごとに表示中の neo-tree ソースの Git ステータスを再計算する。
+      -- neo-tree はイベント駆動で定期ポーリングしないため、外部コマンド
+      -- (git commit / pull / checkout など、作業ツリーのファイルを書き換え
+      -- ない操作)では左ツリーの変更マーカー(色)が古いまま残る。これを定期
+      -- 更新で追従させる。ツリーが画面に出ているソースだけ refresh し、
+      -- 閉じている間は無駄な git 起動をしない。
+      local timer = (vim.uv or vim.loop).new_timer()
+      timer:start(5000, 5000, vim.schedule_wrap(function()
+        local ok, manager = pcall(require, "neo-tree.sources.manager")
+        if not ok then
+          return
+        end
+        for _, source in ipairs({ "filesystem", "git_status" }) do
+          local sok, state = pcall(manager.get_state, source)
+          if sok and state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+            pcall(manager.refresh, source)
+          end
+        end
+      end))
+    end,
   },
 
   -- ファジーファインダー（fzf-lua）

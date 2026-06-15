@@ -171,19 +171,26 @@ local function start_layout(opts)
   opts = opts or {}
   local main = vim.api.nvim_get_current_win()
 
-  -- 右ターミナル(全高): 一旦インタラクティブ zsh を経由して claude を起動する
-  -- (.zshrc の PATH・fnm/node 初期化等を読み込ませるため)。幅は後段の
-  -- rebalance_panes でツリーを差し引いた左右 50/50 に合わせる。
-  open_terminal("botright vsplit", nil, "zsh -ic claude")
-  vim.b.nvim_ide_claude = true -- このバッファ = 右の claude ペイン(目印)
+  -- レイアウトは「左ツリー / 右領域(上=エディタ・claude / 下=ターミナル)」。
+  -- 作成順が要: ①メインを上下に割り下を全幅ターミナルに ②上を左右に割り
+  -- エディタ/claude に ③最後に左へ全高ツリー。この順なら下ターミナルは
+  -- 「左ツリーを除く右領域の全幅」(エディタ+claude の真下)に渡る。
 
-  -- 下ターミナル(メイン領域の下・画面高の約28%)
+  -- ① 下ターミナル(右領域の全幅・画面高の約28%)。この時点ではメインしか
+  -- 無いので belowright split で画面全幅に作られ、後の ③ で左ツリーぶんだけ
+  -- 右に寄って「右領域の全幅」になる。
+  open_terminal("belowright split", "resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
+
+  -- ② 上段をエディタ(左) / claude(右)に分割。claude は .zshrc の
+  -- PATH・fnm/node 初期化等を読ませるため一旦インタラクティブ zsh 経由で
+  -- 起動する。幅は後段 rebalance_panes でツリーを差し引いた右領域内 50/50。
   if vim.api.nvim_win_is_valid(main) then
     vim.api.nvim_set_current_win(main)
   end
-  open_terminal("belowright split", "resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
+  open_terminal("rightbelow vsplit", nil, "zsh -ic claude")
+  vim.b.nvim_ide_claude = true -- このバッファ = 右上の claude ペイン(目印)
 
-  -- ファイルツリー(左・cwd をルートに)
+  -- ③ ファイルツリー(左・全高・cwd をルートに)
   pcall(vim.cmd, "Neotree show left")
   hook_neotree_rebalance()
 
