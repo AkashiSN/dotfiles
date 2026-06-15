@@ -92,6 +92,9 @@ local function open_terminal(split_cmd, size_cmd, cmd)
   vim.opt_local.number = false
   vim.opt_local.relativenumber = false
   vim.opt_local.signcolumn = "no"
+  -- グローバルは nowrap(コード編集向け)だが、ターミナル(claude/下部)は
+  -- 自身で幅に合わせて折り返すので、横スクロールせず常に折り返す。
+  vim.opt_local.wrap = true
 end
 
 -- 右の claude ペイン(start_layout で開いたターミナル)の窓を探す。
