@@ -1,0 +1,41 @@
+#!/bin/sh
+# Generate zsh completion functions for aqua-managed tools into fpath.
+# Runs after aqua install (20) and re-runs whenever the aqua config changes.
+# aqua.yaml      hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
+# registry.yaml  hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
+set -eu
+
+# Make aqua-managed tools resolvable (aqua proxy/bin + brew).
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
+export AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
+export PATH="$AQUA_ROOT_DIR/bin:$PATH"
+
+dest="$HOME/.local/share/zsh/site-functions"
+mkdir -p "$dest"
+
+# gen <fnname> <command...> : run the generator if its binary exists; remove file on failure.
+gen() {
+  fn="$1"; shift
+  if command -v "$1" >/dev/null 2>&1; then
+    if "$@" > "$dest/_$fn" 2>/dev/null; then
+      echo "  generated _$fn"
+    else
+      rm -f "$dest/_$fn"
+    fi
+  fi
+}
+
+echo "Generating zsh completions -> $dest"
+gen gh       gh completion -s zsh
+gen uv       uv generate-shell-completion zsh
+gen fnm      fnm completions --shell zsh
+gen aqua     aqua completion zsh
+gen starship starship completions zsh
+gen rg       rg --generate=complete-zsh
+gen fd       fd --gen-completions zsh
+gen tenv     tenv completion zsh
+
+# Force compinit to rebuild its dump so the new/updated functions are picked up.
+rm -f "$HOME/.zcompdump" "$HOME/.zcompdump.zwc" 2>/dev/null || true
