@@ -1,9 +1,45 @@
+-- プラグイン標準ヘルプ(英語・全キー羅列)の代わりに「よく使うキー」だけを
+-- 日本語フロートで表示するための共通ヘルパー。中央に角丸ボーダーで出し、
+-- q / <esc> / ? のいずれでも閉じられる(再表示も同じ `?`)。filetype を
+-- 受け取り、呼び出し元ごとに区別できるようにする。
+local function open_cheat_float(lines, title, filetype)
+  local width = 2
+  for _, l in ipairs(lines) do
+    width = math.max(width, vim.fn.strdisplaywidth(l) + 2)
+  end
+  local height = #lines
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = filetype
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1),
+    col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+    style = "minimal",
+    border = "rounded",
+    title = title,
+    title_pos = "center",
+  })
+  vim.wo[win].cursorline = false
+  for _, key in ipairs({ "q", "<esc>", "?" }) do
+    vim.keymap.set("n", key, function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+    end, { buffer = buf, nowait = true })
+  end
+end
+
 -- diffview の「よく使うキー」を日本語フロートで表示するミニヘルプ。
 -- 標準ヘルプ(g?)はペイン別かつ英語・項目過多で目的のキーを探しにくいため、
 -- ファイルパネルで `?` を押すと、実際にそのパネルで効くキーだけを日本語で出す。
 -- (差分ウィンドウ側では `?` は素の後方検索のまま残す)
 local function diffview_cheat()
-  local lines = {
+  open_cheat_float({
     "  diffview よく使うキー（ファイルパネル）",
     "",
     "  - / s      ファイルを stage / unstage",
@@ -20,36 +56,88 @@ local function diffview_cheat()
     "  q          diffview を閉じる",
     "",
     "  ? で再表示 / q・<esc> でこのヘルプを閉じる",
+  }, " diffview cheat ", "diffview_cheat")
+end
+
+-- neo-tree の標準ヘルプ(`?`=show_help)も英語・全キー羅列で探しにくいため、
+-- diffview と同じ流儀で `?` を日本語ミニヘルプに差し替える(標準ヘルプは g? へ退避)。
+-- 表示中のソース(state.name)で内容を出し分け、Files / Buffers / Git それぞれで
+-- 実際に効くキーだけを出す。Git の `<cr>`(diffview を開く)・`o`(通常オープン)・
+-- 全ソースで無効化した `<space>` など、本設定の独自オーバーライドも反映済み。
+local function neotree_cheat(state)
+  local footer = {
+    "",
+    "  ? で再表示 / q・<esc> でこのヘルプを閉じる",
   }
-  local width = 2
-  for _, l in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(l) + 2)
+  -- どのソースでも共通の末尾キー(ソース切替・標準ヘルプ・閉じる)。
+  -- 並び替え `o…` は Files / Buffers のみ(Git では `o` を通常オープンに上書き)。
+  local common_tail = {
+    "  i          ファイル詳細",
+    "  R          一覧を再読み込み",
+    "  < / >      ソース切替（Files / Buffers / Git）",
+    "  g?         標準ヘルプ（全キー・英語）",
+    "  q          ツリーを閉じる",
+  }
+  local sources = {
+    filesystem = {
+      title = " neo-tree cheat (Files) ",
+      body = {
+        "  neo-tree よく使うキー（Files）",
+        "",
+        "  <cr>       開く / フォルダを展開・折りたたみ",
+        "  l          プレビューへフォーカス  P プレビュー(フロート)切替",
+        "  S / s      水平 / 垂直分割で開く   t 新規タブで開く",
+        "  C / z      ノードを閉じる / 全て閉じる",
+        "  <bs>       親ディレクトリへ        . カーソル位置をルートに",
+        "  H          隠しファイル表示切替",
+        "  /          ファジー検索   f 絞り込み確定   <c-x> 解除",
+        "  a / A      ファイル / ディレクトリ作成",
+        "  r / b      リネーム / ベース名リネーム   d 削除",
+        "  y / x / p  コピー / カット / 貼り付け",
+        "  c / m      コピー / 移動（宛先を入力）",
+        "  [g / ]g    前 / 次の Git 変更へ",
+        "  o…         並び替え(on:名前 om:更新 os:サイズ od:診断 ...)",
+      },
+    },
+    buffers = {
+      title = " neo-tree cheat (Buffers) ",
+      body = {
+        "  neo-tree よく使うキー（Buffers）",
+        "",
+        "  <cr>       バッファを開く",
+        "  d / bd     バッファを削除（閉じる）",
+        "  S / s      水平 / 垂直分割で開く   t 新規タブで開く",
+        "  <bs>       親ディレクトリへ        . カーソル位置をルートに",
+        "  o…         並び替え(on:名前 om:更新 os:サイズ ...)",
+      },
+    },
+    git_status = {
+      title = " neo-tree cheat (Git) ",
+      body = {
+        "  neo-tree よく使うキー（Git）",
+        "",
+        "  <cr>       diffview で差分を開く（専用タブ・本設定の独自キー）",
+        "  o          差分にせず通常どおりファイルを開く",
+        "  ga / gu    カーソル下を stage / unstage",
+        "  A          全ファイルを stage   gt ステージ切替(トグル)",
+        "  gr         変更を破棄（revert）",
+        "  gc / gp    コミット / push   gg コミットして push",
+        "  gU         直前のコミットを取り消し",
+      },
+    },
+  }
+  local spec = sources[state and state.name] or sources.filesystem
+  local lines = {}
+  for _, l in ipairs(spec.body) do
+    lines[#lines + 1] = l
   end
-  local height = #lines
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].filetype = "diffview_cheat"
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1),
-    col = math.max(0, math.floor((vim.o.columns - width) / 2)),
-    style = "minimal",
-    border = "rounded",
-    title = " diffview cheat ",
-    title_pos = "center",
-  })
-  vim.wo[win].cursorline = false
-  for _, key in ipairs({ "q", "<esc>", "?" }) do
-    vim.keymap.set("n", key, function()
-      if vim.api.nvim_win_is_valid(win) then
-        vim.api.nvim_win_close(win, true)
-      end
-    end, { buffer = buf, nowait = true })
+  for _, l in ipairs(common_tail) do
+    lines[#lines + 1] = l
   end
+  for _, l in ipairs(footer) do
+    lines[#lines + 1] = l
+  end
+  open_cheat_float(lines, spec.title, "neotree_cheat")
 end
 
 return {
@@ -146,6 +234,11 @@ return {
         width = 32,
         mappings = {
           ["<space>"] = "none", -- leader と衝突させない
+          -- 標準ヘルプ(`?`=show_help)は英語・全キー羅列で探しにくいため、diffview と
+          -- 同じ流儀で `?` を日本語ミニヘルプ(ソース別に出し分け)へ差し替える。
+          -- 英語の全キー一覧は g? に退避(g 始まりの git キーとはプレフィックス衝突しない)。
+          ["?"] = neotree_cheat,
+          ["g?"] = "show_help",
         },
       },
     },
