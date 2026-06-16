@@ -15,11 +15,11 @@ if [[ -d $ZSH_RCD ]]; then
     fi
     source "$_rc"
   done
-  unset _rc
+  unset _rc ZSH_RCD
 fi
 
 # .zshrc 自身の再コンパイル
 if [[ ! -f $HOME/.zshrc.zwc || $HOME/.zshrc -nt $HOME/.zshrc.zwc ]]; then
   print -P "%F{34}Recompile .zshrc%f%b"
-  zcompile $HOME/.zshrc
+  zcompile "$HOME/.zshrc"
 fi
