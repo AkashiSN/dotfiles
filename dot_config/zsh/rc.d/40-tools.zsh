@@ -19,7 +19,7 @@ fi
 
 # aws cli（bash 動的補完）
 if command -v aws_completer &> /dev/null ;then
-  complete -C $(which aws_completer) aws
+  complete -C "$(which aws_completer)" aws
 fi
 
 # tenv（補完は site-functions に事前生成。ここでは env のみ）
@@ -30,7 +30,7 @@ fi
 
 # terraform（bash 動的補完）
 if command -v terraform &> /dev/null ;then
-  complete -o nospace -C $(which terraform) terraform
+  complete -o nospace -C "$(which terraform)" terraform
   alias tf="terraform"
 fi
 

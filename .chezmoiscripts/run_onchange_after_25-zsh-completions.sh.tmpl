@@ -17,7 +17,7 @@ mkdir -p "$dest"
 
 # gen <fnname> <command...> : run the generator if its binary exists; remove file on failure.
 gen() {
-  fn="$1"; shift
+  local fn="$1"; shift
   if command -v "$1" >/dev/null 2>&1; then
     if "$@" > "$dest/_$fn" 2>/dev/null; then
       echo "  generated _$fn"

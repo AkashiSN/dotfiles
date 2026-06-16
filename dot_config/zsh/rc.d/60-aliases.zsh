@@ -29,6 +29,6 @@ alias vim=nvim
 # WSL 用の調整
 if [[ "$(uname -r)" == *microsoft* ]]; then
   alias code="/mnt/c/Users/$(whoami)/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
-  unalias docker
-  unalias docker-compose
+  unalias docker 2>/dev/null
+  unalias docker-compose 2>/dev/null
 fi
