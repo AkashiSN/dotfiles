@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# chezmoi modify_ スクリプト: ~/.aws/config
+#
+# このファイルは aws-login / aws-mfa / aws-logout により実行時に書き換えられる:
+#   - aws-login : <profile>-signin セクションを追加 (region / login_session)
+#   - aws-mfa   : <profile>-admin / <profile>-mfa セクションを追加
+#   - aws-logout: -signin / 対象セクションを削除
+#   - aws login : アクティブプロファイル(ベース含む)に login_session を追記
+#
+# そのため「ファイル全体を chezmoi 管理」にするとドリフトと実行時セッション破壊が起きる。
+# ここでは modify_ スクリプトで「現状ファイル(stdin)を土台に、自分が管理する
+# プロファイルの管理キーだけを ensure し、それ以外(ベースに増える login_session や
+# -signin/-admin/-mfa セクション)は一切削除しない」キー単位マージを行う。
+#
+# 管理対象: ベース3プロファイルの region と credential_process のみ。
+# トレードオフ: ソースからプロファイルを消しても実機からは自動削除されない(安全側)。
+set -euo pipefail
+
+awk '
+BEGIN {
+    # --- 管理するプロファイルと管理キー(順序保持) ---
+    nprof = 3
+    prof[1] = "sylc"
+    prof[2] = "cdx-pre-dev"
+    prof[3] = "cdx-arise-pre-dev"
+    for (i = 1; i <= nprof; i++) {
+        p = prof[i]
+        ismanaged[p] = 1
+        mkeys[p] = "region,credential_process"
+        mval[p, "region"] = "ap-northeast-1"
+        mval[p, "credential_process"] = "aws-login " p
+    }
+    cur = ""
+}
+
+# 管理セクションを抜けるとき、未出力の管理キーを補完する
+function flush_section(   arr, n, i, k) {
+    if (cur != "") {
+        n = split(mkeys[cur], arr, ",")
+        for (i = 1; i <= n; i++) {
+            k = arr[i]
+            if (!(k in seen)) print k " = " mval[cur, k]
+        }
+    }
+}
+
+# セクションヘッダ [profile xxx] / [default] など
+/^[[:space:]]*\[/ {
+    flush_section()
+    hdr = $0
+    sub(/^[[:space:]]*\[[[:space:]]*/, "", hdr)
+    sub(/[[:space:]]*\].*/, "", hdr)
+    cur = ""
+    if (hdr ~ /^profile[[:space:]]+/) {
+        pname = hdr
+        sub(/^profile[[:space:]]+/, "", pname)
+        if (pname in ismanaged) {
+            cur = pname
+            appeared[pname] = 1
+        }
+    }
+    delete seen
+    print
+    next
+}
+
+# 管理セクション内: 管理キーは正規値で上書き、それ以外(login_session 等)は素通し
+{
+    if (cur != "") {
+        key = $0
+        sub(/[[:space:]]*=.*/, "", key)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+        if ((cur SUBSEP key) in mval) {
+            print key " = " mval[cur, key]
+            seen[key] = 1
+            next
+        }
+    }
+    print
+}
+
+END {
+    flush_section()
+    # 一度も現れなかった管理プロファイルを末尾に追加(新規マシン等)
+    emitted = 0
+    for (i = 1; i <= nprof; i++) {
+        p = prof[i]
+        if (!(p in appeared)) {
+            if (NR > 0 || emitted > 0) print ""
+            print "[profile " p "]"
+            n = split(mkeys[p], arr, ",")
+            for (j = 1; j <= n; j++) {
+                k = arr[j]
+                print k " = " mval[p, k]
+            }
+            emitted++
+        }
+    }
+}
+'
