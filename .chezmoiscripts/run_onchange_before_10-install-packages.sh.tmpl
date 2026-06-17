@@ -10,7 +10,7 @@ mkdir -p "$PREFIX/bin" "$PREFIX/lib"
 {{ if eq .chezmoi.os "darwin" -}}
 # --- macOS: Homebrew (GNU userland + a few system tools not in aqua) ---
 if ! command -v brew >/dev/null 2>&1; then
-	NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+	/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 BREW_PREFIX={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
 eval "$($BREW_PREFIX/bin/brew shellenv)"
