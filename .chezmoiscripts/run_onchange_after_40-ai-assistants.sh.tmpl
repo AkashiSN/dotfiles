@@ -21,27 +21,19 @@ curl -fsSL https://chatgpt.com/codex/install.sh | \
 # --- agmsg (github.com/fujibee/agmsg) ---
 # claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできる
 # ようにするツール(nvim IDE モードの codex/claude ペイン運用が前提)。
-# agmsg は ~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml を書き換える
-# ため、claude/codex を入れた後(=このスクリプトの末尾)に導入する。
-# 本体を更新/固定したいときは AGMSG_REF を書き換える(run_onchange が再実行される)。
-AGMSG_REF="main"
-AGMSG_SRC="$HOME/.local/share/agmsg-src"
-AGMSG_SKILL="$HOME/.agents/skills/agmsg"
-# sqlite3(メッセージ DB)と git が無い環境では apply を止めずスキップする。
+# claude/codex の設定(~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml)を
+# 書き換えるため、両者を入れた後(=このスクリプトの末尾)に導入する。
+# setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
+# ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
+# 既存導入は --update で DB/teams を保持して更新、無ければ --cmd agmsg で新規。
+# 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
+# agmsg-reinstall-marker: 2026-06-18
+# sqlite3(メッセージ DB)と git(setup.sh の clone)が無い環境では apply を止めずスキップ。
 if command -v sqlite3 >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
-	if [ -d "$AGMSG_SRC/.git" ]; then
-		git -C "$AGMSG_SRC" fetch --quiet origin "$AGMSG_REF"
-		git -C "$AGMSG_SRC" checkout --quiet "$AGMSG_REF"
-		git -C "$AGMSG_SRC" merge --ff-only --quiet "origin/$AGMSG_REF"
+	if [ -d "$HOME/.agents/skills/agmsg" ]; then
+		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
 	else
-		git clone --quiet --branch "$AGMSG_REF" https://github.com/fujibee/agmsg.git "$AGMSG_SRC" \
-			|| git clone --quiet https://github.com/fujibee/agmsg.git "$AGMSG_SRC"
-	fi
-	# install.sh は非対話 --cmd agmsg。既存導入は --update で DB/teams を保持して更新。
-	if [ -d "$AGMSG_SKILL" ]; then
-		(cd "$AGMSG_SRC" && ./install.sh --cmd agmsg --update)
-	else
-		(cd "$AGMSG_SRC" && ./install.sh --cmd agmsg)
+		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
 	fi
 else
 	echo "agmsg: sqlite3 / git が無いためスキップしました" >&2
