@@ -11,6 +11,11 @@ font-size = 13
 # nvim(catppuccin) と色味を揃える
 theme = Catppuccin Mocha
 
+# 文字幅を wcwidth 互換(legacy)で計算する。
+# default(unicode)だと codex 等の TUI と全角/Ambiguous幅文字(日本語・• ─ 等)の
+# 幅判定がズレて、ストリーミング再描画の消し残し(行の重複表示)が起きるため。
+grapheme-width-method = legacy
+
 # zsh のシェル統合
 shell-integration = zsh
 
