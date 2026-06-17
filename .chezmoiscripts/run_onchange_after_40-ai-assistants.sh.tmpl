@@ -19,22 +19,20 @@ curl -fsSL https://chatgpt.com/codex/install.sh | \
 	CODEX_RELEASE="$CODEX_RELEASE" CODEX_NON_INTERACTIVE=1 sh
 
 # --- agmsg (github.com/fujibee/agmsg) ---
-# claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできる
-# ようにするツール(nvim IDE モードの codex/claude ペイン運用が前提)。
+# claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできるようにするツール。
 # claude/codex の設定(~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml)を
 # 書き換えるため、両者を入れた後(=このスクリプトの末尾)に導入する。
 # setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
 # ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
-# 既存導入は --update で DB/teams を保持して更新、無ければ --cmd agmsg で新規。
 # 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
 # agmsg-reinstall-marker: 2026-06-18
-# sqlite3(メッセージ DB)と git(setup.sh の clone)が無い環境では apply を止めずスキップ。
-if command -v sqlite3 >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
-	if [ -d "$HOME/.agents/skills/agmsg" ]; then
-		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
-	else
-		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
-	fi
+# agmsg のメッセージ DB に sqlite3 が必要。macOS は標準搭載のため通常は不要だが、
+# 無ければ Homebrew で導入する(skip せず必ず用意する)。
+if ! command -v sqlite3 >/dev/null 2>&1; then
+	brew install sqlite
+fi
+if [ -d "$HOME/.agents/skills/agmsg" ]; then
+	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
 else
-	echo "agmsg: sqlite3 / git が無いためスキップしました" >&2
+	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
 fi
