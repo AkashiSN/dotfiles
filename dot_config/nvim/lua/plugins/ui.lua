@@ -36,6 +36,14 @@ return {
         -- Snacks.bufdelete に統一する(<leader>bd / SmartQ と同じ挙動)。
         close_command = function(n) Snacks.bufdelete(n) end,
         right_mouse_command = function(n) Snacks.bufdelete(n) end,
+        -- IDE モードの端末バッファ(codex/claude/terminal)はバッファ変数 term_label を
+        -- 持つ。これをタブ名に使い、既定の `term://...` 表示を避ける。
+        name_formatter = function(buf)
+          local ok, label = pcall(vim.api.nvim_buf_get_var, buf.bufnr, "term_label")
+          if ok and label and label ~= "" then
+            return label
+          end
+        end,
         offsets = {
           { filetype = "neo-tree", text = "Explorer", separator = true },
         },
@@ -68,6 +76,7 @@ return {
         { "<leader>c", group = "code" },
         { "<leader>g", group = "git" },
         { "<leader>t", group = "terminal" },
+        { "<leader>i", group = "ide" },
       },
     },
   },

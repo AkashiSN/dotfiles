@@ -1,10 +1,30 @@
 -- IDE モード: `NVIM_IDE=1 nvim [path...]` 起動時に VSCode ライクなレイアウトを
 -- 自動展開する。VSCode の `code` コマンド同様、引数なし / ディレクトリ / ファイル
 -- いずれでも IDE レイアウトで起動する。
---   引数なし        … フルレイアウト + ダッシュボード
---   ディレクトリ    … そのディレクトリへ cd してフルレイアウト + ダッシュボード
---   ファイル        … ファイルを開いた状態でレイアウト展開(ダッシュボードなし)
+--   引数なし        … フルレイアウト(左上=codex)
+--   ディレクトリ    … そのディレクトリへ cd してフルレイアウト(左上=codex)
+--   ファイル        … ファイルを左上に開いた状態でレイアウト展開
+--
+-- レイアウトは「左ツリー / 右領域(上=codex・claude / 下=ターミナル)」。
+-- codex(左上) と claude(右上) の2エージェントを agmsg 経由で会話・相互レビュー
+-- させる運用を想定する。codex / claude / ターミナルは buflisted な端末バッファとして
+-- 生成され、ファイルと同じく bufferline のタブに並ぶ。ペインにフォーカスして対応する
+-- タブ(またはタブをクリック)を選ぶと、そのペインに端末/ファイルを呼び出せる。
 -- env は起動直後に nil 化して子プロセス(ターミナル等)へ伝播させない。
+
+-- 各ペインで起動するコマンド(argv リスト)。.zshrc の PATH・fnm/node 初期化等を
+-- 読ませるため、エージェントはインタラクティブ zsh 経由で起動する。
+local CLAUDE_CMD = { "zsh", "-ic", "claude" }
+local CODEX_CMD = { "zsh", "-ic", "codex" }
+local SHELL_CMD = { vim.o.shell }
+
+-- 端末バッファに付ける表示ラベルと役割の目印。bufferline の name_formatter が
+-- term_label を、レイアウト/コマンドが term_role を参照する。
+local TERMS = {
+  codex = { label = "codex", cmd = CODEX_CMD },
+  claude = { label = "claude", cmd = CLAUDE_CMD },
+  terminal = { label = "terminal", cmd = SHELL_CMD },
+}
 
 -- 名前付き・通常(buftype 空)の「実ファイル」バッファが残っているか
 local function has_real_file_buffers()
@@ -83,28 +103,56 @@ vim.api.nvim_create_autocmd("BufDelete", {
   end,
 })
 
--- cmd を渡すとそのコマンドを起動するターミナルを開く(省略時は通常のシェル)。
-local function open_terminal(split_cmd, size_cmd, cmd)
-  vim.cmd(split_cmd)
-  vim.cmd("terminal" .. (cmd and (" " .. cmd) or ""))
-  if size_cmd then vim.cmd(size_cmd) end
-  vim.bo.buflisted = false
-  vim.opt_local.number = false
-  vim.opt_local.relativenumber = false
-  vim.opt_local.signcolumn = "no"
-  -- グローバルは nowrap(コード編集向け)だが、ターミナル(claude/下部)は
-  -- 自身で幅に合わせて折り返すので、横スクロールせず常に折り返す。
-  vim.opt_local.wrap = true
+-- 端末バッファを生成する(まだどの窓にも表示しない)。
+-- buflisted=true なので bufferline にタブとして並ぶ。term_label / term_role を
+-- 付け、レイアウトや name_formatter / IdeShow から識別できるようにする。
+local function term_start(cmd)
+  -- nvim 0.11 で termopen は非推奨。jobstart({term=true}) を優先する。
+  if vim.fn.has("nvim-0.11") == 1 then
+    vim.fn.jobstart(cmd, { term = true })
+  else
+    vim.fn.termopen(cmd)
+  end
 end
 
--- 右の claude ペイン(start_layout で開いたターミナル)の窓を探す。
--- バッファに付けた目印 b:nvim_ide_claude で識別する。
-local function find_claude_win()
+local function make_term(role)
+  local spec = TERMS[role]
+  local buf = vim.api.nvim_create_buf(true, false) -- listed=true, scratch=false
+  vim.api.nvim_buf_call(buf, function()
+    term_start(spec.cmd)
+  end)
+  vim.api.nvim_buf_set_var(buf, "term_label", spec.label)
+  vim.api.nvim_buf_set_var(buf, "term_role", role)
+  vim.bo[buf].buflisted = true
+  return buf
+end
+
+-- 端末を表示する窓の見た目(行番号なし・折り返し)。グローバルは nowrap(コード編集
+-- 向け)だが、端末は自身で幅に合わせて折り返すので横スクロールせず常に折り返す。
+local function style_term_win(win)
+  vim.wo[win].number = false
+  vim.wo[win].relativenumber = false
+  vim.wo[win].signcolumn = "no"
+  vim.wo[win].wrap = true
+end
+
+-- 指定 role の端末バッファを探す。
+local function find_role_buf(role)
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local ok, r = pcall(vim.api.nvim_buf_get_var, b, "term_role")
+    if ok and r == role then
+      return b
+    end
+  end
+end
+
+-- 指定 role の端末を表示している(フロートでない)窓を探す。
+local function find_role_win(role)
   for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.api.nvim_win_get_config(w).relative == "" then
       local b = vim.api.nvim_win_get_buf(w)
-      local ok, marked = pcall(vim.api.nvim_buf_get_var, b, "nvim_ide_claude")
-      if ok and marked then
+      local ok, r = pcall(vim.api.nvim_buf_get_var, b, "term_role")
+      if ok and r == role then
         return w
       end
     end
@@ -124,12 +172,12 @@ local function neotree_width()
   return 0
 end
 
--- メインエディタと右 claude ペインを左右 50/50 に保つ。
+-- 上段(codex/エディタ)と claude ペインを左右 50/50 に保つ。
 --   ツリーあり … (画面幅 - ツリー幅) を折半
 --   ツリーなし … 画面幅を折半
--- claude ペインの幅だけ設定すれば、残りはメイン側が受け取る。
+-- claude ペインの幅だけ設定すれば、残りは左側が受け取る。
 local function rebalance_panes()
-  local cw = find_claude_win()
+  local cw = find_role_win("claude")
   if not cw then
     return
   end
@@ -138,13 +186,92 @@ local function rebalance_panes()
   pcall(vim.api.nvim_win_set_width, cw, target)
 end
 vim.api.nvim_create_user_command("IdeRebalance", rebalance_panes,
-  { desc = "Rebalance editor / claude panes to 50/50 (minus file tree)" })
+  { desc = "Rebalance left(codex/editor) / claude panes to 50/50 (minus file tree)" })
+
+-- カレント窓に指定 role の端末を呼び出す(=パネルを選んでタブを差し替える操作)。
+-- これがファイル/端末をペインへ自由に入れ替える土台。tree や claude/codex の
+-- 専用窓そのものを潰さないよう、フロートやツリー窓では何もしない。
+local function show_role_in_current(role)
+  local buf = find_role_buf(role)
+  if not buf then
+    vim.notify("IDE: '" .. role .. "' 端末が見つかりません", vim.log.levels.WARN)
+    return
+  end
+  local win = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_config(win).relative ~= "" then
+    return
+  end
+  if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "neo-tree" then
+    return
+  end
+  vim.api.nvim_win_set_buf(win, buf)
+  style_term_win(win)
+  vim.cmd("startinsert")
+end
+vim.api.nvim_create_user_command("IdeShow", function(o)
+  show_role_in_current(o.args)
+end, {
+  nargs = 1,
+  complete = function() return { "codex", "claude", "terminal" } end,
+  desc = "Show codex/claude/terminal in the focused pane",
+})
+
+-- opts.file=true でメインウィンドウに起動時のファイルを残す。false の場合は
+-- メイン(左上)に codex 端末を表示する。
+local function start_layout(opts)
+  opts = opts or {}
+  local main = vim.api.nvim_get_current_win()
+
+  -- 端末バッファ(タブ)を先に生成。表示はこの後ペインへ割り当てる。
+  local codex_buf = make_term("codex")
+  local claude_buf = make_term("claude")
+  local shell_buf = make_term("terminal")
+
+  -- ① 下ターミナル(右領域の全幅・画面高の約28%)。この時点ではメインしか
+  -- 無いので belowright split で画面全幅に作られ、後の ③ で左ツリーぶんだけ
+  -- 右に寄って「右領域の全幅」になる。
+  if vim.api.nvim_win_is_valid(main) then
+    vim.api.nvim_set_current_win(main)
+  end
+  vim.cmd("belowright split")
+  local bottom = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(bottom, shell_buf)
+  style_term_win(bottom)
+  vim.cmd("resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
+
+  -- ② 上段を 左(codex/エディタ) / 右(claude) に分割。
+  if vim.api.nvim_win_is_valid(main) then
+    vim.api.nvim_set_current_win(main)
+  end
+  vim.cmd("rightbelow vsplit")
+  local right = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(right, claude_buf)
+  style_term_win(right)
+
+  -- 左上(main): ファイル引数があればそれを残し、無ければ codex を表示。
+  if not opts.file then
+    vim.api.nvim_win_set_buf(main, codex_buf)
+    style_term_win(main)
+  end
+
+  -- ③ ファイルツリー(左・全高・cwd をルートに)
+  pcall(vim.cmd, "Neotree show left")
+  hook_neotree_rebalance()
+
+  -- メインウィンドウへフォーカスを戻す(フロートにしない)
+  if vim.api.nvim_win_is_valid(main) then
+    vim.api.nvim_set_current_win(main)
+  end
+
+  -- ツリーを差し引いた左右 50/50 に初期サイズを合わせる
+  vim.schedule(rebalance_panes)
+end
 
 -- neo-tree の開閉(<leader>e トグル・:Neotree close・ツリー内 q 等いずれも)に
 -- 追従して左右 50/50 を取り直す。neo-tree は遅延ロードなので、初回ロード後に
 -- 一度だけイベント購読する。
 local neotree_hooked = false
-local function hook_neotree_rebalance()
+function hook_neotree_rebalance()
   if neotree_hooked then
     return
   end
@@ -165,47 +292,6 @@ local function hook_neotree_rebalance()
   end
 end
 
--- opts.dashboard=true でメインウィンドウにダッシュボードを表示する。
--- false の場合は現在のバッファ(起動時に開いたファイル等)をそのまま残す。
-local function start_layout(opts)
-  opts = opts or {}
-  local main = vim.api.nvim_get_current_win()
-
-  -- レイアウトは「左ツリー / 右領域(上=エディタ・claude / 下=ターミナル)」。
-  -- 作成順が要: ①メインを上下に割り下を全幅ターミナルに ②上を左右に割り
-  -- エディタ/claude に ③最後に左へ全高ツリー。この順なら下ターミナルは
-  -- 「左ツリーを除く右領域の全幅」(エディタ+claude の真下)に渡る。
-
-  -- ① 下ターミナル(右領域の全幅・画面高の約28%)。この時点ではメインしか
-  -- 無いので belowright split で画面全幅に作られ、後の ③ で左ツリーぶんだけ
-  -- 右に寄って「右領域の全幅」になる。
-  open_terminal("belowright split", "resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
-
-  -- ② 上段をエディタ(左) / claude(右)に分割。claude は .zshrc の
-  -- PATH・fnm/node 初期化等を読ませるため一旦インタラクティブ zsh 経由で
-  -- 起動する。幅は後段 rebalance_panes でツリーを差し引いた右領域内 50/50。
-  if vim.api.nvim_win_is_valid(main) then
-    vim.api.nvim_set_current_win(main)
-  end
-  open_terminal("rightbelow vsplit", nil, "zsh -ic claude")
-  vim.b.nvim_ide_claude = true -- このバッファ = 右上の claude ペイン(目印)
-
-  -- ③ ファイルツリー(左・全高・cwd をルートに)
-  pcall(vim.cmd, "Neotree show left")
-  hook_neotree_rebalance()
-
-  -- メインウィンドウへフォーカスを戻す(フロートにしない)
-  if vim.api.nvim_win_is_valid(main) then
-    vim.api.nvim_set_current_win(main)
-    if opts.dashboard then
-      pcall(function() Snacks.dashboard.open({ win = main }) end)
-    end
-  end
-
-  -- ツリーを差し引いた左右 50/50 に初期サイズを合わせる
-  vim.schedule(rebalance_panes)
-end
-
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("nvim_ide", { clear = true }),
   callback = function()
@@ -220,16 +306,25 @@ vim.api.nvim_create_autocmd("VimEnter", {
     vim.cmd([[cnoreabbrev <expr> q (getcmdtype()==':' && getcmdline()=='q') ? 'SmartQ' : 'q']])
     vim.cmd([[cnoreabbrev <expr> wq (getcmdtype()==':' && getcmdline()=='wq') ? 'SmartWQ' : 'wq']])
 
+    -- パネル(カレント窓)へ端末を呼び出すキーマップ(<leader>i = ide グループ)。
+    local map = function(lhs, role, desc)
+      vim.keymap.set("n", lhs, function() show_role_in_current(role) end, { desc = desc })
+    end
+    map("<leader>ic", "codex", "Show codex in pane")
+    map("<leader>ia", "claude", "Show claude in pane")
+    map("<leader>it", "terminal", "Show terminal in pane")
+    vim.keymap.set("n", "<leader>ir", rebalance_panes, { desc = "Rebalance panes 50/50" })
+
     local argc = vim.fn.argc()
 
-    -- 引数なし: フルレイアウト + ダッシュボード
+    -- 引数なし: フルレイアウト(左上=codex)
     if argc == 0 then
-      vim.schedule(function() start_layout({ dashboard = true }) end)
+      vim.schedule(function() start_layout({ file = false }) end)
       return
     end
 
     -- 単一ディレクトリ引数(`ide .` / `ide ~/project`): cd してフルレイアウト
-    -- + ダッシュボード(VSCode の `code <dir>` 相当)
+    -- (左上=codex)。VSCode の `code <dir>` 相当。
     if argc == 1 and vim.fn.isdirectory(vim.fn.argv(0)) == 1 then
       local dir = vim.fn.fnamemodify(vim.fn.argv(0), ":p")
       vim.schedule(function()
@@ -245,13 +340,13 @@ vim.api.nvim_create_autocmd("VimEnter", {
             end
           end
         end
-        start_layout({ dashboard = true })
+        start_layout({ file = false })
       end)
       return
     end
 
-    -- ファイル引数: 開いたファイルをメインに残しレイアウト展開
-    -- (VSCode の `code <file>` 相当)
-    vim.schedule(function() start_layout({ dashboard = false }) end)
+    -- ファイル引数: 開いたファイルを左上(メイン)に残しレイアウト展開
+    -- (VSCode の `code <file>` 相当)。codex はタブとして待機する。
+    vim.schedule(function() start_layout({ file = true }) end)
   end,
 })

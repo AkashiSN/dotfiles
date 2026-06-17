@@ -8,7 +8,7 @@ term = xterm-256color
 font-family = Menlo
 # 日本語は PlemolJP Console を明示フォールバック指定。
 font-family = "PlemolJP Console"
-font-size = 15
+font-size = 13
 
 # nvim(catppuccin) と色味を揃える
 theme = Catppuccin Mocha
