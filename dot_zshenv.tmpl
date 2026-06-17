@@ -3,6 +3,10 @@ export PATH
 export MANPATH
 export HOMEBREW_PATH
 
+# locale: 環境変数なので全シェル/スクリプトに効くよう .zshenv で設定する
+# (rc.d はインタラクティブ限定なので非インタラクティブ実行で取りこぼす)
+export LANG=ja_JP.UTF-8
+
 # -U: keep only the first occurrence of each duplicated value
 # ref. http://zsh.sourceforge.net/Doc/Release/Shell-Builtin-Commands.html#index-typeset
 typeset -U PATH path MANPATH manpath
