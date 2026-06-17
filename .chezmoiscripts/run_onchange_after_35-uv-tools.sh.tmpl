@@ -1,0 +1,16 @@
+#!/bin/sh
+# Install uv-managed CLI tools (Python アプリ). uv 本体は aqua 管理なので
+# aqua install (20) の後に走らせる。リストを書き換えると再実行される。
+set -eu
+
+# uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+
+command -v uv >/dev/null 2>&1 || exit 0
+
+# uv tool install は冪等（既に入っていれば "already installed" で何もしない）。
+for tool in \
+	ansible
+do
+	uv tool install "$tool"
+done
