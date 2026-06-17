@@ -9,4 +9,8 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 export AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
 
+# Trust the bundled policy file so local-registry packages (registry.yaml) are
+# allowed; without this aqua rejects them with "this package isn't allowed".
+aqua policy allow "$AQUA_POLICY_CONFIG"
+
 aqua install --all

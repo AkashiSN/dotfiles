@@ -19,8 +19,10 @@ packages:
   - name: tofuutils/tenv@v4.14.8
   - name: direnv/direnv@v2.37.1
   - name: astral-sh/uv@0.11.21
+  - name: denoland/deno@v2.8.3
   - name: golang/go@go1.26.4
   - name: Schniz/fnm@v1.39.0
+  - name: 1password/cli@v2.31.1
   # --- shell: plugin manager / prompt / fuzzy finder ---
   - name: rossmacarthur/sheldon@0.8.5
   - name: starship/starship@v1.25.1
@@ -31,6 +33,9 @@ packages:
   - name: sharkdp/fd@v10.4.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
   - name: tree-sitter/tree-sitter@v0.26.9
+  # --- network / data utilities ---
+  - name: cloudflare/cloudflared@2026.6.0
+  - name: mikefarah/yq@v4.53.3
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09
     registry: local

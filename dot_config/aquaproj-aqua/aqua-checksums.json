@@ -101,6 +101,16 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.6.0/cloudflared-darwin-arm64.tgz",
+      "checksum": "88E17987423D3FD49167305F8BDA14D83A80AB9F2097FF9C82B317A39E342119",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/denoland/deno/v2.8.3/deno-aarch64-apple-darwin.zip",
+      "checksum": "88B350BE928FDBA0E5D8142FF7C101A17133426371E3CF5ED0E0F74E62476F6C",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/direnv/direnv/v2.37.1/direnv.darwin-amd64",
       "checksum": "24FB9CE48B563D7E9FBDD3A4E3E836941654A31CE3E67EBA9EAAFC3DCD8AE73B",
       "algorithm": "sha256"
@@ -158,6 +168,11 @@
     {
       "id": "github_release/github.com/junegunn/fzf/v0.73.1/fzf-0.73.1-windows_arm64.zip",
       "checksum": "1B043FD2EEA42B210679BE71A15C0BE9516A4369CE5920F533E6B02EDB8736B9",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/mikefarah/yq/v4.53.3/yq_darwin_arm64",
+      "checksum": "877DE31753A4DD2401AA048937AA9A7FC4D5F6CE858CF31508C5802954297213",
       "algorithm": "sha256"
     },
     {
@@ -403,6 +418,11 @@
     {
       "id": "github_release/github.com/yt-dlp/yt-dlp/2026.06.09/yt-dlp_macos",
       "checksum": "B82C3626952E6C14EAF654CC565866775FFD0B9FFB7021628AC59B42C2F4F244",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/cache.agilebits.com/dist/1P/op2/pkg/v2.31.1/op_darwin_arm64_v2.31.1.zip",
+      "checksum": "4E9538EE3AEAE9A04DB7FC59082DFF0ACC9A10292B68C9515436C15A87C4A7F9",
       "algorithm": "sha256"
     },
     {
