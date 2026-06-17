@@ -39,6 +39,7 @@ packages:
   - name: 1password/cli@v2.31.1 # op
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.6.0
+  - name: jqlang/jq@jq-1.8.1
   - name: mikefarah/yq@v4.53.3
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09 # media downloader
