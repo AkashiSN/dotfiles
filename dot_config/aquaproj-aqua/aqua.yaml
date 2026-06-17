@@ -12,32 +12,34 @@ registries:
     type: local
     path: registry.yaml
 packages:
-  # --- standard registry ---
-  - name: x-motemen/ghq@v1.10.1
-  - name: cli/cli@v2.94.0 # gh
-  - name: peco/peco@v0.6.0
-  - name: tofuutils/tenv@v4.14.8
-  - name: direnv/direnv@v2.37.1
-  - name: astral-sh/uv@0.11.21
-  - name: denoland/deno@v2.8.3
+  # --- 言語ランタイム / バージョンマネージャ ---
   - name: golang/go@go1.26.4
-  - name: Schniz/fnm@v1.39.0
-  - name: 1password/cli@v2.31.1
-  # --- shell: plugin manager / prompt / fuzzy finder ---
-  - name: rossmacarthur/sheldon@0.8.5
-  - name: starship/starship@v1.25.1
+  - name: denoland/deno@v2.8.3
+  - name: Schniz/fnm@v1.39.0 # node version manager
+  - name: astral-sh/uv@0.11.21 # python
+  - name: tofuutils/tenv@v4.14.8 # terraform / opentofu
+  # --- git / リポジトリ ---
+  - name: cli/cli@v2.94.0 # gh
+  - name: x-motemen/ghq@v1.10.1
+  # --- shell: plugin manager / prompt / env / fuzzy finder ---
+  - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
+  - name: starship/starship@v1.25.1 # prompt
+  - name: direnv/direnv@v2.37.1
   - name: junegunn/fzf@v0.73.1
-  # --- editor: neovim + search backends (fzf-lua) ---
+  - name: peco/peco@v0.6.0
+  # --- editor: neovim + 検索バックエンド (fzf-lua) ---
   - name: neovim/neovim@v0.12.3
   - name: BurntSushi/ripgrep@15.1.0
   - name: sharkdp/fd@v10.4.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
   - name: tree-sitter/tree-sitter@v0.26.9
+  # --- secrets ---
+  - name: 1password/cli@v2.31.1 # op
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.6.0
   - name: mikefarah/yq@v4.53.3
   # --- local registry (standard registry に無いもの) ---
-  - name: yt-dlp/yt-dlp@2026.06.09
+  - name: yt-dlp/yt-dlp@2026.06.09 # media downloader
     registry: local
-  - name: wez/atomicparsley@20221229.172126.d813aa6
+  - name: wez/atomicparsley@20221229.172126.d813aa6 # yt-dlp 用メタデータ書込
     registry: local
