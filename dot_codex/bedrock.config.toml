@@ -1,0 +1,16 @@
+# Codex on Amazon Bedrock 用プロファイル。
+# `codex --profile bedrock` (= -p bedrock) で base の ~/.codex/config.toml に
+# この内容がレイヤされる。config.toml 本体には手を入れないため、codex が
+# 実行時に書き換える trust_level / tui 状態などと競合しない。
+#
+# 認証は標準の AWS クレデンシャルチェーン（環境変数 / プロファイル）から解決される。
+# aws-mfa 等でプロファイルを使う場合は AWS_PROFILE を設定して codex を起動する。
+#
+# 注意 (2026-06 時点): モデルは us-east-2(オハイオ) のみ提供。us-east-1 は 404。
+# AWS セッション切れ時は OpenAI に黙ってフォールバックし課金されうるので、
+# TUI のモデル表示が openai.gpt-5.5 であることを確認すること。
+model = "openai.gpt-5.5"
+model_provider = "amazon-bedrock"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-2"
