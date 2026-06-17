@@ -1,0 +1,11 @@
+# chezmoi create_ 属性: ~/.codex/config.toml が存在しない時だけ作成する。
+# 一度ホームに展開された後は chezmoi はこのファイルを管理しない（apply で上書き
+# しない）。codex CLI が実行時に config.toml へ projects/tui などを追記しても
+# ドリフトにならない。初期値だけを撒くのが目的。
+model = "openai.gpt-5.5"
+model_provider = "amazon-bedrock"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-2"
+wire_api = "responses"
+profile = "cdx-pre-dev"

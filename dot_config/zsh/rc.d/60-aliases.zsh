@@ -25,7 +25,6 @@ export EDITOR=nvim
 export VISUAL=nvim
 alias vi=nvim
 alias vim=nvim
-alias codex='AWS_PROFILE=cdx-pre-dev AWS_REGION=us-east-2 codex --profile bedrock'
 
 # WSL 用の調整
 if [[ "$(uname -r)" == *microsoft* ]]; then

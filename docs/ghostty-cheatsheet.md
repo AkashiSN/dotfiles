@@ -16,7 +16,6 @@
 | `font-family` | `Menlo` | 本文フォント。アイコン（nvim-web-devicons）は Symbols Nerd Font へ自動フォールバック |
 | `font-size` | `13` | |
 | `theme` | `Catppuccin Mocha` | nvim（catppuccin）と色味を統一 |
-| `grapheme-width-method` | `legacy` | 文字幅を wcwidth 互換で計算。default（`unicode`）だと codex 等の TUI と全角／Ambiguous 幅文字（日本語・`•` `─` 等）の幅判定がズレ、ストリーミング再描画の消し残し（行の重複表示）が起きるため |
 | `shell-integration` | `zsh` | zsh のシェル統合 |
 | `clipboard-write` / `clipboard-read` | `allow` | OSC52 クリップボード（nvim の yank ↔ システムクリップボード） |
 
