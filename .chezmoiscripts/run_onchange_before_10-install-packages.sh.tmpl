@@ -15,12 +15,22 @@ fi
 BREW_PREFIX={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
 eval "$($BREW_PREFIX/bin/brew shellenv)"
 
-# Homebrew formula（aqua に無いシステムツール / GNU userland）。追加はここに 1 つずつ。
-# unar: aqua が .pkg/.dmg 形式パッケージ(aws-cli 等)を展開するのに必要。
-for formula in \
-	coreutils diffutils ed findutils gawk git gnu-sed gnu-tar grep gzip \
-	wget zsh aqua ffmpeg unar
-do
+# Homebrew formula（aqua に無いシステムツール / GNU userland）。
+# 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
+FORMULAE=""
+# GNU userland: BSD 版コマンドを GNU 版へ置き換え
+FORMULAE="$FORMULAE coreutils diffutils ed findutils gawk gnu-sed gnu-tar grep gzip"
+# 基本ツール: shell / バージョン管理 / ダウンローダ
+FORMULAE="$FORMULAE zsh git wget"
+# パッケージ / バージョンマネージャ
+FORMULAE="$FORMULAE aqua"
+# メディア
+FORMULAE="$FORMULAE ffmpeg"
+# aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
+FORMULAE="$FORMULAE unar"
+
+# shellcheck disable=SC2086
+for formula in $FORMULAE; do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
 done
 
