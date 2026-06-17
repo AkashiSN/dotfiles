@@ -25,6 +25,7 @@ export EDITOR=nvim
 export VISUAL=nvim
 alias vi=nvim
 alias vim=nvim
+alias codex='codex --profile bedrock'
 
 # WSL 用の調整
 if [[ "$(uname -r)" == *microsoft* ]]; then
