@@ -6,11 +6,24 @@ set -eu
 
 # Make sure aqua (brew on macOS, ~/.local/bin on Linux) is resolvable.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
 export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 export AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
+# aqua が attestation 検証で gh を呼べるよう、shim ディレクトリを PATH に通す。
+export PATH="$AQUA_ROOT_DIR/bin:$PATH"
 
 # Trust the bundled policy file so local-registry packages (registry.yaml) are
 # allowed; without this aqua rejects them with "this package isn't allowed".
 aqua policy allow "$AQUA_POLICY_CONFIG"
+
+# 鶏卵問題の解消: aqua の Artifact Attestation 検証は内部で `gh attestation verify`
+# を呼び、GitHub API へのアクセスに認証が要る。だがその gh 自身も aqua 管理なので、
+# クリーン環境では検証付き install が必ず失敗する。
+# → 未認証なら gh(bootstrap タグ)だけ検証なしで先に入れて gh auth login し、
+#   残りのツールは attestation 検証付きで入れる（未検証になるのは gh 本体のみ）。
+if ! gh auth status >/dev/null 2>&1; then
+	AQUA_DISABLE_GITHUB_ARTIFACT_ATTESTATION=true aqua install -a -t bootstrap
+	gh auth login
+fi
 
 aqua install --all

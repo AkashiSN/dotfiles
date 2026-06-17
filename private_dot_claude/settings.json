@@ -18,5 +18,6 @@
     }
   },
   "language": "Japanese",
-  "autoUpdatesChannel": "latest"
+  "autoUpdatesChannel": "latest",
+  "theme": "auto"
 }
