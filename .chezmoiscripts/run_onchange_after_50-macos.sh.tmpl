@@ -1,6 +1,7 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/sh
 # macOS-only provisioning: Finder defaults, zsh completion perms, 1Password.
+# run_onchange: 内容を書き換えると既存マシンでも再実行される（全操作が冪等）。
 set -eu
 
 HOMEBREW_PATH={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
