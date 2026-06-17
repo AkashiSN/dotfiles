@@ -181,8 +181,28 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-linux-amd64",
+      "checksum": "020468DE7539CE70EF1BCEAF7CDE2E8C4F2CA6C3AFB84642AABC5C97D9FC2A0D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-linux-arm64",
+      "checksum": "6BC62F25981328EDD3CFCFE6FE51B073F2D7E7710D7EF7FCDAC28D4E384FC3D4",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-macos-amd64",
+      "checksum": "E80DBE0D2A2597E3C11C404F03337B981D74B4A8504B70586C354B7697A7C27F",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-macos-arm64",
       "checksum": "A9FE3EA2F86DFC72F6728417521EC9067B343277152B114F4E98D8CB0E263603",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-windows-amd64.exe",
+      "checksum": "23CB60A1354EED6BCC8D9B9735E8C7B388CD1FDCB75726B93BC299EF22DD9334",
       "algorithm": "sha256"
     },
     {
@@ -268,6 +288,26 @@
     {
       "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-aarch64-apple-darwin.zst",
       "checksum": "5E38113F213D0BA1982A04BA2D4F19FA2F1971E3493639B2C61905D764B7548E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-aarch64-unknown-linux-musl.zst",
+      "checksum": "B2774098060A9D0C4B9ADA6C901C2FA50F208CD2A1C3F13687A95E64DF288220",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-apple-darwin.zst",
+      "checksum": "B27369DB4E307DFC6CBF1A7B904CF9BFB0199E13BE062CED807F8213915663F8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-pc-windows-msvc.exe.zst",
+      "checksum": "B3A62F22D4DCBE3C5F57FB738C448D1796996DC880CF820E58706D2B4B9606F8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-unknown-linux-musl.zst",
+      "checksum": "A3C1ECCB71E0F8F6C093C31DAB6C22F9267350401B9F1BECFCD32ED109B95BEC",
       "algorithm": "sha256"
     },
     {
