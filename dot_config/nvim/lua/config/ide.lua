@@ -136,6 +136,15 @@ local function style_term_win(win)
   vim.wo[win].wrap = true
 end
 
+-- 端末ペインだった窓にファイル/通常バッファを表示するとき、行番号・サイン列・
+-- 折り返しをグローバル既定(options.lua)へ戻す。
+local function style_file_win(win)
+  vim.wo[win].number = true
+  vim.wo[win].relativenumber = false
+  vim.wo[win].signcolumn = "yes"
+  vim.wo[win].wrap = false
+end
+
 -- 指定 role の端末バッファを探す。
 local function find_role_buf(role)
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -188,13 +197,13 @@ end
 vim.api.nvim_create_user_command("IdeRebalance", rebalance_panes,
   { desc = "Rebalance left(codex/editor) / claude panes to 50/50 (minus file tree)" })
 
--- カレント窓に指定 role の端末を呼び出す(=パネルを選んでタブを差し替える操作)。
--- これがファイル/端末をペインへ自由に入れ替える土台。tree や claude/codex の
--- 専用窓そのものを潰さないよう、フロートやツリー窓では何もしない。
-local function show_role_in_current(role)
-  local buf = find_role_buf(role)
-  if not buf then
-    vim.notify("IDE: '" .. role .. "' 端末が見つかりません", vim.log.levels.WARN)
+-- 任意のバッファをフォーカス中(カレント)のペインへ表示する。これがファイル/端末を
+-- ペインへ自由に入れ替える土台で、bufferline のタブクリック(ui.lua)からも呼ばれる。
+-- tree や専用窓そのものを潰さないよう、フロートやツリー窓では何もしない。
+-- 端末なら端末スタイル+挿入モード、それ以外(ファイル等)はファイルスタイルに戻す。
+-- ui.lua から参照するためグローバルに公開する(hook_neotree_rebalance と同じ流儀)。
+function _G.ide_place_buf_in_current(buf)
+  if not (buf and vim.api.nvim_buf_is_valid(buf)) then
     return
   end
   local win = vim.api.nvim_get_current_win()
@@ -205,8 +214,22 @@ local function show_role_in_current(role)
     return
   end
   vim.api.nvim_win_set_buf(win, buf)
-  style_term_win(win)
-  vim.cmd("startinsert")
+  if vim.bo[buf].buftype == "terminal" then
+    style_term_win(win)
+    vim.cmd("startinsert")
+  else
+    style_file_win(win)
+  end
+end
+
+-- カレント窓に指定 role の端末を呼び出す(=パネルを選んでタブを差し替える操作)。
+local function show_role_in_current(role)
+  local buf = find_role_buf(role)
+  if not buf then
+    vim.notify("IDE: '" .. role .. "' 端末が見つかりません", vim.log.levels.WARN)
+    return
+  end
+  _G.ide_place_buf_in_current(buf)
 end
 vim.api.nvim_create_user_command("IdeShow", function(o)
   show_role_in_current(o.args)
