@@ -5,8 +5,9 @@ set -eu
 
 # uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 
-command -v uv >/dev/null 2>&1 || exit 0
+uv --version >/dev/null 2>&1 || exit 0
 
 # uv tool install は冪等（既に入っていれば "already installed" で何もしない）。
 for tool in \
