@@ -1,0 +1,20 @@
+#!/bin/sh
+# chezmoi ソースリポジトリの origin を HTTPS から SSH へ切り替える。
+# run_onchange: 内容を書き換えると既存マシンでも再実行される（全操作が冪等）。
+set -eu
+
+REPO="{{ .chezmoi.sourceDir }}"
+
+# origin が無いリポジトリ（取得失敗）はスキップ
+url=$(git -C "$REPO" remote get-url origin 2>/dev/null) || exit 0
+
+# HTTPS の GitHub URL のときだけ SSH 形式へ変換。既に SSH や別ホストなら何もしない。
+case "$url" in
+https://github.com/*)
+	path=${url#https://github.com/}
+	path=${path%.git}
+	ssh_url="git@github.com:${path}.git"
+	git -C "$REPO" remote set-url origin "$ssh_url"
+	echo "origin: $url -> $ssh_url"
+	;;
+esac
