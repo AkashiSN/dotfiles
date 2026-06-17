@@ -13,7 +13,7 @@
 | 項目 | 値 | 理由 |
 | --- | --- | --- |
 | `term` | `xterm-256color` | SSH + tmux 互換のため標準 terminfo を使用（`xterm-ghostty` はリモート Linux に無く tmux 起動が失敗する） |
-| `font-family` | `Menlo` | 本文フォント。アイコン（nvim-web-devicons）は Symbols Nerd Font へ自動フォールバック |
+| `font-family` | `Menlo` → `PlemolJP Console` | 本文フォント。アイコン（nvim-web-devicons）は Symbols Nerd Font へ自動フォールバック。日本語は `PlemolJP Console` を明示フォールバック指定 |
 | `font-size` | `13` | |
 | `theme` | `Catppuccin Mocha` | nvim（catppuccin）と色味を統一 |
 | `shell-integration` | `zsh` | zsh のシェル統合 |

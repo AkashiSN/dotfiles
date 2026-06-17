@@ -36,10 +36,18 @@ for formula in $FORMULAE; do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
 done
 
-# GUI アプリ / フォント (cask)。ghostty: ターミナル, symbols-only-nerd-font: nvim のアイコン用。追加はここに 1 つずつ。
-for cask in \
-    ghostty font-symbols-only-nerd-font android-platform-tools
-do
+# Homebrew cask（GUI アプリ / フォント）。
+# 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
+CASKS=""
+# ターミナル
+CASKS="$CASKS ghostty"
+# フォント: symbols-only-nerd-font は nvim のアイコン用、plemol-jp は日本語表示用
+CASKS="$CASKS font-symbols-only-nerd-font font-plemol-jp"
+# デバイス連携: adb / fastboot 等
+CASKS="$CASKS android-platform-tools"
+
+# shellcheck disable=SC2086
+for cask in $CASKS; do
 	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --cask "$cask"
 done
 {{- else -}}

@@ -6,7 +6,9 @@ term = xterm-256color
 
 # 本文フォントは Menlo。アイコン(nvim-web-devicons)は Symbols Nerd Font に自動フォールバック
 font-family = Menlo
-font-size = 13
+# 日本語は PlemolJP Console を明示フォールバック指定。
+font-family = "PlemolJP Console"
+font-size = 15
 
 # nvim(catppuccin) と色味を揃える
 theme = Catppuccin Mocha
