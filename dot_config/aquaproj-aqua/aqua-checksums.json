@@ -181,6 +181,11 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-macos-arm64",
+      "checksum": "A9FE3EA2F86DFC72F6728417521EC9067B343277152B114F4E98D8CB0E263603",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/junegunn/fzf/v0.73.1/fzf-0.73.1-darwin_amd64.tar.gz",
       "checksum": "75BBF15248D1CF0A13EAFC75B8A55F5075C437E2BA6D76899AFC53F4F3E1B38C",
       "algorithm": "sha256"
@@ -258,6 +263,11 @@
     {
       "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-win64.zip",
       "checksum": "63DAA0A0374F2255D2FB4C0867FCACC64A09C8D7EC1C349F781AFF1B8350A8AD",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-aarch64-apple-darwin.zst",
+      "checksum": "5E38113F213D0BA1982A04BA2D4F19FA2F1971E3493639B2C61905D764B7548E",
       "algorithm": "sha256"
     },
     {
