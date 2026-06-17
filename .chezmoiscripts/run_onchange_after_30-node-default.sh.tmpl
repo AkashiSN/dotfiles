@@ -6,8 +6,9 @@
 set -eu
 
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 
-command -v fnm >/dev/null 2>&1 || exit 0
+fnm --version >/dev/null 2>&1 || exit 0
 
 eval "$(fnm env)"
 fnm install --lts
