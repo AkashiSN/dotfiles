@@ -1,0 +1,26 @@
+#!/bin/sh
+# Provision a default LTS Node via fnm (installed by aqua) so mason can install
+# npm-based language servers (ts_ls, pyright, bash-language-server), and install
+# npm-global CLI tools. Runs after aqua install (20) so fnm is on disk.
+# run_onchange: 下の一覧を書き換えると既存マシンでも再実行される。
+set -eu
+
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+command -v fnm >/dev/null 2>&1 || exit 0
+
+eval "$(fnm env)"
+fnm install --lts
+fnm alias default lts-latest 2>/dev/null || fnm default lts-latest 2>/dev/null || true
+fnm use default
+
+# npm グローバル CLI（mason 管理外で PATH に置きたい CLI）。追加はここに 1 つずつ。
+# npm install -g は冪等（同一指定なら何もしない / 新しければ更新）。
+NPM_GLOBALS=""
+# 例: NPM_GLOBALS="$NPM_GLOBALS prettier"
+# 例: NPM_GLOBALS="$NPM_GLOBALS @anthropic-ai/claude-code"
+
+if [ -n "$NPM_GLOBALS" ]; then
+	# shellcheck disable=SC2086
+	npm install -g $NPM_GLOBALS
+fi
