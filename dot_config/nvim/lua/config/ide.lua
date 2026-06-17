@@ -313,6 +313,22 @@ function hook_neotree_rebalance()
       end,
     })
   end
+  -- ツリーから端末ペイン(codex/claude/terminal)へファイルを開くと、その窓には
+  -- 端末スタイル(行番号なし・折り返し)が残ってしまう。FILE_OPENED 発火時点では
+  -- カレント窓 = ファイルを開いた窓なので、ファイル向けスタイルへ戻す。
+  events.subscribe({
+    event = events.FILE_OPENED,
+    handler = function()
+      if not vim.g.nvim_ide then
+        return
+      end
+      local win = vim.api.nvim_get_current_win()
+      if vim.api.nvim_win_get_config(win).relative == ""
+        and vim.bo[vim.api.nvim_win_get_buf(win)].buftype == "" then
+        style_file_win(win)
+      end
+    end,
+  })
 end
 
 vim.api.nvim_create_autocmd("VimEnter", {

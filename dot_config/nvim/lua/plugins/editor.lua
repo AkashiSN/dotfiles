@@ -162,6 +162,12 @@ return {
     opts = {
       close_if_last_window = true,
       sources = { "filesystem", "buffers", "git_status" },
+      -- 既定の open_files_do_not_replace_types には "terminal" が含まれ、
+      -- フォーカス中のペインが端末(IDE モードの codex/claude/terminal は
+      -- buftype=terminal)だと neo-tree がそのペインを開く先として拒否し、
+      -- ツリー脇に新しい分割窓を作ってしまう。IDE では「選択中のペインに
+      -- ファイルを開く」挙動を期待するため、"terminal" を除外する。
+      open_files_do_not_replace_types = { "Trouble", "qf", "edgy" },
       -- 上部にクリック可能なタブ(Files / Buffers / Git)を表示。
       -- マウスでタブをクリックして左ツリーの表示ソースを切り替えられる。
       source_selector = {
