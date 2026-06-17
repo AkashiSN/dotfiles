@@ -3,3 +3,6 @@
 
 # superpowers の成果物（spec / plan）はコミットしない
 docs/superpowers/
+
+# codex hooks
+.codex/hooks.json
