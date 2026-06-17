@@ -1,0 +1,19 @@
+#!/bin/sh
+# Install AI coding assistant CLIs via their official native installers.
+# どちらも ~/.local/bin にネイティブバイナリを置き、以後は本体が自動更新する
+# （aqua 管理外。バージョンは下の変数で固定/追従を切り替える）。
+# run_onchange: 下のチャネル/バージョンを書き換えると既存マシンでも再実行される。
+set -eu
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# --- Claude Code (claude.ai/install.sh) ---
+# stable / latest / 固定バージョン(例: 2.1.179)。
+CLAUDE_CHANNEL="latest"
+curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CHANNEL"
+
+# --- OpenAI Codex (chatgpt.com/codex/install.sh) ---
+# latest / 固定バージョン(例: 0.140.0)。CODEX_RELEASE で指定、非対話で導入。
+CODEX_RELEASE="latest"
+curl -fsSL https://chatgpt.com/codex/install.sh | \
+	CODEX_RELEASE="$CODEX_RELEASE" CODEX_NON_INTERACTIVE=1 sh

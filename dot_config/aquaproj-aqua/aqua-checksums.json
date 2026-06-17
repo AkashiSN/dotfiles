@@ -286,31 +286,6 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-aarch64-apple-darwin.zst",
-      "checksum": "5E38113F213D0BA1982A04BA2D4F19FA2F1971E3493639B2C61905D764B7548E",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-aarch64-unknown-linux-musl.zst",
-      "checksum": "B2774098060A9D0C4B9ADA6C901C2FA50F208CD2A1C3F13687A95E64DF288220",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-apple-darwin.zst",
-      "checksum": "B27369DB4E307DFC6CBF1A7B904CF9BFB0199E13BE062CED807F8213915663F8",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-pc-windows-msvc.exe.zst",
-      "checksum": "B3A62F22D4DCBE3C5F57FB738C448D1796996DC880CF820E58706D2B4B9606F8",
-      "algorithm": "sha256"
-    },
-    {
-      "id": "github_release/github.com/openai/codex/rust-v0.140.0/codex-x86_64-unknown-linux-musl.zst",
-      "checksum": "A3C1ECCB71E0F8F6C093C31DAB6C22F9267350401B9F1BECFCD32ED109B95BEC",
-      "algorithm": "sha256"
-    },
-    {
       "id": "github_release/github.com/peco/peco/v0.6.0/peco_0.6.0_darwin_amd64.zip",
       "checksum": "89DB4861044958F0EBE349B5009137FA8323390B6FF5C19F2CCBB578A6B03E54",
       "algorithm": "sha256"
