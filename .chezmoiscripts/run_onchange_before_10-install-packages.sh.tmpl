@@ -16,9 +16,10 @@ BREW_PREFIX={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{
 eval "$($BREW_PREFIX/bin/brew shellenv)"
 
 # Homebrew formula（aqua に無いシステムツール / GNU userland）。追加はここに 1 つずつ。
+# unar: aqua が .pkg/.dmg 形式パッケージ(aws-cli 等)を展開するのに必要。
 for formula in \
 	coreutils diffutils ed findutils gawk git gnu-sed gnu-tar grep gzip \
-	wget zsh aqua ffmpeg
+	wget zsh aqua ffmpeg unar
 do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
 done
