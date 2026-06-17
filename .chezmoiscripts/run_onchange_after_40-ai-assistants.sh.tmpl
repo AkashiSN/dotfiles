@@ -26,11 +26,7 @@ curl -fsSL https://chatgpt.com/codex/install.sh | \
 # ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
 # 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
 # agmsg-reinstall-marker: 2026-06-18
-# agmsg のメッセージ DB に sqlite3 が必要。macOS は標準搭載のため通常は不要だが、
-# 無ければ Homebrew で導入する(skip せず必ず用意する)。
-if ! command -v sqlite3 >/dev/null 2>&1; then
-	brew install sqlite
-fi
+# メッセージ DB 用の sqlite3 は before_10(パッケージ前提)で導入済み。
 if [ -d "$HOME/.agents/skills/agmsg" ]; then
 	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
 else

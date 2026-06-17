@@ -30,6 +30,9 @@ FORMULAE="$FORMULAE aqua"
 FORMULAE="$FORMULAE ffmpeg"
 # aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
 FORMULAE="$FORMULAE unar"
+# データベース: agmsg(エージェント間メッセージ)のメッセージ DB 用
+# (macOS は sqlite3 を標準搭載するが、依存として明示的に導入しておく)
+FORMULAE="$FORMULAE sqlite"
 
 # shellcheck disable=SC2086
 for formula in $FORMULAE; do
