@@ -22,6 +22,8 @@ FORMULAE=""
 FORMULAE="$FORMULAE coreutils diffutils ed findutils gawk gnu-sed gnu-tar grep gzip"
 # 基本ツール: shell / バージョン管理 / ダウンローダ
 FORMULAE="$FORMULAE zsh git wget"
+# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
+FORMULAE="$FORMULAE flock"
 # パッケージ / バージョンマネージャ
 FORMULAE="$FORMULAE aqua"
 # メディア

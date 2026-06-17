@@ -1,23 +1,33 @@
 #!/bin/bash
-# AWS SSOログイン用スクリプト
+# aws-login - aws login ラッパースクリプト（認証本体）
 #
-# credential_processとして使用される
-# 各プロファイルごとに独立したSSOセッションを管理する
+# ~/.aws/config の credential_process に登録され、AWS CLI/SDK が認証情報を
+# 必要としたときに自動で呼ばれる。aws-switch からも認証の前段として呼ばれる。
+# 各プロファイルごとに独立したセッションを管理する。
 #
 # 使用方法:
 #   aws-login <profile_name>
 #   - profile_name: ベースプロファイル名（自動的に"-signin"サフィックスが付与されます）
 #
 # 動作:
-#   1. 既存のSSOセッションがあればそれを使用
-#   2. セッションがない/期限切れの場合はブラウザでSSOログインを実行
-#   3. 認証情報をエクスポートして検証
+#   1. キャッシュから認証情報の取得を試行
+#   2. エラー内容を判別し、認証切れの場合のみブラウザでログインを実行
+#   3. 一時的なエラー（ネットワーク断等）ではログインせずエラーを返す
+#   4. flockで排他制御し、複数プロセスの同時ログインを防止
 #
 # 注意:
-#   - プロファイルごとに異なるSSOキャッシュを持つため、
+#   - プロファイルごとに異なるキャッシュを持つため、
 #     ユーザー権限とAssume Role権限を別々に管理できる
+#   - USER_DIR（direnv）でロックファイルを分離し、共有ユーザー環境での競合を防止
+#
+# 依存:
+#   - flock: 多重ログイン防止に使用。aqua には無い。
+#            Linux は util-linux 同梱、macOS は Homebrew（brew install flock）で導入する。
 
 set -e
+
+# ロックファイル（.aws/.aws-login-*.lock）の置き場所。共有ユーザー環境では USER_DIR で分離する
+USER_DIR=${USER_DIR:-~}
 
 # プロファイル名に"-signin"サフィックスを付与
 # 例: "my-profile" → "my-profile-signin"
@@ -28,11 +38,25 @@ export AWS_PROFILE="$1-signin"
 export AWS_EC2_METADATA_DISABLED=true
 
 # "-signin"プロファイルが存在していない場合
-if ! aws configure list-profiles | grep $AWS_PROFILE >/dev/null 2>&1; then
+if ! aws configure list-profiles | grep "$AWS_PROFILE" >/dev/null 2>&1; then
     # AWSリージョンを東京に設定
     aws configure set region ap-northeast-1
 fi
 
-# 認証情報の取得と検証
-# まず既存のSSOセッションのエクスポートを試行し、失敗した場合はブラウザでSSOログインを実行
-aws configure export-credentials 2>/dev/null || (aws login >/dev/null 2>&1 && aws configure export-credentials)
+# キャッシュから認証情報の取得を試行
+if aws configure export-credentials --format process 2>/dev/null; then
+    exit 0
+fi
+
+# 認証情報の取得に失敗 → flockで排他制御してログイン
+(
+    flock -w 60 200 || exit 1
+    # ロック取得後に再チェック（別プロセスがログイン済みかもしれない）
+    if aws configure export-credentials --format process 2>/dev/null; then
+        exit 0
+    fi
+    unset DISPLAY
+    aws login
+) 200>"${USER_DIR}/.aws/.aws-login-${1}.lock"
+
+aws configure export-credentials --format process

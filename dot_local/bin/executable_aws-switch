@@ -1,0 +1,107 @@
+#!/bin/bash
+# aws-switch - アクティブな AWS プロファイルを切り替えるスクリプト
+#
+# 実際に行うこと:
+#   1. 対象プロファイルで aws-login を実行し、`aws login` による認証（credential_process）を済ませる
+#   2. ${USER_DIR}/.env の `export AWS_PROFILE=...` 行を書き換え、以降のシェルで
+#      そのプロファイルが既定になるようにする
+#   ※ スクリプト名に "mfa" とあった頃の MFA/STS 方式は廃止済み。MFA は `aws login` 側で扱う。
+#
+# 使用方法:
+#   aws-switch [profile_name] [assume_role_arn]
+#   - profile_name:    使用する AWS プロファイル名（省略時は peco で選択）
+#   - assume_role_arn: 引き受けるロールの ARN
+#                      （省略時は profile の assume_role_arn 属性を参照。それも無ければ
+#                        IAM ユーザー権限のまま）
+#
+# 前提（direnv + dotenv）:
+#   - このスクリプトは ${USER_DIR}/.env（USER_DIR 未設定時は ~）を直接書き換えて
+#     プロファイルを切り替える。現在のシェルに対して export はしない。
+#   - 反映は direnv 任せ: ~/.envrc が `dotenv` で ${USER_DIR}/.env を読み込み、
+#     プロンプトに戻った時点で AWS_PROFILE がシェル環境に入る。
+#     → 実行中の同一コマンド内ではなく「次のプロンプト以降」で有効になる点に注意。
+#
+# 関連:
+#   - aws-login             : 実際の認証（credential_process 本体）
+#   - aws-logout            : セッションと -signin プロファイルの破棄
+#   - dot_aws/modify_config : ~/.aws/config のベースプロファイル管理
+
+set -e
+
+# プロファイルを書き込む .env の置き場所。共有ユーザー環境では USER_DIR で分離する
+USER_DIR=${USER_DIR:-~}
+
+# 既存の環境変数をクリア
+unset AWS_PROFILE
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+# プロファイル名の取得
+if [[ -z $1 ]]; then
+    # 引数なしの場合、pecoでプロファイルを選択（signinを除外）
+    AWS_PROFILE=$(aws configure list-profiles | grep -v -E "signin" | peco --select-1 --query "$LBUFFER")
+else
+    # 引数でプロファイル名が指定された場合
+    AWS_PROFILE=$1
+fi
+
+export AWS_PROFILE
+echo "Current profile is \"${AWS_PROFILE}\"."
+# .env の古い AWS 行を一旦すべて削除する（このあと新しい AWS_PROFILE 行を追記する）
+sed -i '/AWS/d' ${USER_DIR}/.env
+
+
+# ロールARNの決定
+# 1. 第2引数で明示的に指定された場合はそれを使用
+# 2. プロファイルにassume_role_arn属性がある場合はそれを使用
+# 3. いずれもなければユーザー権限モード
+#
+# assume_role_arn は AWS CLI 標準ではない独自属性。~/.aws/config の対象プロファイルに
+# 手書きで追加しておくと、このスクリプトが拾って自動で Assume Role Mode に入る。
+# （標準キーではないので modify_config の管理対象外。書いても素通しで保持される）
+ASSUME_ROLE_ARN="${2:-}"
+if [[ -z $ASSUME_ROLE_ARN ]]; then
+    # AWS_PROFILE は上で export 済みなので、その（ベース）プロファイルから読む
+    ASSUME_ROLE_ARN=$(aws configure get assume_role_arn 2>/dev/null || echo "")
+fi
+
+# 注意: 分岐しても呼ぶのは同じ `aws-login ${AWS_PROFILE}`。ASSUME_ROLE_ARN は
+# 「ブラウザでどのロールを選べばよいか」を画面に出すための目印で、実際のロール選択は
+# `aws login` のブラウザ認証側で行う（このスクリプトが ARN を直接渡すわけではない）。
+if [[ -n $ASSUME_ROLE_ARN ]]; then
+    echo ""
+    echo "========================================="
+    echo "Assume Role Mode"
+    echo "========================================="
+    echo "Role ARN: ${ASSUME_ROLE_ARN}"
+    echo ""
+    echo "IMPORTANT: You must select the role above when authenticating in the browser."
+    echo "You need to log in as this role, not as a user."
+    echo "========================================="
+    echo ""
+
+    echo "Executing aws-login command for authentication..."
+    if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
+        echo "Authentication successful."
+    else
+        echo "Authentication failed."
+        exit 1
+    fi
+
+    echo "export AWS_PROFILE=${AWS_PROFILE}" >> ${USER_DIR}/.env
+    echo "Successful profile switch to ${AWS_PROFILE}."
+else
+    echo "Logging in with user permissions."
+
+    echo "Executing aws-login command for authentication..."
+    if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
+        echo "Authentication successful."
+    else
+        echo "Authentication failed."
+        exit 1
+    fi
+
+    echo "export AWS_PROFILE=${AWS_PROFILE}" >> ${USER_DIR}/.env
+    echo "Successful profile switch to ${AWS_PROFILE}."
+fi

@@ -1,14 +1,27 @@
 #!/bin/bash
 #
-# aws-logout - AWS SSOからログアウトするためのスクリプト
+# aws-logout - AWS からログアウトするためのスクリプト
+#
+# 実際に行うこと:
+#   1. ${USER_DIR}/.env から AWS 行を削除し、direnv 経由のプロファイル指定を解除
+#   2. aws logout でセッションを破棄
+#   3. ~/.aws/config から -signin（--all 時）/ 対象プロファイルのセクションを削除
 #
 # 使用方法:
 #   aws-logout [profile-name]  : 特定のプロファイルからログアウト
 #   aws-logout --all           : すべてのプロファイルからログアウト
 #
+# 前提（direnv + dotenv）:
+#   - aws-switch と対になるスクリプト。aws-switch が .env に書いた AWS_PROFILE 行を
+#     ここで消すことで、次のプロンプト以降は無指定（既定プロファイル）に戻る。
+#
+# 関連:
+#   - aws-switch : プロファイル切り替え（.env への書き込み）
+#   - aws-login  : 認証本体（credential_process）
 
 set -e
 
+# プロファイルを書き込む .env の置き場所。共有ユーザー環境では USER_DIR で分離する
 USER_DIR=${USER_DIR:-~}
 
 # --all 引数をチェック
