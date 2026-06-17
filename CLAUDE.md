@@ -9,7 +9,7 @@
 - ホームへ展開したくないファイルは `.chezmoiignore` に追加する（`README.md` / `CLAUDE.md` / `docs` は展開対象外）。
 - CLI ツールは [aqua](https://aquaproj.github.io/)（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理。
   パッケージを追加するときは末尾に並べず、**用途に合った既存グループ**（言語ランタイム /
-  git / shell / editor / AI コーディングエージェント / secrets / network / local registry など、
+  git / shell / editor / secrets / cloud / network / local registry など、
   `# --- ... ---` のコメント区切り）に挿入する。合うグループが無ければ新しいグループ区切りを
   作る。バージョンは `aqua g <pkg>` で確認したものをピンする。
 
