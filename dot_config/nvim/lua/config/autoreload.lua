@@ -1,6 +1,6 @@
 -- 外部ファイル変更の自動同期 + 保存時コンフリクト解決
 -- 挙動A: 未編集バッファは外部変更を検知して静かに自動リロード
--- 挙動B: 編集中バッファは保存時に検知して .bak 退避 + 3択（Task 2 で実装）
+-- 挙動B: 編集中バッファは保存時に検知して .bak 退避 + 3択
 
 local group = vim.api.nvim_create_augroup("external_sync", { clear = true })
 
@@ -45,7 +45,7 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "TermLeav
   end,
 })
 
--- 外部変更検知時のハンドラ: 未編集なら静かにリロード（挙動A）、編集中は記録（挙動B）
+-- 外部変更検知時のハンドラ
 vim.api.nvim_create_autocmd("FileChangedShell", {
   group = group,
   callback = function(ev)
@@ -62,14 +62,46 @@ vim.api.nvim_create_autocmd("FileChangedShell", {
   end,
 })
 
--- バッファ内容を実際にディスクへ書き込む（BufWriteCmd 配下の手動 write）
-local function do_write(buf, path)
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  -- 末尾改行など nvim 標準の write 挙動に寄せるため writefile を使う
-  vim.fn.writefile(lines, path)
+-- バッファ内容を nvim 標準の write で書き込む（eol/fileformat/encoding を正しく扱う）。
+-- noautocmd で BufWriteCmd の再帰を防ぎ、write! で「外部変更後」チェックを越える。
+local function do_write(buf)
+  local ok, err = pcall(function()
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("noautocmd write!")
+    end)
+  end)
+  if not ok then
+    vim.notify("書き込みに失敗しました: " .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
   vim.bo[buf].modified = false
   vim.b[buf].external_conflict = nil
   record_mtime(buf)
+  return true
+end
+
+-- ディスク上の外部版をそのまま .bak へコピー（バイト単位、eol を変えない）
+local function backup_disk(path, bak)
+  local ok = vim.uv.fs_copyfile(path, bak)
+  if not ok then
+    vim.notify("バックアップに失敗したため中止しました: " .. path, vim.log.levels.ERROR)
+    return false
+  end
+  return true
+end
+
+-- バッファの未保存編集を .bak へ書き出す（nvim 標準 write）
+local function backup_buffer(buf, bak)
+  local ok = pcall(function()
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("noautocmd write! " .. vim.fn.fnameescape(bak))
+    end)
+  end)
+  if not ok then
+    vim.notify("バックアップに失敗したため中止しました: " .. bak, vim.log.levels.ERROR)
+    return false
+  end
+  return true
 end
 
 -- 3択コンフリクト解決
@@ -82,23 +114,37 @@ local function resolve_conflict(buf, path)
   if choice == 1 then
     -- 失われる外部版を退避してから自分の版で上書き
     local bak = backup_path(path)
-    vim.fn.writefile(vim.fn.readfile(path), bak)
-    do_write(buf, path)
-    vim.notify("自分の版で上書きしました（外部版: " .. vim.fn.fnamemodify(bak, ":t") .. "）", vim.log.levels.INFO)
+    if not backup_disk(path, bak) then
+      return
+    end
+    if do_write(buf) then
+      vim.notify("自分の版で上書きしました（外部版: " .. vim.fn.fnamemodify(bak, ":t") .. "）", vim.log.levels.INFO)
+    end
   elseif choice == 2 then
     -- 失われる自分の編集を退避してから外部版を取り込む
     local bak = backup_path(path)
-    vim.fn.writefile(vim.api.nvim_buf_get_lines(buf, 0, -1, false), bak)
+    if not backup_buffer(buf, bak) then
+      return
+    end
     vim.bo[buf].modified = false
     vim.b[buf].external_conflict = nil
-    vim.cmd.edit({ bang = true }) -- ディスク（外部版）で再読込
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd.edit({ bang = true }) -- ディスク（外部版）で再読込
+    end)
     vim.notify("外部版を取り込みました（自分の編集: " .. vim.fn.fnamemodify(bak, ":t") .. "）", vim.log.levels.INFO)
   elseif choice == 3 then
-    -- 外部版を .bak に退避し、それと縦分割で diff（書き込みはしない）
+    -- 外部版を .bak に退避し、それと縦分割で diff（書き込みはしない）。
+    -- コンフリクトを解消済み扱いにし、マージ後の :w は通常保存（自分の版で上書き）になる。
     local bak = backup_path(path)
-    vim.fn.writefile(vim.fn.readfile(path), bak)
-    vim.cmd("vertical diffsplit " .. vim.fn.fnameescape(bak))
-    vim.notify("外部版を " .. vim.fn.fnamemodify(bak, ":t") .. " として diff 表示。マージ後に再度 :w してください", vim.log.levels.INFO)
+    if not backup_disk(path, bak) then
+      return
+    end
+    vim.b[buf].external_conflict = nil
+    vim.b[buf].synced_mtime = disk_mtime(path)
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("vertical diffsplit " .. vim.fn.fnameescape(bak))
+    end)
+    vim.notify("外部版を " .. vim.fn.fnamemodify(bak, ":t") .. " として diff 表示。マージ後に再度 :w すると自分の版で保存されます", vim.log.levels.INFO)
   else
     vim.notify("保存をキャンセルしました", vim.log.levels.INFO)
   end
@@ -108,17 +154,26 @@ end
 vim.api.nvim_create_autocmd("BufWriteCmd", {
   group = group,
   callback = function(ev)
-    local path = vim.api.nvim_buf_get_name(ev.buf)
-    if path == "" then
+    local buf = ev.buf
+    local path = vim.api.nvim_buf_get_name(buf)
+    local target = ev.match -- 書き込み先（:w other.txt なら other.txt）
+    local same = path ~= ""
+      and target ~= ""
+      and vim.fn.fnamemodify(target, ":p") == vim.fn.fnamemodify(path, ":p")
+    if not same then
+      -- 別名保存・無名バッファ等はコンフリクト処理の対象外。標準 write に委ねる。
+      vim.api.nvim_buf_call(buf, function()
+        vim.cmd("noautocmd write " .. (target ~= "" and vim.fn.fnameescape(target) or ""))
+      end)
       return
     end
-    local synced = vim.b[ev.buf].synced_mtime
+    local synced = vim.b[buf].synced_mtime
     local current = disk_mtime(path)
     -- 同期後にディスクが変わっている、または既にコンフリクト記録済み
-    if vim.b[ev.buf].external_conflict or (synced and current and current ~= synced) then
-      resolve_conflict(ev.buf, path)
+    if vim.b[buf].external_conflict or (synced and current and current ~= synced) then
+      resolve_conflict(buf, path)
     else
-      do_write(ev.buf, path)
+      do_write(buf)
     end
   end,
 })
