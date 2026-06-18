@@ -6,3 +6,6 @@ docs/superpowers/
 
 # codex hooks
 .codex/hooks.json
+
+# codegrraph
+.codegraph
