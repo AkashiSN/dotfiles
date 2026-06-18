@@ -12,7 +12,10 @@ export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 
 fnm --version >/dev/null 2>&1 || exit 0
 
-eval "$(fnm env)"
+# このスクリプトは POSIX sh（Ubuntu では dash）で実行される。fnm env はシェルを
+# 自動検出する際 $SHELL を参照するため、ユーザーの $SHELL が zsh だと zsh 用出力
+# （`rehash` を含む）を吐き dash で `rehash: not found`（127）になる。明示指定する。
+eval "$(fnm env --shell bash)"
 fnm install --lts
 fnm alias default lts-latest 2>/dev/null || fnm default lts-latest 2>/dev/null || true
 fnm use default
