@@ -21,9 +21,17 @@ local function record_mtime(buf)
   end
 end
 
--- バックアップ先パス: <元パス>.<timestamp>.bak（同じディレクトリ）
+-- バックアップ先パス: <元パス>.<timestamp>.bak（同じディレクトリ）。
+-- 同一秒に複数回退避しても前のバックアップを潰さないよう、衝突時は連番を付ける。
 local function backup_path(path)
-  return path .. "." .. os.date("%Y%m%d-%H%M%S") .. ".bak"
+  local base = path .. "." .. os.date("%Y%m%d-%H%M%S") .. ".bak"
+  local candidate = base
+  local n = 1
+  while vim.uv.fs_stat(candidate) do
+    candidate = base .. "." .. n
+    n = n + 1
+  end
+  return candidate
 end
 
 -- 読込・書込のたびに同期 mtime を更新する
@@ -157,14 +165,22 @@ vim.api.nvim_create_autocmd("BufWriteCmd", {
     local buf = ev.buf
     local path = vim.api.nvim_buf_get_name(buf)
     local target = ev.match -- 書き込み先（:w other.txt なら other.txt）
-    local same = path ~= ""
-      and target ~= ""
-      and vim.fn.fnamemodify(target, ":p") == vim.fn.fnamemodify(path, ":p")
+    -- バッファ名は symlink 解決済み・ev.match は未解決のことがあるため、
+    -- 両辺を resolve+絶対パス化してから比較する（/tmp 等 symlink 配下の誤判定を防ぐ）。
+    local function abspath(p)
+      return vim.fn.resolve(vim.fn.fnamemodify(p, ":p"))
+    end
+    local same = path ~= "" and target ~= "" and abspath(target) == abspath(path)
     if not same then
       -- 別名保存・無名バッファ等はコンフリクト処理の対象外。標準 write に委ねる。
-      vim.api.nvim_buf_call(buf, function()
-        vim.cmd("noautocmd write " .. (target ~= "" and vim.fn.fnameescape(target) or ""))
+      local ok, err = pcall(function()
+        vim.api.nvim_buf_call(buf, function()
+          vim.cmd("noautocmd write " .. (target ~= "" and vim.fn.fnameescape(target) or ""))
+        end)
       end)
+      if not ok then
+        vim.notify("書き込みに失敗しました: " .. tostring(err), vim.log.levels.ERROR)
+      end
       return
     end
     local synced = vim.b[buf].synced_mtime
