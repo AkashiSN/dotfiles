@@ -5,7 +5,7 @@
 # run_onchange: 下のチャネル/バージョンを書き換えると既存マシンでも再実行される。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "AI アシスタント CLI(claude/codex/agmsg)をインストール中"
+printf '\n\033[1;36m==> %s\033[0m\n' "AI アシスタント CLI(claude/codex/agmsg/codegraph)をインストール中"
 
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -34,3 +34,17 @@ if [ -d "$HOME/.agents/skills/agmsg" ]; then
 else
 	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
 fi
+
+# --- CodeGraph (github.com/colbymchenry/codegraph) ---
+# コードベースの事前インデックス(知識グラフ)を MCP 経由でエージェントに渡し、
+# ツール呼び出し回数とコストを削減するセマンティックコード解析ツール。
+# install.sh が自前ランタイム同梱のバイナリを PATH(~/.local/bin)へ置き(Node 不要)、
+# 以後は本体が `codegraph upgrade` で自己更新する(aqua 管理外)。
+# 続く `codegraph install --yes` が claude/codex を自動検出して MCP 設定・権限・
+# 指示ファイルへの追記を非対話(グローバル)で実施するため、両者を入れた後に導入する。
+# プロジェクト単位のインデックスは各リポジトリで `codegraph init` を別途実行する。
+# 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
+# codegraph-reinstall-marker: 2026-06-18
+curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
+codegraph install --yes
+codegraph telemetry off
