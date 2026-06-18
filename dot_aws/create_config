@@ -1,0 +1,13 @@
+[profile sylc]
+region = ap-northeast-1
+credential_process = aws-login sylc
+
+[profile cdx-pre-dev]
+region = ap-northeast-1
+credential_process = aws-login cdx-pre-dev
+
+[profile cdx-arise-pre-dev]
+region = ap-northeast-1
+credential_process = aws-login cdx-arise-pre-dev
+
+#--------------------------#

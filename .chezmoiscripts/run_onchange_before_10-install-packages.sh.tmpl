@@ -17,41 +17,51 @@ eval "$($BREW_PREFIX/bin/brew shellenv)"
 
 # Homebrew formula（aqua に無いシステムツール / GNU userland）。
 # 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
-FORMULAE=""
-# GNU userland: BSD 版コマンドを GNU 版へ置き換え
-FORMULAE="$FORMULAE coreutils diffutils ed findutils gawk gnu-sed gnu-tar grep gzip"
-# 基本ツール: shell / バージョン管理 / ダウンローダ
-FORMULAE="$FORMULAE zsh git wget"
-# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
-FORMULAE="$FORMULAE flock"
-# パッケージ / バージョンマネージャ
-FORMULAE="$FORMULAE aqua"
-# メディア
-FORMULAE="$FORMULAE ffmpeg"
-# aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
-FORMULAE="$FORMULAE unar"
-# データベース: agmsg(エージェント間メッセージ)のメッセージ DB 用
-# (macOS は sqlite3 を標準搭載するが、依存として明示的に導入しておく)
-FORMULAE="$FORMULAE sqlite"
+FORMULAE=(
+	# GNU userland: BSD 版コマンドを GNU 版へ置き換え
+	coreutils
+	diffutils
+	ed
+	findutils
+	gawk
+	gnu-sed
+	gnu-tar
+	grep
+	gzip
+	# 基本ツール: shell / バージョン管理 / ダウンローダ
+	zsh
+	git
+	wget
+	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
+	flock
+	# パッケージ / バージョンマネージャ
+	aqua
+	# aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
+	unar
+	# メディア
+	ffmpeg
+)
 
 # shellcheck disable=SC2086
 for formula in $FORMULAE; do
-	brew ls --versions "$formula" >/dev/null 2>&1 || brew install "$formula"
+	brew ls --versions "$formula" >/dev/null 2>&1 || brew install --yes "$formula"
 done
 
 # Homebrew cask（GUI アプリ / フォント）。
 # 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
-CASKS=""
-# ターミナル
-CASKS="$CASKS ghostty"
-# フォント: symbols-only-nerd-font は nvim のアイコン用、plemol-jp は日本語表示用
-CASKS="$CASKS font-symbols-only-nerd-font font-plemol-jp"
-# デバイス連携: adb / fastboot 等
-CASKS="$CASKS android-platform-tools"
+CASKS=(
+	# ターミナル
+	ghostty
+	# フォント: symbols-only-nerd-font は nvim のアイコン用、plemol-jp は日本語表示用
+	font-symbols-only-nerd-font
+	font-plemol-jp
+	# デバイス連携: adb / fastboot 等
+	android-platform-tools
+)
 
 # shellcheck disable=SC2086
 for cask in $CASKS; do
-	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --cask "$cask"
+	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --yes --cask "$cask"
 done
 {{- else -}}
 # --- Linux: aqua prebuilt binary + ffmpeg static build ---

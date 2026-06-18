@@ -125,19 +125,6 @@ assume_role_arn = arn:aws:iam::123456789012:role/Admin   # 任意
 `~/.aws/config` は実行時に各スクリプトと `aws login` が書き換える（`-signin`/`-admin` セクションや
 `login_session` の追記）。そのためファイル全体を chezmoi 管理にするとドリフトとセッション破壊が起きる。
 
-`dot_aws/modify_config` は **キー単位マージ** を行う `modify_` スクリプト:
-
-- 管理対象は **ベースプロファイルの `region` と `credential_process` のみ**。
-- 実行時に増える `-signin`/`-admin`/`-mfa` セクションや `login_session` は削除しない（安全側）。
-- 管理するプロファイル一覧はスクリプト冒頭の `prof[...]` 配列で定義。プロファイルを増やすときは
-  ここに追記する。
-- `assume_role_arn` は管理キーに含めていないため modify_ では追加・削除しないが、
-  既に書かれていれば素通しで保持される。恒久的に効かせたいなら手書きで足すか、
-  `mkeys`/`mval` に `assume_role_arn` を追加して管理対象に含める。
-
-> トレードオフ: ソースからプロファイルを消しても実機の `~/.aws/config` からは自動削除されない。
-> 不要になったら手動か `aws-logout` で消す。
-
 ## 典型フロー
 
 ```sh
