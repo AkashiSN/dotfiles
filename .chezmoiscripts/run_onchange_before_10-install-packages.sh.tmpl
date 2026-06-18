@@ -34,6 +34,8 @@ FORMULAE=(
 	wget
 	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
 	flock
+	# agmsg: メッセージ DB 用 sqlite3 CLI (macOS は標準搭載するが依存として明示導入)
+	sqlite
 	# パッケージ / バージョンマネージャ
 	aqua
 	# aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
@@ -64,7 +66,17 @@ for cask in $CASKS; do
 	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --yes --cask "$cask"
 done
 {{- else -}}
-# --- Linux: aqua prebuilt binary + ffmpeg static build ---
+# --- Linux: system packages + aqua prebuilt binary + ffmpeg static build ---
+# aqua/ffmpeg は単一バイナリで導入できるが、shell 本体(zsh)・git・agmsg 用 sqlite3 CLI
+# はディストリのパッケージマネージャで入れる (GNU userland/flock/unar は標準搭載のため不要)。
+if command -v apt-get >/dev/null 2>&1; then
+	sudo apt-get update
+	sudo apt-get install -y zsh git sqlite3
+elif command -v dnf >/dev/null 2>&1; then
+	# AL2023 等: sqlite パッケージが sqlite3 バイナリを提供する
+	sudo dnf install -y zsh git sqlite
+fi
+
 if ! command -v aqua >/dev/null 2>&1; then
 	curl -fsSL -o /tmp/aqua.tar.gz https://github.com/aquaproj/aqua/releases/latest/download/aqua_linux_amd64.tar.gz
 	tar xf /tmp/aqua.tar.gz -C /tmp aqua
