@@ -5,6 +5,8 @@
 # run_onchange: 下の一覧を書き換えると既存マシンでも再実行される。
 set -eu
 
+printf '\n\033[1;36m==> %s\033[0m\n' "Node(LTS) を fnm で準備中"
+
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 

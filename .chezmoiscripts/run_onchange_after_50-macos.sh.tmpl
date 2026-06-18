@@ -4,6 +4,8 @@
 # run_onchange: 内容を書き換えると既存マシンでも再実行される（全操作が冪等）。
 set -eu
 
+printf '\n\033[1;36m==> %s\033[0m\n' "macOS 設定を適用中 (Finder/補完権限/1Password)"
+
 HOMEBREW_PATH={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
 chmod 755 "$HOMEBREW_PATH/share/zsh" "$HOMEBREW_PATH/share/zsh/site-functions" 2>/dev/null || true
 

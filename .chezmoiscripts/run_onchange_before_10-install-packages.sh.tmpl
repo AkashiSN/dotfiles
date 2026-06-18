@@ -4,6 +4,8 @@
 # run_onchange: 下の formula / cask 一覧を書き換えると既存マシンでも再実行される（brew は冪等）。
 set -eu
 
+printf '\n\033[1;36m==> %s\033[0m\n' "システムパッケージを準備中 (brew/apt・aqua・ffmpeg)"
+
 PREFIX="$HOME/.local"
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"
 

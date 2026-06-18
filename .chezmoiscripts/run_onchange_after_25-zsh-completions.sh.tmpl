@@ -5,6 +5,8 @@
 # registry.yaml  hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
 set -eu
 
+printf '\n\033[1;36m==> %s\033[0m\n' "zsh 補完関数を生成中"
+
 # Make aqua-managed tools resolvable (aqua proxy/bin + brew).
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"

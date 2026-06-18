@@ -11,7 +11,7 @@ On a fresh machine (macOS: install [Homebrew](https://brew.sh/) first):
 
 ```sh
 sh -c "$(curl -fsLS https://get.chezmoi.io/lb)" -- init --apply AkashiSN
-chsh -s "$(command -v zsh)"   # change the login shell (one-time, manual)
+sudo usermod -s "$(command -v zsh)" "$(id -un)" # change the login shell (one-time, manual)
 ```
 
 `chezmoi init --apply` clones this repo into `~/.local/share/chezmoi`,
