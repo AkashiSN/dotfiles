@@ -26,6 +26,79 @@ local TERMS = {
   terminal = { label = "terminal", cmd = SHELL_CMD },
 }
 
+-- 非フォーカスの端末ペインを「末尾にいるときだけ」追従スクロールさせる仕組み。
+-- nvim の端末はフォーカス中かつ terminal-job モードのときしか末尾追従しないため、
+-- IDE モードで codex/claude を並べると、片方をアクティブにするともう片方の出力が
+-- 画面に流れてこない。これを補う。
+--   follow[win]   = その窓が追従中か(nil=未登録は追従中とみなす)
+--   ag_pending[b] = on_lines を 1 ティックにつき 1 回へ集約するフラグ
+local follow = {}
+local ag_pending = {}
+
+-- 出力後、カレント窓を除く「buf を表示中で追従中」の窓を末尾へ寄せる。
+-- 非カレントの端末窓は必ず terminal-normal モードなので、カーソルを最終行へ
+-- 置けばビューが末尾を含むよう追従する。
+local function follow_terminals(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+  local count = vim.api.nvim_buf_line_count(buf)
+  local cur = vim.api.nvim_get_current_win()
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if w ~= cur
+      and vim.api.nvim_win_get_buf(w) == buf
+      and follow[w] ~= false then
+      pcall(vim.api.nvim_win_set_cursor, w, { count, 0 })
+    end
+  end
+end
+
+-- 端末バッファの出力を検知して追従処理をスケジュールする。on_lines は
+-- fast-context で発火しカーソル API を直接呼べないため vim.schedule 経由にし、
+-- 連続出力は ag_pending で 1 ティック 1 回へ集約する。make_term から呼ぶ。
+local function attach_autoscroll(buf)
+  vim.api.nvim_buf_attach(buf, false, {
+    on_lines = function(_, b)
+      if ag_pending[b] then
+        return false
+      end
+      ag_pending[b] = true
+      vim.schedule(function()
+        ag_pending[b] = nil
+        follow_terminals(b)
+      end)
+      return false -- false=アタッチ維持(true で detach)
+    end,
+  })
+end
+
+-- ユーザーのスクロールだけで追従状態を更新する。出力で行が積まれても topline は
+-- 動かず WinScrolled は発火しないので、ここで follow を false に倒すのは実スクロール
+-- のみ。自前の自動スクロール後は w$==行数 になり再計算しても follow=true で整合する。
+--   上に遡る → w$ < 行数 → follow=false(停止) / 最下部へ → w$ == 行数 → follow=true(再開)
+vim.api.nvim_create_autocmd("WinScrolled", {
+  group = vim.api.nvim_create_augroup("nvim_ide_autoscroll", { clear = true }),
+  callback = function()
+    if not vim.g.nvim_ide then
+      return
+    end
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      local b = vim.api.nvim_win_get_buf(w)
+      if vim.bo[b].buftype == "terminal" then
+        follow[w] = vim.fn.line("w$", w) >= vim.api.nvim_buf_line_count(b)
+      end
+    end
+  end,
+})
+
+-- 閉じた窓の追従状態を掃除(テーブルのリーク防止)。
+vim.api.nvim_create_autocmd("WinClosed", {
+  group = "nvim_ide_autoscroll",
+  callback = function(ev)
+    follow[tonumber(ev.match)] = nil
+  end,
+})
+
 -- 名前付き・通常(buftype 空)の「実ファイル」バッファが残っているか
 local function has_real_file_buffers()
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -124,6 +197,7 @@ local function make_term(role)
   vim.api.nvim_buf_set_var(buf, "term_label", spec.label)
   vim.api.nvim_buf_set_var(buf, "term_role", role)
   vim.bo[buf].buflisted = true
+  attach_autoscroll(buf)
   return buf
 end
 
