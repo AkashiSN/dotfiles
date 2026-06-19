@@ -61,6 +61,48 @@ Codex / Gemini CLI などは `$agmsg` でインボックスを開き、あとは
 | `both` | monitor を主、turn を保険に併用 | 約5秒（取りこぼしは turn で回収） |
 | `off` | 手動のみ（`/agmsg` を明示的に叩く） | — |
 
+### Codex monitor モード（beta）
+
+Codex は本来 `turn`（ターンの合間にしか受信できない）しか使えないが、agmsg の beta
+機能で **Claude Code 相当のリアルタイム push（monitor）** を擬似的に実現できる。
+仕組みは「**シム + app-server ブリッジ**」:
+
+- `~/.agents/bin/codex` に**シム**を置き、対話起動（`codex` / `codex resume` /
+  `codex "..."`）だけをブリッジ経由にする（`codex exec` / `app-server` / `login` は素通し）。
+- SessionStart フックが `run/` にリクエストを書き、サンドボックス外の
+  `codex-bridge.js` が **WebSocket-over-UDS で app-server に接続** → 未読メッセージを
+  実行中スレッドの `turn/start` に注入して TUI に表示する。
+
+**有効化（プロジェクトごとに手動。team join と同じ運用）:**
+
+```
+# Codex を起動するプロジェクトの cwd で一度だけ
+~/.agents/skills/agmsg/scripts/delivery.sh set monitor codex "$PWD"
+```
+
+**dotfiles 側の前提（導入済み）:**
+
+- シムを本体 codex より優先するため、`10-path.zsh` で `~/.agents/bin` を
+  `~/.local/bin` より PATH 前段に置いている。
+- `~/.codex/config.toml` の `writable_roots` に `db` / `teams` に加え `run` が必要。
+  `run_onchange_after_40-ai-assistants.sh.tmpl` の `--update` 再実行で追記される。
+
+**制限（beta）:** 有効化は「再起動＋初回メッセージ送信後」に反映／実行中セッションは
+未監視／プロジェクトあたり Codex identity は1つ。
+
+**残留ブリッジの掃除:** TUI を閉じると launcher は終了するが、それが `nohup` で起動した
+`codex-bridge.js` 本体が残る（上流 beta の未対応箇所。SessionEnd フックは Claude 側
+`watch.sh` しか掃除しない）。これを回収する zsh 関数 **`agmsg-bridge-reap`** を
+`50-functions.zsh` に用意し、**ログイン（対話シェル起動）時に一度だけ自動実行**している。
+
+- 判定基準: **launcher の生存 ⇔ Codex セッションの生存**。`codex-bridge-launcher.sh` の
+  プロセス引数にその bridge の `--project` が現れない＝孤児、とみなして kill＋pidfile 削除。
+  起動中の別 Codex セッションの bridge は launcher が生きているので**巻き込まない**。
+- 手動でも `agmsg-bridge-reap` で即回収できる。乱暴に全消しするなら
+  `pkill -f codex-bridge.js`（起動中セッションも巻き込むので非推奨）。
+- 上流推奨の回避は `delivery.sh set turn codex "$PWD"` ↔ `monitor` のモード往復、
+  または Codex 再起動。
+
 ## claude ↔ codex 相互レビュー運用
 
 両者が**同じプロジェクトディレクトリ**で**同じチーム**に参加していることが前提。

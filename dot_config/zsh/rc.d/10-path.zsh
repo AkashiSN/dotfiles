@@ -13,6 +13,11 @@ export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
 mkdir -p ${LOCAL_PREFIX}/{share,lib,include,bin,share/zsh/site-functions}
 
+# agmsg: Codex monitor モードのシム（~/.agents/bin/codex）を本体 codex（~/.local/bin）
+# より前に置く。delivery.sh set monitor codex 実行時に生成され、未生成でも実害なし。
+# 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
+export PATH=$HOME/.agents/bin:$PATH
+
 # Golang (go 本体は aqua 管理)
 export GOPATH=$HOME/Project
 export GHQ_ROOT=$GOPATH/src

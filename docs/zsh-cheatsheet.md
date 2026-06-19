@@ -58,6 +58,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `search <word>...` | カレント以下のファイルパスを複数語で AND 絞り込み（クォート出力） |
 | `convert-crlf-to-lf` | CRLF のファイルを検出して LF へ一括変換（nkf） |
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
+| `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
 
 ---
 
