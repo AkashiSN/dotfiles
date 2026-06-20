@@ -3,7 +3,7 @@
 zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キーバインドをまとめたリファレンス。
 
 - プラグイン管理: **sheldon**（fzf-tab / zsh-autosuggestions 等）
-- プロンプト: **starship**
+- プロンプト: **starship**（SSH/root 接続時はプロンプト先頭に `user@host` を表示。ローカル通常時は非表示）
 - ディレクトリ移動: `AUTO_PUSHD` 有効（`cd` 履歴がスタックに積まれる）
 - エディタ: `nvim`（`EDITOR` / `VISUAL`）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_zshenv.tmpl` で設定。全シェル/スクリプトに適用）

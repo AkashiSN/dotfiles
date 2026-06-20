@@ -6,6 +6,8 @@ add_newline = true
 command_timeout = 1000
 
 format = """
+$username\
+$hostname\
 $directory\
 $git_branch\
 $git_status\
@@ -17,6 +19,19 @@ $kubernetes\
 $cmd_duration\
 $line_break\
 $status$character"""
+
+# SSH/root 時だけ user@host を出して、どのホストで作業中か一目で分かるようにする
+[username]
+show_always = false        # SSH または root のときだけ表示（ローカル通常時は何も出さない）
+style_user = "bold yellow"
+style_root = "bold red"
+format = "[$user]($style)@"
+
+[hostname]
+ssh_only = true            # SSH のときだけ表示
+ssh_symbol = ""            # globe 絵文字を消して user@host をシンプルに
+style = "bold green"
+format = "[$hostname]($style) "
 
 [directory]
 truncation_length = 4
