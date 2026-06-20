@@ -75,13 +75,15 @@ done
 # aqua/ffmpeg は単一バイナリで導入できるが、shell 本体(zsh)・tmux・git・agmsg 用
 # sqlite3 CLI はディストリのパッケージマネージャで入れる (GNU userland/flock/unar は
 # 標準搭載のため不要)。tmux は ide/tssh の SSH 切断耐性に必須。
+# C コンパイラ(cc): nvim の tree-sitter パーサーをその場でビルドするのに必要
+#   (apt は build-essential、dnf は gcc が cc を提供。macOS は Xcode CLT が前提)。
 # xz: 下の ffmpeg static build (.tar.xz) 展開に必要 (minimal 環境には無いことがある)
 if command -v apt-get >/dev/null 2>&1; then
 	sudo apt-get update
-	sudo apt-get install -y zsh tmux git sqlite3 xz-utils
+	sudo apt-get install -y zsh tmux git sqlite3 xz-utils build-essential
 elif command -v dnf >/dev/null 2>&1; then
 	# AL2023 等: sqlite パッケージが sqlite3 バイナリを提供する
-	sudo dnf install -y zsh tmux git sqlite xz
+	sudo dnf install -y zsh tmux git sqlite xz gcc make
 fi
 
 if ! command -v aqua >/dev/null 2>&1; then
