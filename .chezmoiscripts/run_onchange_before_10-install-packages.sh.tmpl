@@ -78,12 +78,14 @@ done
 # C コンパイラ(cc): nvim の tree-sitter パーサーをその場でビルドするのに必要
 #   (apt は build-essential、dnf は gcc が cc を提供。macOS は Xcode CLT が前提)。
 # xz: 下の ffmpeg static build (.tar.xz) 展開に必要 (minimal 環境には無いことがある)
+# bubblewrap: codex のサンドボックス(bwrap)用。aqua レジストリに無く Linux のみ
+#   ディストリパッケージで導入 (macOS は bwrap 非対応のため不要)。
 if command -v apt-get >/dev/null 2>&1; then
 	sudo apt-get update
-	sudo apt-get install -y zsh tmux git sqlite3 xz-utils build-essential
+	sudo apt-get install -y zsh tmux git sqlite3 xz-utils build-essential bubblewrap
 elif command -v dnf >/dev/null 2>&1; then
 	# AL2023 等: sqlite パッケージが sqlite3 バイナリを提供する
-	sudo dnf install -y zsh tmux git sqlite xz gcc make
+	sudo dnf install -y zsh tmux git sqlite xz gcc make bubblewrap
 fi
 
 if ! command -v aqua >/dev/null 2>&1; then
