@@ -68,7 +68,7 @@ prefix **なし**で直接操作できる。
 | 設定 | 内容 |
 | --- | --- |
 | truecolor | 外側端末が対応していれば RGB 表示（catppuccin 用） |
-| `escape-time 0` | nvim の `<Esc>` を即応させる |
+| `escape-time 10` | nvim の `<Esc>` を即応させる。0 だと SSH 越しに OSC 応答(背景色問い合わせ等)が分断され先頭に `11;?` 等が漏れるため非ゼロにする |
 | `focus-events on` | nvim にフォーカスイベントを伝える（autoread 等） |
 | `set-clipboard on` | SSH 越しの OSC52 クリップボードを通過させる |
 
