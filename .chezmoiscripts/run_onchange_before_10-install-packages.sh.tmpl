@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 # Provision package prerequisites that must exist before chezmoi applies files
 # and before `aqua install` runs. Tools themselves are declared in aqua.yaml.
-# run_onchange: 下の formula / cask 一覧を書き換えると既存マシンでも再実行される（brew は冪等）。
+# run_onchange: 下のパッケージ一覧を書き換えると既存マシンでも再実行される（冪等）。
+# bash 必須: 下のパッケージ一覧を配列で持つ（apt/dnf 系には bash が標準搭載）。
 set -eu
 
 printf '\n\033[1;36m==> %s\033[0m\n' "システムパッケージを準備中 (brew/apt・aqua・ffmpeg)"
@@ -49,8 +50,7 @@ FORMULAE=(
 	ffmpeg
 )
 
-# shellcheck disable=SC2086
-for formula in $FORMULAE; do
+for formula in "${FORMULAE[@]}"; do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install --yes "$formula"
 done
 
@@ -66,26 +66,56 @@ CASKS=(
 	android-platform-tools
 )
 
-# shellcheck disable=SC2086
-for cask in $CASKS; do
+for cask in "${CASKS[@]}"; do
 	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --yes --cask "$cask"
 done
 {{- else -}}
 # --- Linux: system packages + aqua prebuilt binary + ffmpeg static build ---
-# aqua/ffmpeg は単一バイナリで導入できるが、shell 本体(zsh)・tmux・git・agmsg 用
-# sqlite3 CLI はディストリのパッケージマネージャで入れる (GNU userland/flock/unar は
-# 標準搭載のため不要)。tmux は ide/tssh の SSH 切断耐性に必須。
-# C コンパイラ(cc): nvim の tree-sitter パーサーをその場でビルドするのに必要
-#   (apt は build-essential、dnf は gcc が cc を提供。macOS は Xcode CLT が前提)。
-# xz: 下の ffmpeg static build (.tar.xz) 展開に必要 (minimal 環境には無いことがある)
-# bubblewrap: codex のサンドボックス(bwrap)用。aqua レジストリに無く Linux のみ
-#   ディストリパッケージで導入 (macOS は bwrap 非対応のため不要)。
+# aqua/ffmpeg は単一バイナリで導入するが、それ以外はディストリのパッケージマネージャで入れる
+# (GNU userland/flock/unar は標準搭載のため不要)。用途ごとにグループ分けし、追加は合うグループへ。
+# apt(Debian/Ubuntu)と dnf(Fedora/AL2023 等)でパッケージ名が異なるため一覧を分けて持つ。
+
+# apt 系パッケージ。用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
+APT_PACKAGES=(
+	# 基本ツール: shell / 端末多重化 / バージョン管理
+	# tmux: ide/tssh の SSH 切断耐性に必須
+	zsh
+	tmux
+	git
+	# agmsg: メッセージ DB 用 sqlite3 CLI
+	sqlite3
+	# ビルド: nvim の tree-sitter パーサーをその場でビルドする C コンパイラ(cc)を提供
+	build-essential
+	# 展開: ffmpeg static build(.tar.xz)用 xz / zip 展開用 unzip
+	xz-utils
+	unzip
+	# サンドボックス: codex の bwrap 用 (aqua レジストリに無く Linux のみ導入)
+	bubblewrap
+)
+
+# dnf 系パッケージ。グループは apt 側と対応。名前が異なるものだけ差し替える。
+DNF_PACKAGES=(
+	# 基本ツール: shell / 端末多重化 / バージョン管理
+	zsh
+	tmux
+	git
+	# agmsg: メッセージ DB 用 sqlite3 CLI (sqlite パッケージが sqlite3 バイナリを提供)
+	sqlite
+	# ビルド: tree-sitter パーサー用 C コンパイラ(cc)。dnf は gcc が cc を提供
+	gcc
+	make
+	# 展開: ffmpeg static build(.tar.xz)用 xz / zip 展開用 unzip
+	xz
+	unzip
+	# サンドボックス: codex の bwrap 用
+	bubblewrap
+)
+
 if command -v apt-get >/dev/null 2>&1; then
 	sudo apt-get update
-	sudo apt-get install -y zsh tmux git sqlite3 xz-utils build-essential bubblewrap
+	sudo apt-get install -y "${APT_PACKAGES[@]}"
 elif command -v dnf >/dev/null 2>&1; then
-	# AL2023 等: sqlite パッケージが sqlite3 バイナリを提供する
-	sudo dnf install -y zsh tmux git sqlite xz gcc make bubblewrap
+	sudo dnf install -y "${DNF_PACKAGES[@]}"
 fi
 
 if ! command -v aqua >/dev/null 2>&1; then
