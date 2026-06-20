@@ -244,6 +244,13 @@ local function find_role_buf(role)
   end
 end
 
+-- 指定 role の端末バッファを取得する。無ければ生成する。これにより start_layout を
+-- 再実行(:IdeRelayout)しても codex/claude/terminal のプロセスを新規に起こさず、
+-- 既存の生きている端末をそのまま再配置できる。
+local function ensure_term(role)
+  return find_role_buf(role) or make_term(role)
+end
+
 -- 指定 role の端末を表示している(フロートでない)窓を探す。
 local function find_role_win(role)
   for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -283,8 +290,6 @@ local function rebalance_panes()
   local target = math.max(20, math.floor(avail / 2))
   pcall(vim.api.nvim_win_set_width, cw, target)
 end
-vim.api.nvim_create_user_command("IdeRebalance", rebalance_panes,
-  { desc = "Rebalance left(codex/editor) / claude panes to 50/50 (minus file tree)" })
 
 -- 任意のバッファをフォーカス中(カレント)のペインへ表示する。これがファイル/端末を
 -- ペインへ自由に入れ替える土台で、bufferline のタブクリック(ui.lua)からも呼ばれる。
@@ -340,12 +345,13 @@ local function start_layout(opts)
   local wide = vim.o.columns >= NARROW_WIDTH
   local tall = vim.o.lines >= NARROW_HEIGHT
 
-  -- 端末バッファ(タブ)を先に生成。表示はこの後ペインへ割り当てる。
-  -- 分割を省く場合もバッファは生成するので、すべて bufferline のタブとして残り
-  -- <leader>ic / <leader>ia / <leader>it で任意のペインへ呼び出せる。
-  local codex_buf = make_term("codex")
-  local claude_buf = make_term("claude")
-  local shell_buf = make_term("terminal")
+  -- 端末バッファ(タブ)を先に用意。表示はこの後ペインへ割り当てる。既存があれば
+  -- 再利用する(:IdeRelayout でプロセスを起こし直さないため)。分割を省く場合も
+  -- バッファは用意するので、すべて bufferline のタブとして残り <leader>ic /
+  -- <leader>ia / <leader>it で任意のペインへ呼び出せる。
+  local codex_buf = ensure_term("codex")
+  local claude_buf = ensure_term("claude")
+  local shell_buf = ensure_term("terminal")
 
   -- ① 下ターミナル(右領域の全幅・画面高の約28%)。この時点ではメインしか
   -- 無いので belowright split で画面全幅に作られ、後の ③ で左ツリーぶんだけ
@@ -395,6 +401,70 @@ local function start_layout(opts)
     vim.schedule(rebalance_panes)
   end
 end
+
+-- 現在の画面サイズで IDE レイアウトを組み直す。狭い画面で起動した後に端末を広げた
+-- (あるいはその逆)とき、起動時 1 回きりの wide/tall 判定をやり直すための手動操作。
+-- 既存の codex/claude/terminal 端末バッファ(=生きているプロセス)は ensure_term で
+-- 再利用し、窓だけ 1 枚に畳んでから start_layout を現在の columns/lines で再実行する。
+-- いまファイル窓に出ている実ファイルがあれば、それを main(左上)に残す。
+local function relayout()
+  if not vim.g.nvim_ide then
+    vim.notify("IDE モードではありません", vim.log.levels.WARN)
+    return
+  end
+
+  -- フロートでも neo-tree でもない、実ファイル/通常バッファを表示している窓か。
+  local function is_file_win(w)
+    if vim.api.nvim_win_get_config(w).relative ~= "" then
+      return false
+    end
+    local b = vim.api.nvim_win_get_buf(w)
+    return vim.bo[b].buftype == "" and vim.bo[b].filetype ~= "neo-tree"
+  end
+
+  -- 残すファイル窓を決める(フォーカス中を優先、無ければ最初のファイル窓)。
+  local fwin
+  if is_file_win(vim.api.nvim_get_current_win()) then
+    fwin = vim.api.nvim_get_current_win()
+  else
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if is_file_win(w) then
+        fwin = w
+        break
+      end
+    end
+  end
+  -- main に残すのは「名前付きの実ファイル」だけ([No Name] 空バッファは残さない)。
+  local file_buf
+  if fwin then
+    local b = vim.api.nvim_win_get_buf(fwin)
+    if vim.api.nvim_buf_get_name(b) ~= "" then
+      file_buf = b
+    end
+  end
+
+  -- ツリーを閉じ、残す 1 窓へフォーカスしてから他窓を畳む。端末/claude/shell の
+  -- バッファは buflisted なので窓を閉じてもタブとして残り、start_layout で再配置される。
+  pcall(vim.cmd, "Neotree close")
+  local keep = fwin
+  if not keep then
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_get_config(w).relative == "" then
+        keep = w
+        break
+      end
+    end
+  end
+  keep = keep or vim.api.nvim_get_current_win()
+  pcall(vim.api.nvim_set_current_win, keep)
+  vim.cmd("only")
+
+  -- file_buf があれば keep 窓に出ている前提で main にそのまま残す(VSCode の
+  -- `code <file>` 相当)。無ければ main に codex を出す。
+  start_layout({ file = file_buf ~= nil })
+end
+vim.api.nvim_create_user_command("IdeRelayout", relayout,
+  { desc = "Tear down and rebuild the IDE layout for the current screen size" })
 
 -- neo-tree の開閉(<leader>e トグル・:Neotree close・ツリー内 q 等いずれも)に
 -- 追従して左右 50/50 を取り直す。neo-tree は遅延ロードなので、初回ロード後に
@@ -458,7 +528,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
     map("<leader>ic", "codex", "Show codex in pane")
     map("<leader>ia", "claude", "Show claude in pane")
     map("<leader>it", "terminal", "Show terminal in pane")
-    vim.keymap.set("n", "<leader>ir", rebalance_panes, { desc = "Rebalance panes 50/50" })
+    vim.keymap.set("n", "<leader>ir", relayout, { desc = "Relayout IDE for current screen size" })
 
     local argc = vim.fn.argc()
 
