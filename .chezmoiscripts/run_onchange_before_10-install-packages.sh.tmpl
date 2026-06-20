@@ -30,9 +30,11 @@ FORMULAE=(
 	gnu-tar
 	grep
 	gzip
-	# 基本ツール: shell / バージョン管理 / ダウンローダ
+	# 基本ツール: shell / 端末多重化 / バージョン管理 / ダウンローダ
 	zsh
 	bash
+	# tmux: ide/tssh の SSH 切断耐性に必須(libevent/ncurses 依存のため aqua でなく system 導入)
+	tmux
 	git
 	wget
 	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
@@ -70,15 +72,16 @@ for cask in $CASKS; do
 done
 {{- else -}}
 # --- Linux: system packages + aqua prebuilt binary + ffmpeg static build ---
-# aqua/ffmpeg は単一バイナリで導入できるが、shell 本体(zsh)・git・agmsg 用 sqlite3 CLI
-# はディストリのパッケージマネージャで入れる (GNU userland/flock/unar は標準搭載のため不要)。
+# aqua/ffmpeg は単一バイナリで導入できるが、shell 本体(zsh)・tmux・git・agmsg 用
+# sqlite3 CLI はディストリのパッケージマネージャで入れる (GNU userland/flock/unar は
+# 標準搭載のため不要)。tmux は ide/tssh の SSH 切断耐性に必須。
 # xz: 下の ffmpeg static build (.tar.xz) 展開に必要 (minimal 環境には無いことがある)
 if command -v apt-get >/dev/null 2>&1; then
 	sudo apt-get update
-	sudo apt-get install -y zsh git sqlite3 xz-utils
+	sudo apt-get install -y zsh tmux git sqlite3 xz-utils
 elif command -v dnf >/dev/null 2>&1; then
 	# AL2023 等: sqlite パッケージが sqlite3 バイナリを提供する
-	sudo dnf install -y zsh git sqlite xz
+	sudo dnf install -y zsh tmux git sqlite xz
 fi
 
 if ! command -v aqua >/dev/null 2>&1; then

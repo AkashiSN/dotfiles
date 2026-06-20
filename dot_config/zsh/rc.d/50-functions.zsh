@@ -52,9 +52,27 @@ function search () {
   done
 }
 
-# nvim を VSCode ライクな IDE レイアウトで起動する
+# nvim を VSCode ライクな IDE レイアウトで起動する。
+# SSH 経由(かつ tmux 外)のときは tmux で包んで切断耐性を付ける。作業ディレクトリ
+# 単位の固定名セッションにするので、切断後に同じ場所で再度 ide すれば生きている
+# nvim にそのまま復帰できる(:q で終わればセッションも消える)。
 function ide () {
-  NVIM_IDE=1 nvim "$@"
+  # ローカル / 既に tmux 内 / tmux 無し → 素の nvim
+  if [[ -z $SSH_CONNECTION || -n $TMUX ]] || ! command -v tmux &>/dev/null; then
+    NVIM_IDE=1 nvim "$@"
+    return
+  fi
+  # SSH 経由 & tmux 外 → 作業ディレクトリ単位の tmux セッションで包む。
+  local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
+  local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
+  local name=ide-${${dir:t}//[.:]/_}-$hash       # tmux 名に使えない . : を除去
+  if tmux has-session -t "=$name" 2>/dev/null; then
+    tmux -2u attach -d -t "=$name"               # 既存セッションへ復帰(他端末から奪取)
+  else
+    local cmd="NVIM_IDE=1 nvim" a
+    for a in "$@"; do cmd+=" ${(q)a}"; done       # 引数を安全にクォートして渡す
+    tmux -2u new-session -s $name -c $dir $cmd
+  fi
 }
 
 # agmsg Codex monitor(beta): TUI 終了時に launcher だけが死に codex-bridge.js が
