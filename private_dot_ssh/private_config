@@ -46,7 +46,7 @@ Host ix2215-tokyo
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host develop-server
-    HostName        172.16.100.2
+    HostName        develop-server
     User            ubuntu
     IdentityFile    ~/.ssh/1password.pub
 
