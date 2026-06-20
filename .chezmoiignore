@@ -8,6 +8,7 @@ docs
 {{- if ne .chezmoi.os "darwin" }}
 Library
 .config/ghostty
+.ssh/*.bat
 {{- end }}
 
 {{- if ne .chezmoi.os "windows" }}
@@ -15,5 +16,7 @@ Documents
 {{- end }}
 
 {{- if env "SSH_CONNECTION" }}
-.ssh
+.ssh/*.pub
+.ssh/allowed_signers
+.ssh/config
 {{- end }}
