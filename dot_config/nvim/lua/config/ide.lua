@@ -11,12 +11,27 @@
 -- 生成され、ファイルと同じく bufferline のタブに並ぶ。ペインにフォーカスして対応する
 -- タブ(またはタブをクリック)を選ぶと、そのペインに端末/ファイルを呼び出せる。
 -- env は起動直後に nil 化して子プロセス(ターミナル等)へ伝播させない。
+--
+-- 狭い画面でのフォールバック: iPad + Termius 等の狭い端末で 3 パネルを開くと、
+-- ソフトウェアキーボード出現で上下がさらに圧縮され戻らなくなる。起動時の画面
+-- サイズが NARROW_WIDTH / NARROW_HEIGHT 未満なら、対応する分割を作らずメインの
+-- 1 ペインへフォールバックする(端末はタブとして待機し <leader>i で呼び出す)。
+--   幅 < NARROW_WIDTH  … claude の左右分割と neo-tree を開かない
+--   高さ < NARROW_HEIGHT … 下ターミナルの上下分割を開かない
+-- 判定は起動時の 1 回のみ。起動後のリサイズでは組み替えない。
 
 -- 各ペインで起動するコマンド(argv リスト)。.zshrc の PATH・fnm/node 初期化等を
 -- 読ませるため、エージェントはインタラクティブ zsh 経由で起動する。
 local CLAUDE_CMD = { "zsh", "-ic", "claude" }
 local CODEX_CMD = { "zsh", "-ic", "codex" }
 local SHELL_CMD = { vim.o.shell }
+
+-- 狭い画面フォールバックのしきい値(起動時の画面サイズで判定)。
+-- columns がこれ未満 → claude の左右分割と neo-tree を開かない。
+-- lines がこれ未満   → 下ターミナルの上下分割を開かない。
+-- iPad + Termius 横向きが概ね 100〜130 列なので 140 でカバーする。要調整なら変更。
+local NARROW_WIDTH = 140
+local NARROW_HEIGHT = 35
 
 -- 端末バッファに付ける表示ラベルと役割の目印。bufferline の name_formatter が
 -- term_label を、レイアウト/コマンドが term_role を参照する。
@@ -319,31 +334,44 @@ local function start_layout(opts)
   opts = opts or {}
   local main = vim.api.nvim_get_current_win()
 
+  -- 狭い画面フォールバック判定(起動時サイズで 1 回だけ)。
+  --   wide=false … claude の左右分割と neo-tree を開かない
+  --   tall=false … 下ターミナルの上下分割を開かない
+  local wide = vim.o.columns >= NARROW_WIDTH
+  local tall = vim.o.lines >= NARROW_HEIGHT
+
   -- 端末バッファ(タブ)を先に生成。表示はこの後ペインへ割り当てる。
+  -- 分割を省く場合もバッファは生成するので、すべて bufferline のタブとして残り
+  -- <leader>ic / <leader>ia / <leader>it で任意のペインへ呼び出せる。
   local codex_buf = make_term("codex")
   local claude_buf = make_term("claude")
   local shell_buf = make_term("terminal")
 
   -- ① 下ターミナル(右領域の全幅・画面高の約28%)。この時点ではメインしか
   -- 無いので belowright split で画面全幅に作られ、後の ③ で左ツリーぶんだけ
-  -- 右に寄って「右領域の全幅」になる。
-  if vim.api.nvim_win_is_valid(main) then
-    vim.api.nvim_set_current_win(main)
+  -- 右に寄って「右領域の全幅」になる。高さが狭ければ分割せずタブのみにする。
+  if tall then
+    if vim.api.nvim_win_is_valid(main) then
+      vim.api.nvim_set_current_win(main)
+    end
+    vim.cmd("belowright split")
+    local bottom = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(bottom, shell_buf)
+    style_term_win(bottom)
+    vim.cmd("resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
   end
-  vim.cmd("belowright split")
-  local bottom = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(bottom, shell_buf)
-  style_term_win(bottom)
-  vim.cmd("resize " .. math.max(8, math.floor(vim.o.lines * 0.28)))
 
-  -- ② 上段を 左(codex/エディタ) / 右(claude) に分割。
-  if vim.api.nvim_win_is_valid(main) then
-    vim.api.nvim_set_current_win(main)
+  -- ② 上段を 左(codex/エディタ) / 右(claude) に分割。幅が狭ければ分割せず
+  -- claude はタブのみにする。
+  if wide then
+    if vim.api.nvim_win_is_valid(main) then
+      vim.api.nvim_set_current_win(main)
+    end
+    vim.cmd("rightbelow vsplit")
+    local right = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(right, claude_buf)
+    style_term_win(right)
   end
-  vim.cmd("rightbelow vsplit")
-  local right = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(right, claude_buf)
-  style_term_win(right)
 
   -- 左上(main): ファイル引数があればそれを残し、無ければ codex を表示。
   if not opts.file then
@@ -351,8 +379,10 @@ local function start_layout(opts)
     style_term_win(main)
   end
 
-  -- ③ ファイルツリー(左・全高・cwd をルートに)
-  pcall(vim.cmd, "Neotree show left")
+  -- ③ ファイルツリー(左・全高・cwd をルートに)。幅が狭ければ開かない。
+  if wide then
+    pcall(vim.cmd, "Neotree show left")
+  end
   hook_neotree_rebalance()
 
   -- メインウィンドウへフォーカスを戻す(フロートにしない)
@@ -360,8 +390,10 @@ local function start_layout(opts)
     vim.api.nvim_set_current_win(main)
   end
 
-  -- ツリーを差し引いた左右 50/50 に初期サイズを合わせる
-  vim.schedule(rebalance_panes)
+  -- ツリーを差し引いた左右 50/50 に初期サイズを合わせる(claude 窓があるときだけ)。
+  if wide then
+    vim.schedule(rebalance_panes)
+  end
 end
 
 -- neo-tree の開閉(<leader>e トグル・:Neotree close・ツリー内 q 等いずれも)に
