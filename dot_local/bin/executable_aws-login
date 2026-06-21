@@ -15,6 +15,12 @@
 #   3. 一時的なエラー（ネットワーク断等）ではログインせずエラーを返す
 #   4. flockで排他制御し、複数プロセスの同時ログインを防止
 #
+# SSH 先での挙動:
+#   - $SSH_CONNECTION があれば `aws login --remote` を使う。通常の `aws login` は
+#     localhost のコールバックサーバ前提で SSH 先だと完結しないため。
+#   - --remote は URL を表示して認証コードの貼り付けを促す方式。URL/プロンプトは
+#     呼び出し元の出力抑制を貫通させるため制御端末（/dev/tty）に直結する。
+#
 # 注意:
 #   - プロファイルごとに異なるキャッシュを持つため、
 #     ユーザー権限とAssume Role権限を別々に管理できる
@@ -55,8 +61,24 @@ fi
     if aws configure export-credentials --format process 2>/dev/null; then
         exit 0
     fi
-    unset DISPLAY
-    aws login
+
+    # SSH 先かどうかで認証方式を切り替える。
+    # 通常の `aws login` はローカルにOAuthコールバックサーバを立て localhost に
+    # リダイレクトする方式なので、SSH 先ではブラウザも開かず URL も localhost に
+    # 戻ってしまい完結しない。`--remote` はコールバックを無効化し、URL 表示＋
+    # 認証コード貼り付け方式に切り替える（公式のリモート用フロー）。
+    if [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
+        # SSH セッション。呼び出し元（aws-switch）が出力を /dev/null に捨てていても
+        # URL とコード入力プロンプトが見えるよう、対話を制御端末に直結する。
+        aws login --remote </dev/tty >/dev/tty 2>&1
+    elif [[ -n $SSH_CONNECTION ]]; then
+        # SSH だが制御端末が無い稀なケースの保険（出力は継承された fd のまま）。
+        aws login --remote
+    else
+        # ローカル。ブラウザでの認証（従来どおり）。
+        unset DISPLAY
+        aws login
+    fi
 ) 200>"${USER_DIR}/.aws/.aws-login-${1}.lock"
 
 aws configure export-credentials --format process

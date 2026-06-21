@@ -72,6 +72,26 @@ aws-switch my-profile <role_arn> # assume role 付きで切り替え
 - キャッシュがあればそれを返し、無い/期限切れのときのみブラウザでログイン。
 - `flock` で排他制御し、複数プロセスが同時にログイン画面を開くのを防ぐ。
 
+#### SSH 先でのログイン（`--remote` 自動切替）
+
+通常の `aws login` は **ローカルに OAuth コールバックサーバを立て localhost へリダイレクト**
+する方式のため、SSH 先ではブラウザも開かず URL も完結しない。`aws-login` は
+`$SSH_CONNECTION` を見て SSH セッションを検出すると、自動で `aws login --remote` に切り替える。
+
+- `--remote` はコールバックを使わず、**URL を表示して認証コードの貼り付けを促す**方式:
+
+  ```
+  Browser will not be automatically opened.
+  Please visit the following URL:
+  https://<region>.signin.amazonaws.com/authorize?...
+  Please enter the authorization code displayed in the browser:
+  ```
+
+  手元の PC のブラウザで URL を開き、ログイン後に表示される認証コードを端末に貼り付ける。
+- URL とコード入力プロンプトは制御端末（`/dev/tty`）へ直結するので、`aws-switch` が
+  `aws-login` の出力を捨てていても見える（= `aws-switch` 経由でも SSH ログインできる）。
+- ローカル（非 SSH）では従来どおりブラウザが自動で開く。
+
 ### aws-logout
 
 ```sh
