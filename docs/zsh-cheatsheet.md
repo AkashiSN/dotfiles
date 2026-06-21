@@ -52,7 +52,8 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | コマンド | 動作 |
 | --- | --- |
 | `ide [path...]` | nvim を VSCode ライクな IDE レイアウトで起動（`NVIM_IDE=1 nvim`）。SSH 経由（かつ tmux 外）のときは作業ディレクトリ単位の tmux セッションで包んで切断耐性を付ける（切断後は同じ場所で再度 `ide` すれば復帰）。詳細は [Neovim チートシート](nvim-cheatsheet.md) |
-| `tssh <host>` | SSH 先で tmux があれば自動 attach（無ければ通常 ssh）。補完は ssh と同じ |
+| `ssh <host>` | ローカルでは関数でラップされ、戻り際に必ず `term-reset` を実行（リモートで `ide` の tmux を起動したまま Broken pipe で切れても端末が化けない）。リモートシェルでは素の ssh のまま |
+| `term-reset` | 端末のマウストラッキング/フォーカス報告/括弧付き貼り付けを無効化して復旧。SSH 異常切断後にクリックで `0;129;39M` 等が出て操作不能になったときに実行（ローカルの `ssh`/`tssh` 経由なら自動。それ以外で踏んだら手動で） |
 | `latex [args]` | Docker（akashisn/latexmk）で latexmk をビルド |
 | `pdfcrop [args]` | Docker で PDF の余白をクロップ |
 | `search <word>...` | カレント以下のファイルパスを複数語で AND 絞り込み（クォート出力） |

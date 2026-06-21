@@ -21,18 +21,28 @@ function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk:2023 pdfcrop "$@"
 }
 
-function tssh () {
-  $(cat <<'EOF' | command ssh -T "$@" bash &> /dev/null
-    command -v tmux &> /dev/null
-EOF
-)
-  if [ ! $? -eq 0 ]; then
-    \ssh "$@"
-  else
-    \ssh -t "$@" "tmux -2u attach -d || tmux -2u"
-  fi
+# 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソルを
+# 無効化して復旧する。SSH 異常切断(client_loop: send disconnect: Broken pipe)で
+# リモート tmux が有効化したマウス報告(SGR mouse mode)がローカル端末に居残り、
+# クリックやスクロールで `0;129;39M` のような生エスケープが出て操作不能になる現象を
+# 解消する。tssh から自動で呼ぶほか、素の ssh で踏んだときも手動で実行できる。
+function term-reset () {
+  print -n -- $'\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[?2004l\e[?25h'
 }
-compdef _ssh tssh=ssh
+
+# ローカルから出る ssh を関数でラップし、戻り際に必ず term-reset する。リモートで
+# ide(tmux)を起動したまま Broken pipe で切れると、リモート tmux が有効化した
+# マウス報告の解除シーケンスがローカルに届かず端末が化けるため、ssh から戻った
+# 時点でローカル側を強制復旧する。リモートシェル($SSH_CONNECTION あり)では多重
+# ラップや tmux への余計な干渉を避けるため定義しない。
+if [[ -z $SSH_CONNECTION ]]; then
+  function ssh () {
+    command ssh "$@"
+    local r=$?
+    term-reset
+    return $r
+  }
+fi
 
 function convert-crlf-to-lf () {
   find . -type f | xargs file | grep CRLF \
