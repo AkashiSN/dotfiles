@@ -31,5 +31,6 @@
   },
   "language": "Japanese",
   "autoUpdatesChannel": "latest",
-  "theme": "dark"
+  "theme": "dark",
+  "agentPushNotifEnabled": true
 }
