@@ -67,6 +67,7 @@ prefix **なし**で直接操作できる。
 
 | 設定 | 内容 |
 | --- | --- |
+| `default-terminal tmux-256color` | tmux 内の nvim に italic / reverse を正しく伝える（コメントや bufferline の白抜き化対策） |
 | truecolor | 外側端末が対応していれば RGB 表示（catppuccin 用） |
 | `escape-time 0` | nvim の `<Esc>` を即応させる |
 | `focus-events on` | nvim にフォーカスイベントを伝える（autoread 等） |
