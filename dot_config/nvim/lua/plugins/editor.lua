@@ -251,23 +251,35 @@ return {
     config = function(_, opts)
       require("neo-tree").setup(opts)
 
-      -- 5秒ごとに表示中の neo-tree ソースの Git ステータスを再計算する。
-      -- neo-tree はイベント駆動で定期ポーリングしないため、外部コマンド
-      -- (git commit / pull / checkout など、作業ツリーのファイルを書き換え
-      -- ない操作)では左ツリーの変更マーカー(色)が古いまま残る。これを定期
-      -- 更新で追従させる。ツリーが画面に出ているソースだけ refresh し、
+      -- 5秒ごとに neo-tree の Git ステータスを再計算する(定期ポーリング)。
+      -- neo-tree は .git ディレクトリ監視(git/watch.lua)と libuv ファイル監視で
+      -- 変更を検知するが、(1) macOS のフォルダ監視は「ファイル内容だけが外部で
+      -- 書き換わった(ディレクトリエントリは不変)」変更を取りこぼしやすく、
+      -- (2) commit/checkout などでも検知が漏れる場合があるため、左ツリーの変更
+      -- マーカー(色)が古いまま残ることがある。これを定期更新で確実に追従させる。
+      --
+      -- 更新には neo-tree 自身の正規シグナル GIT_EVENT を発火する(git ディレクトリ
+      -- 監視が外部 git 操作を検知したときに発火させるのと同じもの)。これにより
+      -- filesystem / buffers / git_status の各ソースが neo-tree のハンドラ経由で
+      -- git status を再実行し、マーカーを描き直す。表示中の窓が無いときは何もせず、
       -- 閉じている間は無駄な git 起動をしない。
       local timer = (vim.uv or vim.loop).new_timer()
       timer:start(5000, 5000, vim.schedule_wrap(function()
-        local ok, manager = pcall(require, "neo-tree.sources.manager")
-        if not ok then
+        -- 現在のタブに neo-tree の窓が出ているときだけ更新する。
+        local visible = false
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+          local buf = vim.api.nvim_win_get_buf(win)
+          if vim.bo[buf].filetype == "neo-tree" then
+            visible = true
+            break
+          end
+        end
+        if not visible then
           return
         end
-        for _, source in ipairs({ "filesystem", "git_status" }) do
-          local sok, state = pcall(manager.get_state, source)
-          if sok and state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
-            pcall(manager.refresh, source)
-          end
+        local ok, events = pcall(require, "neo-tree.events")
+        if ok then
+          pcall(events.fire_event, events.GIT_EVENT)
         end
       end))
     end,
