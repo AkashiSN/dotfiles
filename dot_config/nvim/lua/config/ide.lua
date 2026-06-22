@@ -518,6 +518,13 @@ local function start_layout(opts)
   end
 
   -- ③ ファイルツリー(左・全高・cwd をルートに)。幅が狭ければ開かない。
+  -- Neotree show を呼ぶ時点のカレント窓を neo-tree が「直前の窓」として記憶し、
+  -- ツリーから開いたファイルはそこ(open_files_in_last_window)へ出る。② の vsplit
+  -- 直後はカレントが claude 窓のままなので、先に main(左上=codex)へ移してから
+  -- 開く。これをしないとツリーで選んだファイルが claude ペインを潰してしまう。
+  if vim.api.nvim_win_is_valid(main) then
+    vim.api.nvim_set_current_win(main)
+  end
   if wide then
     pcall(vim.cmd, "Neotree show left")
   end
