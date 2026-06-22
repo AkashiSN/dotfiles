@@ -22,7 +22,15 @@
 
 -- 各ペインで起動するコマンド(argv リスト)。.zshrc の PATH・fnm/node 初期化等を
 -- 読ませるため、エージェントはインタラクティブ zsh 経由で起動する。
-local CLAUDE_CMD = { "zsh", "-ic", "claude" }
+-- SSH 経由(ssh 先で ide を起動)のときは claude を Remote Control モード
+-- (`claude --remote-control`)で立ち上げ、claude.ai / モバイル等のリモートから
+-- そのセッションを操作できるようにする。セッション名のプレフィックスは既定で
+-- ホスト名。SSH_CONNECTION は NVIM_IDE と違い nil 化していないので参照できる。
+local claude_argv = "claude"
+if vim.env.SSH_CONNECTION and vim.env.SSH_CONNECTION ~= "" then
+  claude_argv = "claude --remote-control"
+end
+local CLAUDE_CMD = { "zsh", "-ic", claude_argv }
 local CODEX_CMD = { "zsh", "-ic", "codex" }
 local SHELL_CMD = { vim.o.shell }
 
