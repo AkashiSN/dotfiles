@@ -27,15 +27,18 @@
 -- そのセッションを操作できるようにする。セッション名のプレフィックスは既定で
 -- ホスト名。SSH_CONNECTION は NVIM_IDE と違い nil 化していないので参照できる。
 --
--- あわせて CLAUDE_CODE_DISABLE_MOUSE=1 を付ける。claude の full screen rendering は
--- マウスをキャプチャし、ドラッグ選択→マウスリリースで自動コピーする。SSH 越しでは
--- そのコピーが OSC 52(base64)になり、nvim の :terminal + tmux の二重ラップを
--- 通過しきれず base64 が入力欄へ echo されてしまう。マウスキャプチャだけ無効化すれば
--- flicker-free 描画は維持したまま、選択は tmux/ネイティブ側に戻り base64 漏れが消える。
--- (ローカルの nvim:terminal は OSC52 を使わない=pbcopy 経由なので無効化しない)
+-- あわせて CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 を付け、SSH 時は classic renderer に
+-- 戻す(グローバルの "tui": "fullscreen" を SSH-ide のときだけ上書き)。claude の full
+-- screen rendering はマウスをキャプチャし、ドラッグ選択→リリースで自動コピーする。SSH
+-- 越しではそのコピーが OSC 52(base64)になり、nvim の :terminal + tmux の二重ラップを
+-- 通過しきれず base64 が入力欄へ echo されてしまう。classic renderer なら alternate
+-- screen を使わず会話が端末スクロールバックに残るので、ホイールスクロールも選択/コピーも
+-- nvim/tmux のネイティブ側で素直に動き、base64 漏れも消える。multiplex 越しの full screen
+-- は元々ちらつきが目減りする(docs 記載)ため SSH では classic が無難。
+-- (ローカルの nvim:terminal は OSC52 を使わない=pbcopy 経由なので full screen のまま)
 local claude_argv = "claude"
 if vim.env.SSH_CONNECTION and vim.env.SSH_CONNECTION ~= "" then
-  claude_argv = "CLAUDE_CODE_DISABLE_MOUSE=1 claude --remote-control"
+  claude_argv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 claude --remote-control"
 end
 local CLAUDE_CMD = { "zsh", "-ic", claude_argv }
 local CODEX_CMD = { "zsh", "-ic", "codex" }
