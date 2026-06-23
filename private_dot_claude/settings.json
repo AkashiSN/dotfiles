@@ -32,5 +32,6 @@
   "language": "Japanese",
   "autoUpdatesChannel": "latest",
   "theme": "dark",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "tui": "fullscreen"
 }
