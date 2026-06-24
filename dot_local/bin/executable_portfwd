@@ -31,7 +31,6 @@ SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
 IDLE_SEC = int(os.environ.get("PORTFWD_IDLE_SEC", "1800"))
 
 _last_activity = time.monotonic()
-_lock = threading.Lock()
 
 
 def _log(msg):
@@ -53,15 +52,18 @@ def handle_notification(payload: dict) -> str:
     control = SSH_DIR / f"cm-{host}"
     if not control.exists():
         return f"reject: control socket がありません ({control})"
-    # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
-    fwd = f"{port}:127.0.0.1:{port}"
-    subprocess.run(
-        [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    # ローカルブラウザを開く。
-    subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return f"ok: -L {fwd} via {host}, opened {url}"
+    try:
+        # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
+        fwd = f"{port}:127.0.0.1:{port}"
+        subprocess.run(
+            [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        # ローカルブラウザを開く。
+        subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return f"ok: -L {fwd} via {host}, opened {url}"
+    except Exception as e:
+        return f"error: {e}"
 
 
 class Handler(BaseHTTPRequestHandler):
