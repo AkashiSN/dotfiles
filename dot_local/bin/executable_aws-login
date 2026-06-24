@@ -88,6 +88,18 @@ emit_creds_if_valid() {
     return 1
 }
 
+# portfwd 逆チャネルが使えるか判定する。
+#   - LC_PORTFWD_HOST がセット済み（タグ付きホストへの SSH セッション）かつ
+#     127.0.0.1:55999 に接続できれば、ローカルの portfwd daemon 経由で
+#     ブラウザを開ける。この場合 aws login --remote ではなく通常の
+#     aws login（localhost コールバック）を使う。
+portfwd_channel_available() {
+    [ -n "${LC_PORTFWD_HOST:-}" ] || return 1
+    local port="${PORTFWD_PORT:-55999}"
+    # bash /dev/tcp で接続確認（2 秒タイムアウト）。
+    timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${port}" 2>/dev/null
+}
+
 # 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。
 # 設定の有無ではなく STS の応答で判定するため、期限切れ/権限喪失はここを通過して
 # 下のログインフローへ進む。
@@ -112,12 +124,16 @@ fi
     # リダイレクトする方式なので、SSH 先ではブラウザも開かず URL も localhost に
     # 戻ってしまい完結しない。`--remote` はコールバックを無効化し、URL 表示＋
     # 認証コード貼り付け方式に切り替える（公式のリモート用フロー）。
-    if [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
-        # SSH セッション。呼び出し元（aws-switch）が出力を /dev/null に捨てていても
-        # URL とコード入力プロンプトが見えるよう、対話を制御端末に直結する。
+    if portfwd_channel_available && { : >/dev/tty; } 2>/dev/null; then
+        # 逆チャネルあり。通常の aws login（localhost コールバック）を使い、
+        # $BROWSER=portfwd-open 経由でローカルブラウザが開く。
+        aws login </dev/tty >/dev/tty 2>&1
+    elif portfwd_channel_available; then
+        aws login
+    elif [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
+        # SSH だが逆チャネル無し。従来どおり URL 表示＋コード貼り付け。
         aws login --remote </dev/tty >/dev/tty 2>&1
     elif [[ -n $SSH_CONNECTION ]]; then
-        # SSH だが制御端末が無い稀なケースの保険（出力は継承された fd のまま）。
         aws login --remote
     else
         # ローカル。ブラウザでの認証（従来どおり）。
