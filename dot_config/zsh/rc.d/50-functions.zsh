@@ -112,5 +112,41 @@ function agmsg-bridge-reap () {
   return 0
 }
 
+# claude.ai 障害時などに Claude Code を Amazon Bedrock(グローバル推論プロファイル)へ
+# 切り替えるための共通 env を「現在のシェル」へ export する内部ヘルパー。claude-bedrock /
+# ide-bedrock から サブシェル内で呼ぶので、呼び出し元の対話シェルは汚さない(per-invocation)。
+# 認証は aws-login(credential_process) + AWS_PROFILE を流用するため追加ログイン不要(トークン
+# 期限切れも aws-login が自動更新)。Bedrock 側で対象モデルのアクセス権を有効化しておくこと。
+# リージョン/モデルは CLAUDE_BEDROCK_* で上書き可能。AWS_REGION はグローバルプロファイルでも
+# SigV4 署名用に具体リージョンが必要(ルーティングはグローバルプロファイルが自動で行う)。
+# 認証情報が無ければ非ゼロで返し、呼び出し側を停止させる。
+function _claude-bedrock-env () {
+  if [[ -z $AWS_PROFILE && -z $AWS_ACCESS_KEY_ID ]]; then
+    print -ru2 -- "claude-bedrock: AWS 認証情報が見当たりません。先に aws-switch でプロファイルを選択してください。"
+    return 1
+  fi
+  export CLAUDE_CODE_USE_BEDROCK=1
+  export AWS_REGION="${CLAUDE_BEDROCK_REGION:-us-east-1}"
+  export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-4-8}"
+  export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-4-6}"
+  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+}
+
+# Claude Code 単体を Bedrock で起動する。通常の `claude` は claude.ai のまま無変更。
+# サブシェルで env を閉じ込めるので、呼び出し後のシェルには設定が残らない。
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+function claude-bedrock () {
+  ( _claude-bedrock-env && command claude "$@" )
+}
+
+# ide(nvim IDE レイアウト)を Bedrock 環境で起動する版。env を export してから ide を呼ぶので、
+# nvim が継承し、IDE ペインの `zsh -ic claude` 子プロセスもそのまま Bedrock になる
+# (ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。SSH 経由で tmux に
+# 包む場合も new-session が現在の env を引き継ぐ。既存セッションへ復帰する場合は、その claude は
+# 起動時の env のままなので、切り替えたいときはセッションを畳んで再度 ide-bedrock する。
+function ide-bedrock () {
+  ( _claude-bedrock-env && ide "$@" )
+}
+
 # ログイン(対話)シェル起動時に一度だけ、非ブロッキングで孤児 bridge を回収する。
 [[ -d $HOME/.agents/skills/agmsg/run ]] && ( agmsg-bridge-reap & ) 2>/dev/null
