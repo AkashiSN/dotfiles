@@ -10,10 +10,14 @@ SSH 先で `aws login` / `gh auth` などがブラウザを開こうとしたと
 remote: ツールが $BROWSER=portfwd-open を起動
    └─ URL を 127.0.0.1:55999 へ POST （RemoteForward でローカルへ）
 local : portfwd daemon が受信
-   1. url の callback ポート P を抽出
+   1. authorize URL の redirect_uri（無ければ URL 自体）から localhost の callback ポート P を抽出
    2. ssh -O forward -L P:127.0.0.1:P -S ~/.ssh/cm-<host> <host>
-   3. open <url>  （ローカルブラウザ）
+   3. open <url>  （ローカルブラウザで authorize URL を開く）
 ```
+
+- ツールがブラウザに渡すのは **認可サーバ上の authorize URL**（ホストは localhost ではない）で、
+  コールバックは URL 内の `redirect_uri=http://127.0.0.1:P/...` に埋め込まれている。daemon は
+  そこから P を取り出して `-L` を張り、URL 自体はそのままローカルブラウザで開く。
 
 - リモートの `$BROWSER` は `dot_zshenv.tmpl` が `LC_PORTFWD_HOST` セット時のみ
   `~/.local/bin/portfwd-open` に向ける。
@@ -47,9 +51,12 @@ Host <alias>
 
 ## 安全策
 
-- daemon は URL ホストが `127.0.0.1`/`localhost` 以外なら拒否（任意ポート転送の踏み台化防止）。
+- daemon が `-L` を張るのは **localhost の callback が見つかったときだけ**（`redirect_uri` か
+  URL 自体が `127.0.0.1`/`localhost`）。それ以外の URL は reject し、転送もブラウザ起動もしない
+  （任意ポート転送・任意 URL オープンの踏み台化防止）。
 - `LC_PORTFWD_HOST` に対応する control socket が無ければ通知は破棄。
-- 逆チャネルに届かない場合、各ツールは従来動作にフォールバック（`aws login` は `--remote`）。
+- reject / error は **HTTP 4xx** で返すため `portfwd-open` が非ゼロ終了する。これにより逆チャネルに
+  届かない／弾かれた場合は各ツールが従来動作へフォールバックする（`aws login` は `--remote`）。
 
 ## 前提
 

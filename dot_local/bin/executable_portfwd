@@ -22,7 +22,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORTFWD_PORT", "55999"))
 SSH_DIR = Path(os.environ.get("PORTFWD_SSH_DIR", str(Path.home() / ".ssh")))
@@ -38,8 +38,31 @@ def _log(msg):
     print(f"portfwd: {msg}", file=sys.stderr, flush=True)
 
 
+def _callback_endpoint(parsed):
+    """ブラウザ URL から、ローカルへ -L 転送すべき callback (host, port) を決める。
+
+    2 パターンに対応する:
+      1. OAuth/OIDC の authorize URL（例: `aws login` / `gh auth`）。ブラウザが開くのは
+         認可サーバ上の URL で、コールバックは `redirect_uri` クエリに localhost:port
+         として埋め込まれる（URL 自身のホストは認可サーバなので localhost ではない）。
+      2. URL 自体が localhost:port のコールバック（ツールが直接ローカル URL を開く場合）。
+    どちらでもないときは (None, None) を返し、呼び出し側が転送せず reject する。
+    """
+    # 1) authorize URL: redirect_uri クエリのローカルコールバックを最優先で使う。
+    redirect = parse_qs(parsed.query).get("redirect_uri", [None])[0]
+    if redirect:
+        r = urlparse(redirect)
+        if r.hostname in ("127.0.0.1", "localhost") and r.port:
+            return r.hostname, r.port
+    # 2) URL 自体がローカルコールバックのとき。
+    if parsed.hostname in ("127.0.0.1", "localhost") and parsed.port:
+        return parsed.hostname, parsed.port
+    return None, None
+
+
 def handle_notification(payload: dict) -> str:
-    """1 通知を処理し、結果メッセージを返す。例外は投げず文字列で返す。"""
+    """1 通知を処理し、結果メッセージを返す。例外は投げず "ok:" / "reject:" / "error:"
+    で始まる文字列で返す（do_POST が prefix で HTTP ステータスを決める）。"""
     host = payload.get("host")
     url = payload.get("url")
     if not host or not url:
@@ -48,21 +71,23 @@ def handle_notification(payload: dict) -> str:
         if not re.fullmatch(r'[A-Za-z0-9._-]+', host):
             return f"reject: 不正な host ({host})"
         parsed = urlparse(url)
-        if parsed.hostname not in ("127.0.0.1", "localhost"):
-            return f"reject: ローカル以外のホスト ({parsed.hostname})"
-        port = parsed.port
-        if not port:
-            return "reject: URL にポートがありません"
+        # -L で転送する callback ポートを決める。authorize URL なら redirect_uri から、
+        # ローカル URL ならそのポートから取り出す。ローカルコールバックが見つからない
+        # URL は転送しない（任意ポート転送・任意 URL オープンの踏み台化を防ぐ。逆に言えば、
+        # ローカルコールバックを伴う OAuth 形の URL のみ open する）。
+        cb_host, cb_port = _callback_endpoint(parsed)
+        if not cb_port:
+            return f"reject: ローカル callback が見つかりません ({parsed.hostname})"
         control = SSH_DIR / f"cm-{host}"
         if not control.exists():
             return f"reject: control socket がありません ({control})"
         # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
-        fwd = f"{port}:127.0.0.1:{port}"
+        fwd = f"{cb_port}:127.0.0.1:{cb_port}"
         subprocess.run(
             [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        # ローカルブラウザを開く。
+        # ローカルブラウザを開く（authorize URL ならその認可ページがそのまま開く）。
         subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"ok: -L {fwd} via {host}, opened {url}"
     except Exception as e:
@@ -81,7 +106,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(400); self.end_headers(); return
         result = handle_notification(payload)
         _log(result)
-        self.send_response(200)
+        # ok のみ 200。reject/error は 4xx で返し、portfwd-open の `curl -f` を失敗させて
+        # 呼び出し側（aws login 等）を従来動作（--remote 等）へフォールバックさせる。
+        self.send_response(200 if result.startswith("ok:") else 422)
         self.end_headers()
         self.wfile.write(result.encode())
 
