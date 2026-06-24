@@ -19,10 +19,17 @@
 #     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、従来の「設定があれば OK」動作へ戻せる。
 #
 # SSH 先での挙動:
-#   - $SSH_CONNECTION があれば `aws login --remote` を使う。通常の `aws login` は
-#     localhost のコールバックサーバ前提で SSH 先だと完結しないため。
-#   - --remote は URL を表示して認証コードの貼り付けを促す方式。URL/プロンプトは
-#     呼び出し元の出力抑制を貫通させるため制御端末（/dev/tty）に直結する。
+#   通常の `aws login` は localhost のコールバックサーバ前提で、SSH 先だとブラウザも
+#   開かず localhost に戻ってしまい完結しない。そこで 2 通りに分岐する:
+#   - portfwd 逆チャネルが使えるとき（タグ付きホストへの SSH。LC_PORTFWD_HOST がセット
+#     済み かつ 127.0.0.1:55999 の portfwd daemon に到達可能）は通常の `aws login` を使う。
+#     コールバック URL は $BROWSER=portfwd-open 経由でローカルへ転送され、ローカルの
+#     ブラウザが自動で開く（詳細は docs/portfwd-cheatsheet.md）。
+#   - 逆チャネルが無い SSH 先では従来どおり `aws login --remote` にフォールバックする。
+#     --remote は localhost コールバックを無効化し、URL 表示＋認証コード貼り付け方式に
+#     切り替える（公式のリモート用フロー）。
+#   どちらも URL/プロンプトは呼び出し元の出力抑制を貫通させるため制御端末（/dev/tty）に
+#   直結する。
 #
 # 注意:
 #   - プロファイルごとに異なるキャッシュを持つため、
@@ -119,11 +126,8 @@ fi
         exit 0
     fi
 
-    # SSH 先かどうかで認証方式を切り替える。
-    # 通常の `aws login` はローカルにOAuthコールバックサーバを立て localhost に
-    # リダイレクトする方式なので、SSH 先ではブラウザも開かず URL も localhost に
-    # 戻ってしまい完結しない。`--remote` はコールバックを無効化し、URL 表示＋
-    # 認証コード貼り付け方式に切り替える（公式のリモート用フロー）。
+    # ローカル / portfwd 逆チャネルあり SSH / 逆チャネル無し SSH で認証方式を切り替える
+    # （各分岐の詳細はファイル冒頭「SSH 先での挙動」を参照）。
     # portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（timeout の二重実行を避ける）。
     portfwd_ok=""
     if portfwd_channel_available; then portfwd_ok=1; fi
