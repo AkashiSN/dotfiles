@@ -13,6 +13,7 @@
 """
 import json
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -43,16 +44,18 @@ def handle_notification(payload: dict) -> str:
     url = payload.get("url")
     if not host or not url:
         return "reject: host/url がありません"
-    parsed = urlparse(url)
-    if parsed.hostname not in ("127.0.0.1", "localhost"):
-        return f"reject: ローカル以外のホスト ({parsed.hostname})"
-    port = parsed.port
-    if not port:
-        return "reject: URL にポートがありません"
-    control = SSH_DIR / f"cm-{host}"
-    if not control.exists():
-        return f"reject: control socket がありません ({control})"
     try:
+        if not re.fullmatch(r'[A-Za-z0-9._-]+', host):
+            return f"reject: 不正な host ({host})"
+        parsed = urlparse(url)
+        if parsed.hostname not in ("127.0.0.1", "localhost"):
+            return f"reject: ローカル以外のホスト ({parsed.hostname})"
+        port = parsed.port
+        if not port:
+            return "reject: URL にポートがありません"
+        control = SSH_DIR / f"cm-{host}"
+        if not control.exists():
+            return f"reject: control socket がありません ({control})"
         # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
         fwd = f"{port}:127.0.0.1:{port}"
         subprocess.run(
@@ -148,8 +151,11 @@ def cmd_stop():
     if not pid:
         _log("起動していません")
         return
-    os.kill(pid, signal.SIGTERM)
-    _log(f"停止しました (pid {pid})")
+    try:
+        os.kill(pid, signal.SIGTERM)
+        _log(f"停止しました (pid {pid})")
+    except OSError:
+        _log("既に停止済みです")
 
 
 def cmd_status():

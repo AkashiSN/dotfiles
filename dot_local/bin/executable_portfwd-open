@@ -21,7 +21,7 @@ fi
 # JSON を組み立てる（host/url は英数記号のみ想定。最低限のエスケープ: " と \ ）。
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 BODY=$(printf '{"host":"%s","url":"%s"}' "$(json_escape "$HOST")" "$(json_escape "$URL")")
-LEN=${#BODY}
+LEN=$(printf '%s' "$BODY" | wc -c | tr -d ' ')
 
 # curl があれば curl、無ければ bash /dev/tcp で最小 HTTP POST。
 if command -v curl >/dev/null 2>&1; then
