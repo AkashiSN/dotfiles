@@ -30,9 +30,9 @@ curl -fsSL https://chatgpt.com/codex/install.sh | \
 # agmsg-reinstall-marker: 2026-06-19
 # メッセージ DB 用の sqlite3 は before_10(パッケージ前提)で導入済み。
 # Codex monitor モード(beta): install.sh が ~/.codex/config.toml の writable_roots に
-# db/teams/run を追記する。run は monitor のブリッジ用で、--update 再実行で追従させる
-# (マーカー更新済み)。シムは ~/.agents/bin/codex に置かれ、10-path.zsh で PATH 前段に
-# 入れている。実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
+# db/teams/run を追記する。run は monitor のブリッジ用で、シムは ~/.agents/bin/codex に置かれ、
+# 10-path.zsh で PATH 前段に入れている。
+# 実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
 # 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
 if [ -d "$HOME/.agents/skills/agmsg" ]; then
 	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
