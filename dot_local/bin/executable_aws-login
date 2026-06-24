@@ -124,11 +124,16 @@ fi
     # リダイレクトする方式なので、SSH 先ではブラウザも開かず URL も localhost に
     # 戻ってしまい完結しない。`--remote` はコールバックを無効化し、URL 表示＋
     # 認証コード貼り付け方式に切り替える（公式のリモート用フロー）。
-    if portfwd_channel_available && { : >/dev/tty; } 2>/dev/null; then
-        # 逆チャネルあり。通常の aws login（localhost コールバック）を使い、
+    # portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（timeout の二重実行を避ける）。
+    portfwd_ok=""
+    if portfwd_channel_available; then portfwd_ok=1; fi
+
+    if [[ -n $portfwd_ok ]] && { : >/dev/tty; } 2>/dev/null; then
+        # 逆チャネルあり＋制御端末あり。通常の aws login（localhost コールバック）を使い、
         # $BROWSER=portfwd-open 経由でローカルブラウザが開く。
         aws login </dev/tty >/dev/tty 2>&1
-    elif portfwd_channel_available; then
+    elif [[ -n $portfwd_ok ]]; then
+        # 逆チャネルありだが制御端末なし。出力は継承 fd のまま通常 aws login。
         aws login
     elif [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
         # SSH だが逆チャネル無し。従来どおり URL 表示＋コード貼り付け。
