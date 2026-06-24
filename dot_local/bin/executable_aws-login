@@ -10,10 +10,13 @@
 #   - profile_name: ベースプロファイル名（自動的に"-signin"サフィックスが付与されます）
 #
 # 動作:
-#   1. キャッシュから認証情報の取得を試行
-#   2. エラー内容を判別し、認証切れの場合のみブラウザでログインを実行
-#   3. 一時的なエラー（ネットワーク断等）ではログインせずエラーを返す
+#   1. キャッシュから認証情報を取り出し、aws sts get-caller-identity で「実際に通るか」を検証
+#      （クレデンシャルが設定されているか、ではなく、いま有効か で判定する）
+#   2. 期限切れ／未ログインならブラウザでログインを実行
+#   3. STS が到達不能（ネットワーク断等）の一時エラーなら、ログインせずキャッシュで続行
 #   4. flockで排他制御し、複数プロセスの同時ログインを防止
+#   - get-caller-identity は IAM 権限不要なので、失敗＝トークンが無効/期限切れ を意味する。
+#     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、従来の「設定があれば OK」動作へ戻せる。
 #
 # SSH 先での挙動:
 #   - $SSH_CONNECTION があれば `aws login --remote` を使う。通常の `aws login` は
@@ -49,16 +52,58 @@ if ! aws configure list-profiles | grep "$AWS_PROFILE" >/dev/null 2>&1; then
     aws configure set region ap-northeast-1
 fi
 
-# キャッシュから認証情報の取得を試行
-if aws configure export-credentials --format process 2>/dev/null; then
+# キャッシュ済み認証情報が「実際に有効か」を STS で検証するヘルパー。
+#   - export-credentials でローカルキャッシュから creds を取り出す（ネットワーク不要）。
+#   - 取り出せたら aws sts get-caller-identity で実際に通るかを確認する。
+#     credential_process の stdout は creds 出力専用なので STS の出力は捨て、stderr だけを
+#     拾ってエラー種別を判定する。AWS_PROFILE は -signin に固定済みで、signin プロファイルは
+#     credential_process を持たない（base プロファイルのみが持つ）ため、この STS 呼び出しは
+#     aws-login へ戻らず再帰しない。get-caller-identity は IAM 権限不要なので、失敗＝
+#     トークンが無効/期限切れ を意味する。
+# 戻り値:
+#   0 : 有効。creds を stdout に出力済み
+#   2 : STS が到達不能（ネットワーク断等）で検証できず。期限内の可能性が高いのでキャッシュ
+#       creds を出力済み（ログインはしない＝従来の方針どおり）
+#   1 : 未ログイン or 認証切れ。creds 未出力（呼び出し側はログインへ進む）
+emit_creds_if_valid() {
+    local creds sts_err
+    creds=$(aws configure export-credentials --format process 2>/dev/null) || return 1
+    [ -n "$creds" ] || return 1
+    # 抜け道: 従来どおり「設定があれば OK」に戻す。
+    if [ -n "$AWS_LOGIN_SKIP_VERIFY" ]; then
+        printf '%s\n' "$creds"
+        return 0
+    fi
+    if sts_err=$(aws sts get-caller-identity 2>&1 >/dev/null); then
+        printf '%s\n' "$creds"
+        return 0
+    fi
+    # STS 失敗。到達不能などの一時エラーならログインせずキャッシュで続行する。
+    if printf '%s' "$sts_err" | grep -qiE 'could not connect|connect timeout|endpointconnectionerror|failed to establish|name resolution|getaddrinfo|name or service not known|network is unreachable|read timeout|connection (reset|aborted|refused)|temporarily unavailable|service unavailable|timed out'; then
+        printf >&2 '%s\n' "aws-login: STS 検証をスキップ（${AWS_PROFILE}: ネットワーク到達不可）。キャッシュ済み認証情報で続行します。"
+        printf '%s\n' "$creds"
+        return 2
+    fi
+    # ExpiredToken / InvalidClientTokenId / SSO トークン期限切れ 等 → 認証切れとみなす。
+    return 1
+}
+
+# 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。
+# 設定の有無ではなく STS の応答で判定するため、期限切れ/権限喪失はここを通過して
+# 下のログインフローへ進む。
+rc=0; emit_creds_if_valid || rc=$?
+if [ "$rc" -ne 1 ]; then
     exit 0
 fi
 
 # 認証情報の取得に失敗 → flockで排他制御してログイン
 (
     flock -w 60 200 || exit 1
-    # ロック取得後に再チェック（別プロセスがログイン済みかもしれない）
-    if aws configure export-credentials --format process 2>/dev/null; then
+    # ロック取得後に再チェック（待っている間に別プロセスがログイン済みかもしれない）。
+    # ここでも STS で実際に有効かを確認するが、creds の出力は最後の 1 箇所に集約するため
+    # ここでは抑制し、判定結果（多重ログイン回避）だけを使う。
+    rc=0; emit_creds_if_valid >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -ne 1 ]; then
         exit 0
     fi
 
@@ -81,4 +126,6 @@ fi
     fi
 ) 200>"${USER_DIR}/.aws/.aws-login-${1}.lock"
 
+# ログイン直後（または上のロック内で別プロセスがログイン済みと判明した）creds を出力する。
+# 出力をこの 1 箇所に集約しているので、credential_process の stdout に JSON が二重に出ない。
 aws configure export-credentials --format process

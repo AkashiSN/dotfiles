@@ -130,6 +130,7 @@ function _claude-bedrock-env () {
   export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-4-8}"
   export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-4-6}"
   export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+  export ANTHROPIC_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL}"
 }
 
 # Claude Code 単体を Bedrock で起動する。通常の `claude` は claude.ai のまま無変更。
