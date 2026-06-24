@@ -49,6 +49,8 @@ Host develop-server
     HostName        develop-server
     User            ubuntu
     IdentityFile    ~/.ssh/1password.pub
+    Tag             portfwd
+    SetEnv          LC_PORTFWD_HOST=develop-server
 
 Host truenas
     HostName        172.16.100.10
@@ -62,6 +64,8 @@ Host cloudsa
     ForwardAgent    yes
     IdentityFile    ~/.ssh/1password.pub
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
+    Tag             portfwd
+    SetEnv          LC_PORTFWD_HOST=cloudsa
 
 # Service
 Host gitlab.com
@@ -75,6 +79,15 @@ Host github.com
 Host gist.github.com
     HostName        github.com
     IdentityFile    ~/.ssh/1password.pub
+
+# portfwd: タグ付きホストでブラウザ自動フォワードを有効化（docs/portfwd-cheatsheet.md）
+Match tagged portfwd
+    ControlMaster    auto
+    ControlPath      ~/.ssh/cm-%n
+    ControlPersist   10m
+    RemoteForward    127.0.0.1:55999 127.0.0.1:55999
+    PermitLocalCommand yes
+    LocalCommand     ~/.local/bin/portfwd ensure
 
 # Match
 Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"
