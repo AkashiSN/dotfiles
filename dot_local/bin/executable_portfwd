@@ -46,7 +46,7 @@ def _callback_endpoint(parsed):
          認可サーバ上の URL で、コールバックは `redirect_uri` クエリに localhost:port
          として埋め込まれる（URL 自身のホストは認可サーバなので localhost ではない）。
       2. URL 自体が localhost:port のコールバック（ツールが直接ローカル URL を開く場合）。
-    どちらでもないときは (None, None) を返し、呼び出し側が転送せず reject する。
+    どちらでもないときは (None, None) を返す（呼び出し側は転送せず、URL を開くだけにする）。
     """
     # 1) authorize URL: redirect_uri クエリのローカルコールバックを最優先で使う。
     redirect = parse_qs(parsed.query).get("redirect_uri", [None])[0]
@@ -71,25 +71,27 @@ def handle_notification(payload: dict) -> str:
         if not re.fullmatch(r'[A-Za-z0-9._-]+', host):
             return f"reject: 不正な host ({host})"
         parsed = urlparse(url)
-        # -L で転送する callback ポートを決める。authorize URL なら redirect_uri から、
-        # ローカル URL ならそのポートから取り出す。ローカルコールバックが見つからない
-        # URL は転送しない（任意ポート転送・任意 URL オープンの踏み台化を防ぐ。逆に言えば、
-        # ローカルコールバックを伴う OAuth 形の URL のみ open する）。
-        cb_host, cb_port = _callback_endpoint(parsed)
-        if not cb_port:
-            return f"reject: ローカル callback が見つかりません ({parsed.hostname})"
+        # http/https のみ開く（file:// や javascript: などの踏み台化を防ぐ）。
+        if parsed.scheme not in ("http", "https"):
+            return f"reject: 非対応スキーム ({parsed.scheme or 'なし'})"
         control = SSH_DIR / f"cm-{host}"
         if not control.exists():
             return f"reject: control socket がありません ({control})"
-        # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
-        fwd = f"{cb_port}:127.0.0.1:{cb_port}"
-        subprocess.run(
-            [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        # ローカルブラウザを開く（authorize URL ならその認可ページがそのまま開く）。
+        # localhost callback を伴う URL（OAuth の authorize URL 等）のときだけ、その callback
+        # ポートを -L で転送する。普通の URL（callback 無し）は転送せず、ローカルで開くだけ
+        # （任意ポート転送は callback がある時のみ＝踏み台化を防ぐ）。
+        cb_host, cb_port = _callback_endpoint(parsed)
+        fwd = None
+        if cb_port:
+            fwd = f"{cb_port}:127.0.0.1:{cb_port}"
+            # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
+            subprocess.run(
+                [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        # ローカルブラウザで開く（authorize URL なら認可ページ、普通の URL ならそのページ）。
         subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return f"ok: -L {fwd} via {host}, opened {url}"
+        return f"ok: {('-L ' + fwd + ' ') if fwd else ''}via {host}, opened {url}"
     except Exception as e:
         return f"error: {e}"
 
