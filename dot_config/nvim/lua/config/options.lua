@@ -60,6 +60,26 @@ if in_ssh then
   end
 end
 
+-- URL/ファイルを開くとき $BROWSER を優先する。
+-- 標準の vim.ui.open は mac:open / Linux:xdg-open を使い $BROWSER を見ないため、
+-- SSH 先（$BROWSER=portfwd-open でローカル mac のブラウザへ転送）だと URL を開けない。
+-- BROWSER が実行可能ならそれを使い、無ければ標準動作へフォールバックする
+-- （ローカル mac では BROWSER 未設定なので従来どおり open が使われる）。
+do
+  local builtin_open = vim.ui.open
+  vim.ui.open = function(uri)
+    local browser = vim.env.BROWSER
+    if browser and browser ~= "" and vim.fn.executable(browser) == 1 then
+      local ok, obj = pcall(vim.system, { browser, uri }, { detach = true })
+      if ok then
+        return obj, nil
+      end
+      return nil, "vim.ui.open: failed to run " .. browser
+    end
+    return builtin_open(uri)
+  end
+end
+
 -- 診断表示
 vim.diagnostic.config({
   virtual_text = true,
