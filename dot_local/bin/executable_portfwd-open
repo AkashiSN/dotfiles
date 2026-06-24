@@ -1,0 +1,42 @@
+#!/bin/bash
+# portfwd-open - リモート側ブラウザシム
+#
+# $BROWSER に設定され、ツール（aws login / gh auth 等）がブラウザを開こうとした
+# ときに呼ばれる。URL を RemoteForward 経由でローカルの portfwd daemon
+# (127.0.0.1:PORTFWD_PORT) へ POST する。ローカル daemon が該当ポートを -L で
+# フォワードし、ローカルのブラウザを開く。
+#
+# 到達不能なら非ゼロ終了し、呼び出し側が従来動作へフォールバックできるようにする。
+set -eu
+
+PORT="${PORTFWD_PORT:-55999}"
+HOST="${LC_PORTFWD_HOST:-unknown}"
+URL="${1:-}"
+
+if [ -z "$URL" ]; then
+    echo "portfwd-open: URL がありません" >&2
+    exit 2
+fi
+
+# JSON を組み立てる（host/url は英数記号のみ想定。最低限のエスケープ: " と \ ）。
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+BODY=$(printf '{"host":"%s","url":"%s"}' "$(json_escape "$HOST")" "$(json_escape "$URL")")
+LEN=${#BODY}
+
+# curl があれば curl、無ければ bash /dev/tcp で最小 HTTP POST。
+if command -v curl >/dev/null 2>&1; then
+    curl -fsS --max-time 5 -X POST \
+        -H 'Content-Type: application/json' \
+        --data "$BODY" \
+        "http://127.0.0.1:${PORT}/" >/dev/null
+else
+    exec 3<>"/dev/tcp/127.0.0.1/${PORT}" || {
+        echo "portfwd-open: 127.0.0.1:${PORT} へ接続できません" >&2
+        exit 1
+    }
+    printf 'POST / HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s' \
+        "$LEN" "$BODY" >&3
+    # レスポンスを読み捨て（接続確認）。
+    cat <&3 >/dev/null
+    exec 3>&-
+fi
