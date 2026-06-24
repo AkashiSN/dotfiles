@@ -63,6 +63,10 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可 |
 | `ide-bedrock [path...]` | `ide` を Bedrock 環境で起動する版。Bedrock 用 env を export してから `ide` を呼ぶので、nvim が継承し IDE ペインの `claude` も Bedrock になる（通常の `ide` の `claude` は claude.ai のまま）。設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存 tmux/ide セッションへ復帰する claude は起動時の env のまま＝切り替えにはセッションを畳んで再実行 |
 
+### SSH セッションでの `$BROWSER` 自動切替（portfwd）
+
+portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
+
 ### `claude-bedrock` / `ide-bedrock` の上書き変数
 
 両関数で共通。呼び出し前に export しておくと既定値を上書きできる（未設定なら既定値）。

@@ -98,6 +98,11 @@ aws-switch my-profile <role_arn> # assume role 付きで切り替え
   `aws-login` の出力を捨てていても見える（= `aws-switch` 経由でも SSH ログインできる）。
 - ローカル（非 SSH）では従来どおりブラウザが自動で開く。
 
+> SSH 先でも、対象ホストが portfwd（`Tag portfwd`）でオプトイン済みなら、`--remote` ではなく
+> 通常の `aws login`（localhost コールバック）が使われ、ローカルのブラウザが自動で開く。
+> 仕組みは [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。逆チャネルに届かない場合は
+> 従来どおり `aws login --remote`（URL＋コード貼り付け）にフォールバックする。
+
 ### aws-logout
 
 ```sh
