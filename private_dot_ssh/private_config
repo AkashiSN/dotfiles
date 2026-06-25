@@ -64,6 +64,7 @@ Host cloudsa
     ForwardAgent    yes
     IdentityFile    ~/.ssh/1password.pub
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
+    DynamicForward  55888
     Tag             portfwd
     SetEnv          LC_PORTFWD_HOST=cloudsa
 
