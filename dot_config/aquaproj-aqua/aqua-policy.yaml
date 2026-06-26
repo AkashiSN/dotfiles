@@ -1,5 +1,4 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/aqua-policy.json
 # Allow the standard registry and the bundled local registry (registry.yaml).
 registries:
   - type: standard
