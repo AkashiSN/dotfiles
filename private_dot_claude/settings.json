@@ -16,11 +16,24 @@
       "mcp__codegraph__*"
     ]
   },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "codegraph prompt-hook"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "example-skills@anthropic-agent-skills": true,
     "code-simplifier@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true
+    "superpowers@superpowers-marketplace": true,
+    "gopls-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "superpowers-marketplace": {
@@ -34,17 +47,5 @@
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "theme": "dark",
-  "agentPushNotifEnabled": true,
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "codegraph prompt-hook"
-          }
-        ]
-      }
-    ]
-  }
+  "agentPushNotifEnabled": true
 }
