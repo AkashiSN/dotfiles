@@ -5,7 +5,7 @@
 # run_onchange: 下のチャネル/バージョンを書き換えると既存マシンでも再実行される。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "AI アシスタント CLI(claude/codex/agmsg/codegraph)をインストール中"
+printf '\n\033[1;36m==> %s\033[0m\n' "AI アシスタント CLI(claude/codex/ollama/agmsg/codegraph)をインストール中"
 
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -19,6 +19,14 @@ curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CHANNEL"
 CODEX_RELEASE="latest"
 curl -fsSL https://chatgpt.com/codex/install.sh | \
 	CODEX_RELEASE="$CODEX_RELEASE" CODEX_NON_INTERACTIVE=1 sh
+
+# --- Ollama (ollama.com) ---
+# ローカルで LLM を動かすランタイム(クラウド API ではなくオフライン実行)。
+# install.sh は Darwin/Linux 両対応で非対話導入する: macOS は Ollama.app を
+# /Applications に置いて /usr/local/bin/ollama へシンボリックリンク(PATH 追加時に
+# sudo パスワードを要求することがある)、Linux は /usr/local/bin へバイナリを入れる。
+# 以後は本体が自己更新する(aqua 管理外)。
+curl -fsSL https://ollama.com/install.sh | sh
 
 # --- agmsg (github.com/fujibee/agmsg) ---
 # claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできるようにするツール。
