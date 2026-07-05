@@ -5,33 +5,28 @@
 {"host","url"} を POST する。daemon は url の callback ポートを ControlMaster へ
 -L フォワードし、ローカルのブラウザを開く。
 
+daemon の寿命は OS のサービスマネージャ（macOS は launchd）が管理する。
+launchd が RunAtLoad でログイン時に起動し、KeepAlive で落ちても再起動するため、
+このスクリプト自身はアイドル自己終了や多重起動制御を持たない（それらは廃止した）。
+
 サブコマンド:
-  serve   : 55999 で listen する常駐ループ（フォアグラウンド）
-  ensure  : 未起動なら serve をバックグラウンド起動（冪等。ssh LocalCommand 用）
-  stop    : pidfile の daemon を停止
-  status  : 稼働状況を表示
+  serve   : 55999 で listen する常駐ループ（launchd が起動する本体）
+  status  : 稼働状況を表示（127.0.0.1:55999 へ接続できるかで判定）
 """
 import json
 import os
 import re
-import signal
 import socket
 import subprocess
 import sys
-import threading
-import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORTFWD_PORT", "55999"))
 SSH_DIR = Path(os.environ.get("PORTFWD_SSH_DIR", str(Path.home() / ".ssh")))
-PIDFILE = SSH_DIR / "portfwd.pid"
 OPEN_CMD = os.environ.get("PORTFWD_OPEN_CMD", "open")
 SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
-IDLE_SEC = int(os.environ.get("PORTFWD_IDLE_SEC", "1800"))
-
-_last_activity = time.monotonic()
 
 
 def _log(msg):
@@ -98,8 +93,6 @@ def handle_notification(payload: dict) -> str:
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
-        global _last_activity
-        _last_activity = time.monotonic()
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
         try:
@@ -120,102 +113,29 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def _should_keep_alive() -> bool:
-    """portfwd 対象ホストへの ControlMaster が1つでも生きていれば True。
-
-    対象ホスト（ssh config の `Tag portfwd`）は `ControlPath ~/.ssh/cm-%n` を使うため、
-    cm-* socket の存在が「逆チャネルを必要とする SSH セッションが生きている」ことを表す。
-    daemon はそれらセッションのために存在するので、生きている間は idle でも終了させない。
-    （終了すると RemoteForward のリスナーは accept するのに転送先が居ず、リモートの
-    portfwd-open が Connection reset で失敗する。）
-    """
-    return any(SSH_DIR.glob("cm-*"))
-
-
-def _idle_watch(httpd):
-    global _last_activity
-    while True:
-        time.sleep(30)
-        # 対象 SSH セッションが生きている間は延命する（idle でも殺さない）。
-        if _should_keep_alive():
-            _last_activity = time.monotonic()
-            continue
-        # 対象 SSH が全て切れてから IDLE_SEC 経過したらゾンビ回収のため終了する。
-        if time.monotonic() - _last_activity > IDLE_SEC:
-            _log(f"SSH セッション無し + アイドル {IDLE_SEC}s 超過、終了します")
-            httpd.shutdown()
-            return
-
-
 def cmd_serve():
+    # launchd が本体として起動する。listen に失敗（既に誰かが掴んでいる等）したら
+    # 非ゼロ終了し、launchd の ThrottleInterval に従って後で再試行させる。
     try:
         httpd = HTTPServer(("127.0.0.1", PORT), Handler)
     except OSError as e:
         _log(f"listen 失敗 ({PORT}): {e}")
         sys.exit(1)
-    SSH_DIR.mkdir(parents=True, exist_ok=True)
-    PIDFILE.write_text(str(os.getpid()))
     _log(f"listen 127.0.0.1:{PORT} (pid {os.getpid()})")
-    threading.Thread(target=_idle_watch, args=(httpd,), daemon=True).start()
-    try:
-        httpd.serve_forever()
-    finally:
-        try:
-            if PIDFILE.read_text().strip() == str(os.getpid()):
-                PIDFILE.unlink()
-        except (FileNotFoundError, ValueError):
-            pass
-
-
-def _running_pid():
-    try:
-        pid = int(PIDFILE.read_text().strip())
-    except (FileNotFoundError, ValueError):
-        return None
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return None
-    # ポートが実際に開いているかも確認。
-    with socket.socket() as s:
-        s.settimeout(0.3)
-        if s.connect_ex(("127.0.0.1", PORT)) != 0:
-            return None
-    return pid
-
-
-def cmd_ensure():
-    if _running_pid():
-        return
-    # 自分自身を serve でバックグラウンド起動（多重起動は listen 失敗で自然に排他）。
-    subprocess.Popen(
-        [sys.executable, os.path.abspath(__file__), "serve"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL, start_new_session=True,
-    )
-
-
-def cmd_stop():
-    pid = _running_pid()
-    if not pid:
-        _log("起動していません")
-        return
-    try:
-        os.kill(pid, signal.SIGTERM)
-        _log(f"停止しました (pid {pid})")
-    except OSError:
-        _log("既に停止済みです")
+    httpd.serve_forever()
 
 
 def cmd_status():
-    pid = _running_pid()
-    print(f"portfwd: {'running pid '+str(pid) if pid else 'stopped'} (port {PORT})")
+    # launchd 管理下なので pidfile は持たない。ポートに接続できるかで生死を判定する。
+    with socket.socket() as s:
+        s.settimeout(0.3)
+        alive = s.connect_ex(("127.0.0.1", PORT)) == 0
+    print(f"portfwd: {'running' if alive else 'stopped'} (port {PORT})")
 
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    {"serve": cmd_serve, "ensure": cmd_ensure,
-     "stop": cmd_stop, "status": cmd_status}.get(cmd, cmd_status)()
+    {"serve": cmd_serve, "status": cmd_status}.get(cmd, cmd_status)()
 
 
 if __name__ == "__main__":

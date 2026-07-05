@@ -27,19 +27,29 @@ local : portfwd daemon が受信
 
 | コマンド | 動作 |
 | --- | --- |
-| `portfwd ensure` | 未起動なら daemon をバックグラウンド起動（冪等）。ssh の `LocalCommand` から自動実行される |
-| `portfwd serve` | 55999 で listen する常駐ループ（フォアグラウンド） |
-| `portfwd stop` | daemon を停止 |
-| `portfwd status` | 稼働状況を表示 |
+| `portfwd serve` | 55999 で listen する常駐ループ（フォアグラウンド）。**launchd が起動する本体**なので手で叩くことはまず無い |
+| `portfwd status` | 稼働状況を表示（127.0.0.1:55999 へ接続できるかで判定） |
 
-- daemon は **対象ホストへの SSH（`~/.ssh/cm-*` control socket）が全て切れてから** アイドル
-  30 分で自己終了する。SSH セッションが生きている間は idle でも終了しない（生存中に daemon
-  だけ落ちると、RemoteForward は accept するのに転送先が居ず、リモート側が
-  `curl: (56) Connection reset by peer` で失敗するため）。`-L` フォワードは
-  `ControlPersist 10m` 失効で閉じる。
-- 万一 SSH 生存中に daemon が落ちていたら（旧版で 30 分アイドル終了した後など）、ローカルで
-  `portfwd ensure`（または対象ホストへ新規 ssh）すれば復活する。
+- daemon の寿命は **launchd が管理する**（`~/Library/LaunchAgents/com.snishi.portfwd.plist`）。
+  `RunAtLoad` でログイン時に起動し、`KeepAlive` で落ちても再起動するため、常時起動している。
+  スクリプト自身にはアイドル自己終了も多重起動制御も無い（launchd に一本化したので廃止した）。
+- listen に失敗（他プロセスが 55999 を掴んでいる等）すると `serve` は非ゼロ終了するが、
+  launchd が `ThrottleInterval`（10s）を空けて再試行する。
+- `-L` フォワードは通知ごとに張り、`ControlPersist 10m` 失効で閉じる。
 - 環境変数: `PORTFWD_PORT`(既定 55999) で逆チャネルポートを変更可。
+
+### launchd の操作
+
+| 操作 | コマンド |
+| --- | --- |
+| 状態確認 | `launchctl print gui/$(id -u)/com.snishi.portfwd` |
+| 再起動 | `launchctl kickstart -k gui/$(id -u)/com.snishi.portfwd` |
+| 停止（一時） | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.snishi.portfwd.plist` |
+| 起動 | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.snishi.portfwd.plist` |
+| ログ | `~/Library/Logs/portfwd.log` |
+
+plist を変更したら `chezmoi apply` すれば `run_onchange_after_55-portfwd-launchd.sh` が
+bootout → bootstrap で自動的に再ロードする。
 
 ## 対象ホストの追加手順
 
@@ -53,7 +63,7 @@ Host <alias>
 ```
 
 共通設定は `Match tagged portfwd` ブロックに集約済み（`ControlMaster`/`ControlPath`/
-`RemoteForward`/`LocalCommand` など）。タグを付けるだけで有効になる。
+`RemoteForward`）。タグを付けるだけで有効になる。daemon 起動は ssh 側では行わず launchd 常駐に任せる。
 
 ## 安全策
 
@@ -67,6 +77,7 @@ Host <alias>
 ## 前提
 
 - リモートでも chezmoi apply 済み（`portfwd-open` と `dot_zshenv` の BROWSER 設定が必要）。
-- ローカルは macOS（`open` コマンド / Python3）。
+- ローカルは macOS（`open` / Python3 / launchd 常駐）。Linux 対応は将来 systemd user unit を
+  追加する想定（daemon コードは OS 非依存。`PORTFWD_OPEN_CMD=xdg-open` で `open` を差し替え）。
 - OpenSSH 8.9+（`Tag` / `Match tagged`）。
 - sshd が `LC_*` を `AcceptEnv`（多くは既定で受理）。

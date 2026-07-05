@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.snishi.portfwd</string>
+	<!-- portfwd daemon 本体。RunAtLoad でログイン時に起動し、KeepAlive で落ちても再起動する。
+	     listen 失敗（他プロセスがポートを掴んでいる等）で非ゼロ終了しても、ThrottleInterval
+	     を空けて再試行する。 -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{ .chezmoi.homeDir }}/.local/bin/portfwd</string>
+		<string>serve</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>StandardOutPath</key>
+	<string>{{ .chezmoi.homeDir }}/Library/Logs/portfwd.log</string>
+	<key>StandardErrorPath</key>
+	<string>{{ .chezmoi.homeDir }}/Library/Logs/portfwd.log</string>
+</dict>
+</plist>

@@ -82,13 +82,13 @@ Host gist.github.com
     IdentityFile    ~/.ssh/1password.pub
 
 # portfwd: タグ付きホストでブラウザ自動フォワードを有効化（docs/portfwd-cheatsheet.md）
+# daemon は launchd が常駐管理するので、ここでは逆チャネル(RemoteForward)と、動的 -L を
+# 張るための ControlMaster だけを設定する（ensure 起動は不要）。
 Match tagged portfwd
     ControlMaster    auto
     ControlPath      ~/.ssh/cm-%n
     ControlPersist   10m
     RemoteForward    127.0.0.1:55999 127.0.0.1:55999
-    PermitLocalCommand yes
-    LocalCommand     ~/.local/bin/portfwd ensure
 
 # Match
 Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"

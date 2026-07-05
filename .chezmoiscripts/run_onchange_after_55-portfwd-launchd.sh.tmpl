@@ -1,0 +1,20 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/sh
+# portfwd daemon を launchd LaunchAgent として (再)ロードする。
+# run_onchange: 下の plist ハッシュが変わると既存マシンでも再実行される（全操作が冪等）。
+# plist hash: {{ include "Library/LaunchAgents/com.snishi.portfwd.plist.tmpl" | sha256sum }}
+set -eu
+
+printf '\n\033[1;36m==> %s\033[0m\n' "portfwd daemon を launchd に登録中"
+
+PLIST="$HOME/Library/LaunchAgents/com.snishi.portfwd.plist"
+DOMAIN="gui/$(id -u)"
+
+# 既存を一旦 bootout してから bootstrap し直す（plist 変更を確実に反映する冪等操作）。
+# 未登録なら bootout は失敗するので握りつぶす。
+launchctl bootout "$DOMAIN" "$PLIST" 2>/dev/null || true
+launchctl bootstrap "$DOMAIN" "$PLIST"
+launchctl enable "$DOMAIN/com.snishi.portfwd"
+
+echo "portfwd: launchd 登録完了 ($DOMAIN)"
+{{- end }}
