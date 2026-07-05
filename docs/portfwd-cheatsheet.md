@@ -32,7 +32,13 @@ local : portfwd daemon が受信
 | `portfwd stop` | daemon を停止 |
 | `portfwd status` | 稼働状況を表示 |
 
-- daemon はアイドル 30 分で自己終了。`-L` フォワードは `ControlPersist 10m` 失効で閉じる。
+- daemon は **対象ホストへの SSH（`~/.ssh/cm-*` control socket）が全て切れてから** アイドル
+  30 分で自己終了する。SSH セッションが生きている間は idle でも終了しない（生存中に daemon
+  だけ落ちると、RemoteForward は accept するのに転送先が居ず、リモート側が
+  `curl: (56) Connection reset by peer` で失敗するため）。`-L` フォワードは
+  `ControlPersist 10m` 失効で閉じる。
+- 万一 SSH 生存中に daemon が落ちていたら（旧版で 30 分アイドル終了した後など）、ローカルで
+  `portfwd ensure`（または対象ホストへ新規 ssh）すれば復活する。
 - 環境変数: `PORTFWD_PORT`(既定 55999) で逆チャネルポートを変更可。
 
 ## 対象ホストの追加手順

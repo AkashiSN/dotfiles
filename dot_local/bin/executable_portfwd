@@ -80,7 +80,7 @@ def handle_notification(payload: dict) -> str:
         # localhost callback を伴う URL（OAuth の authorize URL 等）のときだけ、その callback
         # ポートを -L で転送する。普通の URL（callback 無し）は転送せず、ローカルで開くだけ
         # （任意ポート転送は callback がある時のみ＝踏み台化を防ぐ）。
-        cb_host, cb_port = _callback_endpoint(parsed)
+        _, cb_port = _callback_endpoint(parsed)
         fwd = None
         if cb_port:
             fwd = f"{cb_port}:127.0.0.1:{cb_port}"
@@ -105,7 +105,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw.decode() or "{}")
         except json.JSONDecodeError:
-            self.send_response(400); self.end_headers(); return
+            self.send_response(400)
+            self.end_headers()
+            return
         result = handle_notification(payload)
         _log(result)
         # ok のみ 200。reject/error は 4xx で返し、portfwd-open の `curl -f` を失敗させて
@@ -118,11 +120,29 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def _should_keep_alive() -> bool:
+    """portfwd 対象ホストへの ControlMaster が1つでも生きていれば True。
+
+    対象ホスト（ssh config の `Tag portfwd`）は `ControlPath ~/.ssh/cm-%n` を使うため、
+    cm-* socket の存在が「逆チャネルを必要とする SSH セッションが生きている」ことを表す。
+    daemon はそれらセッションのために存在するので、生きている間は idle でも終了させない。
+    （終了すると RemoteForward のリスナーは accept するのに転送先が居ず、リモートの
+    portfwd-open が Connection reset で失敗する。）
+    """
+    return any(SSH_DIR.glob("cm-*"))
+
+
 def _idle_watch(httpd):
+    global _last_activity
     while True:
         time.sleep(30)
+        # 対象 SSH セッションが生きている間は延命する（idle でも殺さない）。
+        if _should_keep_alive():
+            _last_activity = time.monotonic()
+            continue
+        # 対象 SSH が全て切れてから IDLE_SEC 経過したらゾンビ回収のため終了する。
         if time.monotonic() - _last_activity > IDLE_SEC:
-            _log(f"アイドル {IDLE_SEC}s 超過、終了します")
+            _log(f"SSH セッション無し + アイドル {IDLE_SEC}s 超過、終了します")
             httpd.shutdown()
             return
 
