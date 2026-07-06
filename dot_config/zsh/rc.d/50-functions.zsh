@@ -76,10 +76,22 @@ function ide () {
   local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
   local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
   local name=ide-${${dir:t}//[.:]/_}-$hash       # tmux 名に使えない . : を除去
+  # nvim の RPC ソケット(決め打ち)。再アタッチ時に外から :IdeRelayout を叩くため。
+  # SSH 先の /tmp に作る。hash 由来なので短く一意(ソケットパス長制限に安全)。
+  local sock=/tmp/nvim-ide-${hash}.sock
   if tmux has-session -t "=$name" 2>/dev/null; then
+    # 別サイズの端末から復帰するとレイアウトが崩れるので、attach 後に IDE レイアウトを
+    # 現在の画面サイズで組み直す。attach は前景ブロッキングなので、先にバックグラウンドで
+    # 遅延 RPC を仕込む。sleep は attach → tmux がセッションを新クライアントサイズへ
+    # resize → nvim が新 columns/lines を受け取る、までの猶予(:IdeRelayout は実行時の
+    # 現在サイズで判定する)。--remote-expr は RPC 評価なので nvim がどのモード(通常/端末)
+    # でも入力を汚さず実行される。キーボード開閉等の resize は VimResized にしかならず
+    # この経路を通らないので、iPad の狭画面フォールバックは従来どおり維持される。
+    ( sleep 0.3; nvim --server "$sock" --remote-expr "execute('IdeRelayout')" ) >/dev/null 2>&1 &!
     tmux -2u attach -d -t "=$name"               # 既存セッションへ復帰(他端末から奪取)
   else
-    local cmd="NVIM_IDE=1 nvim" a
+    command rm -f -- "$sock" 2>/dev/null          # 前回のクラッシュ等で残った stale ソケットを掃除
+    local cmd="NVIM_IDE=1 nvim --listen ${(q)sock}" a
     for a in "$@"; do cmd+=" ${(q)a}"; done       # 引数を安全にクォートして渡す
     tmux -2u new-session -s $name -c $dir $cmd
   fi
