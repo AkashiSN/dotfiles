@@ -29,4 +29,6 @@ if ! gh auth status >/dev/null 2>&1; then
 	gh auth login
 fi
 
-aqua install --all
+# rust タグ(cargo build 必須の shpool 等)はここでは入れない。cargo は rustup
+# toolchain 導入後にしか存在しないため、32-rust-default が provisioning 後にビルドする。
+aqua install --all --exclude-tags rust

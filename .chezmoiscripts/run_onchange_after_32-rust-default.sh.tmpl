@@ -1,0 +1,40 @@
+#!/bin/sh
+# Provision the default Rust toolchain via rustup (installed by aqua) and build
+# the cargo-type aqua packages (shpool) that need `cargo` at install time.
+# Runs after aqua install (20). Step 20 skips `rust`-tagged packages
+# (--exclude-tags rust) because cargo doesn't exist until this script provisions it.
+# 下のハッシュで aqua 設定変更時に再実行され、shpool のバージョン追従もできる。
+# aqua.yaml      hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
+# registry.yaml  hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
+set -eu
+
+{{ template "shell-log" }}
+step "Rust toolchain(rustup)を準備し cargo 製ツールをビルド中"
+
+export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
+export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
+export AQUA_POLICY_CONFIG="$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
+# aqua(rustup/gh) と cargo プロキシ(CARGO_HOME/bin)を解決可能にする。
+export PATH="$AQUA_ROOT_DIR/bin:$CARGO_HOME/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# rustup 本体は aqua 管理。まだ入っていない(=aqua install 前)なら何もしない。
+command -v rustup-init >/dev/null 2>&1 || exit 0
+
+# cargo が無ければ stable toolchain を導入する。rustup-init が CARGO_HOME/bin に
+# cargo/rustc/rustup プロキシを作る(--no-modify-path: PATH は zshenv 側で通済み)。
+# 既に cargo があればスキップして冪等に保つ。
+if [ ! -x "$CARGO_HOME/bin/cargo" ]; then
+	rustup-init -y --no-modify-path --default-toolchain stable
+else
+	rustup toolchain install stable --no-self-update >/dev/null 2>&1 || true
+fi
+rustup default stable >/dev/null 2>&1 || true
+
+# cargo が揃ったので rust タグの aqua パッケージ(shpool)をビルド。
+# aqua install は冪等(同一バージョンなら何もしない)。ローカルレジストリ許可も再確認。
+aqua policy allow "$AQUA_POLICY_CONFIG"
+aqua install -t rust
+
+shpool version >/dev/null 2>&1 || exit 0

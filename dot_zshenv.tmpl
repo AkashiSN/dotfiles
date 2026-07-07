@@ -72,6 +72,15 @@ path=(
   ${path}
 )
 
+# rust - toolchain は rustup(aqua 管理)で導入。cargo/rustc プロキシは CARGO_HOME/bin。
+# 実際の toolchain 導入は run_onchange の 32-rust-default が rustup-init で行う。
+export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
+export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
+path=(
+  $CARGO_HOME/bin(N-/) # cargo/rustc (rustup 管理)
+  ${path}
+)
+
 # portfwd: タグ付きホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
 # LC_PORTFWD_HOST は ssh config の `Match tagged portfwd` 内 SetEnv でのみ渡るため、
 # ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。
