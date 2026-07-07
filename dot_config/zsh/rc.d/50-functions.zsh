@@ -139,6 +139,7 @@ function _claude-bedrock-env () {
   fi
   export CLAUDE_CODE_USE_BEDROCK=1
   export CLAUDE_CODE_USE_MANTLE=1
+  export CLAUDE_CODE_ENABLE_AUTO_MODE=1
   export AWS_REGION="${CLAUDE_BEDROCK_REGION:-us-east-1}"
   export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-4-8[1m]}"
   export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
