@@ -46,10 +46,20 @@ opt.updatetime = 250
 opt.timeoutlen = 400
 opt.winminwidth = 5
 
--- クリップボード: ローカル mac は native(pbcopy/pbpaste)、SSH 越しは OSC52
+-- クリップボード連携の決定:
+--   * mac ローカル                … pbcopy/pbpaste
+--   * X11/Wayland のある Linux     … wl-copy / xclip / xsel
+--     （いずれも nvim が自動検出して使う）
+--   * OS ツールが無い環境          … OSC52 で端末経由コピー
+--     SSH 越し・docker exec で入ったコンテナなど。ghostty/tmux が OSC52 を
+--     中継するので X11/Wayland 不要。これが無いと「clipboard provider not
+--     found」警告になりヤンクが端末クリップボードへ届かない。
 opt.clipboard = "unnamedplus"
-local in_ssh = (vim.env.SSH_CONNECTION ~= nil) or (vim.env.SSH_TTY ~= nil)
-if in_ssh then
+local function has(bin)
+  return vim.fn.executable(bin) == 1
+end
+local has_native_clipboard = has("pbcopy") or has("wl-copy") or has("xclip") or has("xsel")
+if not has_native_clipboard then
   local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
   if ok then
     vim.g.clipboard = {
