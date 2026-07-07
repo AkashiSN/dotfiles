@@ -34,8 +34,10 @@ FORMULAE=(
 	# 基本ツール: shell / 端末多重化 / バージョン管理 / ダウンローダ
 	zsh
 	bash
-	# tmux: ide/tssh の SSH 切断耐性に必須(libevent/ncurses 依存のため aqua でなく system 導入)
+	# tmux: 対話用の端末多重化 + vim-tmux-navigator 連携(libevent/ncurses 依存のため aqua でなく system 導入)
 	tmux
+	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化。tmux と違い端末エミュレーションをしないため制御文字化け/フルスクリーン干渉が無い
+	abduco
 	git
 	wget
 	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
@@ -78,9 +80,11 @@ done
 # apt 系パッケージ。用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
 APT_PACKAGES=(
 	# 基本ツール: shell / 端末多重化 / バージョン管理
-	# tmux: ide/tssh の SSH 切断耐性に必須
+	# tmux: 対話用の端末多重化 + vim-tmux-navigator 連携
+	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化(端末エミュレーション無しで制御文字化け/フルスクリーン干渉が無い)
 	zsh
 	tmux
+	abduco
 	git
 	# agmsg: メッセージ DB 用 sqlite3 CLI
 	sqlite3
@@ -97,8 +101,10 @@ APT_PACKAGES=(
 # dnf 系パッケージ。グループは apt 側と対応。名前が異なるものだけ差し替える。
 DNF_PACKAGES=(
 	# 基本ツール: shell / 端末多重化 / バージョン管理
+	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化(Fedora は標準、AL2023 等では EPEL が要る場合あり)
 	zsh
 	tmux
+	abduco
 	git
 	# agmsg: メッセージ DB 用 sqlite3 CLI (sqlite パッケージが sqlite3 バイナリを提供)
 	sqlite

@@ -23,7 +23,7 @@ function pdfcrop () {
 
 # 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソルを
 # 無効化して復旧する。SSH 異常切断(client_loop: send disconnect: Broken pipe)で
-# リモート tmux が有効化したマウス報告(SGR mouse mode)がローカル端末に居残り、
+# リモートの nvim(ide)が有効化したマウス報告(SGR mouse mode)がローカル端末に居残り、
 # クリックやスクロールで `0;129;39M` のような生エスケープが出て操作不能になる現象を
 # 解消する。tssh から自動で呼ぶほか、素の ssh で踏んだときも手動で実行できる。
 function term-reset () {
@@ -31,10 +31,10 @@ function term-reset () {
 }
 
 # ローカルから出る ssh を関数でラップし、戻り際に必ず term-reset する。リモートで
-# ide(tmux)を起動したまま Broken pipe で切れると、リモート tmux が有効化した
+# ide(abduco)を起動したまま Broken pipe で切れると、リモートの nvim が有効化した
 # マウス報告の解除シーケンスがローカルに届かず端末が化けるため、ssh から戻った
 # 時点でローカル側を強制復旧する。リモートシェル($SSH_CONNECTION あり)では多重
-# ラップや tmux への余計な干渉を避けるため定義しない。
+# ラップやリモートセッションへの余計な干渉を避けるため定義しない。
 if [[ -z $SSH_CONNECTION ]]; then
   function ssh () {
     command ssh "$@"
@@ -63,37 +63,46 @@ function search () {
 }
 
 # nvim を VSCode ライクな IDE レイアウトで起動する。
-# SSH 経由(かつ tmux 外)のときは tmux で包んで切断耐性を付ける。作業ディレクトリ
+# SSH 経由(かつ abduco 外)のときは abduco で包んで切断耐性を付ける。作業ディレクトリ
 # 単位の固定名セッションにするので、切断後に同じ場所で再度 ide すれば生きている
-# nvim にそのまま復帰できる(:q で終わればセッションも消える)。
+# nvim にそのまま復帰できる(:q で終わればセッションも消える)。abduco は tmux と違い
+# 端末エミュレーションをせず PTY を素通しするだけなので、制御文字化けやフルスクリーン
+# アプリ(claude 等)への干渉が無い。切断耐性(セッション管理)だけが目的の今回の用途に合う。
 function ide () {
-  # ローカル / 既に tmux 内 / tmux 無し → 素の nvim
-  if [[ -z $SSH_CONNECTION || -n $TMUX ]] || ! command -v tmux &>/dev/null; then
+  # ローカル / 既に abduco セッション内 / abduco 無し → 素の nvim
+  if [[ -z $SSH_CONNECTION || -n $ABDUCO_SESSION ]] || ! command -v abduco &>/dev/null; then
     NVIM_IDE=1 nvim "$@"
     return
   fi
-  # SSH 経由 & tmux 外 → 作業ディレクトリ単位の tmux セッションで包む。
+  # SSH 経由 & abduco 外 → 作業ディレクトリ単位の abduco セッションで包む。
   local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
   local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
-  local name=ide-${${dir:t}//[.:]/_}-$hash       # tmux 名に使えない . : を除去
+  local name=ide-${${dir:t}//[.:]/_}-$hash       # セッション名に使えない . : を除去
   # nvim の RPC ソケット(決め打ち)。再アタッチ時に外から :IdeRelayout を叩くため。
   # SSH 先の /tmp に作る。hash 由来なので短く一意(ソケットパス長制限に安全)。
   local sock=/tmp/nvim-ide-${hash}.sock
-  if tmux has-session -t "=$name" 2>/dev/null; then
-    # 別サイズの端末から復帰するとレイアウトが崩れるので、attach 後に IDE レイアウトを
-    # 現在の画面サイズで組み直す。attach は前景ブロッキングなので、先にバックグラウンドで
-    # 遅延 RPC を仕込む。sleep は attach → tmux がセッションを新クライアントサイズへ
-    # resize → nvim が新 columns/lines を受け取る、までの猶予(:IdeRelayout は実行時の
-    # 現在サイズで判定する)。--remote-expr は RPC 評価なので nvim がどのモード(通常/端末)
-    # でも入力を汚さず実行される。キーボード開閉等の resize は VimResized にしかならず
-    # この経路を通らないので、iPad の狭画面フォールバックは従来どおり維持される。
-    ( sleep 0.3; nvim --server "$sock" --remote-expr "execute('IdeRelayout')" ) >/dev/null 2>&1 &!
-    tmux -2u attach -d -t "=$name"               # 既存セッションへ復帰(他端末から奪取)
+  # abduco のデタッチキー。既定 ^\ は nvim ターミナルモードの <C-\><C-n>(claude ペインから
+  # 抜ける標準キー)と衝突するため ^g へ退避。通常は SSH 切断で自動デタッチするので手動
+  # デタッチは基本不要(押しても nvim は生き残り、再度 ide で復帰できる)。
+  local dkey='^g'
+  if [[ -S $sock ]] && nvim --server "$sock" --remote-expr '1' &>/dev/null; then
+    # 生きた nvim がいる → 既存セッションへ再アタッチ。別サイズの端末から復帰するとレイアウトが
+    # 崩れるので、attach 後に IDE レイアウトを現在の画面サイズで組み直す。attach は前景ブロッキング
+    # なので、先にバックグラウンドで遅延 RPC を仕込む。sleep は attach → abduco が PTY を新クライアント
+    # サイズへ resize(SIGWINCH)→ nvim が新 columns/lines を受け取る、までの猶予(:IdeRelayout は実行時の
+    # 現在サイズで判定する)。abduco は tmux と違い画面復元バッファを持たないので、レイアウト組み直しに
+    # 続けて redraw! で全面再描画する(同一サイズ復帰でブランクにならないように)。--remote-expr は RPC
+    # 評価なので nvim がどのモード(通常/端末)でも入力を汚さず実行される。キーボード開閉等の resize は
+    # VimResized にしかならずこの経路を通らないので、iPad の狭画面フォールバックは従来どおり維持される。
+    ( sleep 0.3; nvim --server "$sock" --remote-expr "execute(['IdeRelayout','redraw!'])" ) >/dev/null 2>&1 &!
+    abduco -e "$dkey" -a "$name"                 # 既存セッションへ復帰
   else
     command rm -f -- "$sock" 2>/dev/null          # 前回のクラッシュ等で残った stale ソケットを掃除
-    local cmd="NVIM_IDE=1 nvim --listen ${(q)sock}" a
-    for a in "$@"; do cmd+=" ${(q)a}"; done       # 引数を安全にクォートして渡す
-    tmux -2u new-session -s $name -c $dir $cmd
+    # abduco はコマンドをシェルを介さず execvp で直接起動するので、NVIM_IDE は env 経由で渡す。env は
+    # 現在のシェル環境を引き継ぐため ide-bedrock の Bedrock 用 env もそのまま伝播する。引数は execvp の
+    # argv にそのまま並ぶのでクォート不要。abduco に作業ディレクトリ指定オプションが無いのでサブシェルで
+    # cd してから起動する。-f は前回のクラッシュで終了済みセッションが残っていても作り直すため。
+    ( builtin cd -- "$dir" && abduco -f -e "$dkey" -c "$name" env NVIM_IDE=1 nvim --listen "$sock" "$@" )
   fi
 }
 
@@ -156,9 +165,10 @@ function claude-bedrock () {
 
 # ide(nvim IDE レイアウト)を Bedrock 環境で起動する版。env を export してから ide を呼ぶので、
 # nvim が継承し、IDE ペインの `zsh -ic claude` 子プロセスもそのまま Bedrock になる
-# (ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。SSH 経由で tmux に
-# 包む場合も new-session が現在の env を引き継ぐ。既存セッションへ復帰する場合は、その claude は
-# 起動時の env のままなので、切り替えたいときはセッションを畳んで再度 ide-bedrock する。
+# (ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。SSH 経由で abduco に
+# 包む場合も、abduco がコマンドを現在の環境で直接 exec するため env をそのまま引き継ぐ。既存セッション
+# へ復帰する場合は、その claude は起動時の env のままなので、切り替えたいときはセッションを畳んで再度
+# ide-bedrock する。
 function ide-bedrock () {
   ( _claude-bedrock-env && ide "$@" )
 }
