@@ -83,15 +83,18 @@ function ide () {
   # SSH 先の /tmp に作る。hash 由来なので短く一意(ソケットパス長制限に安全)。
   local sock=/tmp/nvim-ide-${hash}.sock
   if [[ -S $sock ]] && nvim --server "$sock" --remote-expr '1' &>/dev/null; then
-    # 生きた nvim がいる → 既存セッションへ再アタッチ。別サイズの端末から復帰するとレイアウトが
-    # 崩れるので、attach 後に IDE レイアウトを現在の画面サイズで組み直す。attach は前景ブロッキング
-    # なので、先にバックグラウンドで遅延 RPC を仕込む。sleep は attach → shpool が画面復元し PTY を
-    # 新クライアントサイズへ resize(SIGWINCH)→ nvim が新 columns/lines を受け取る、までの猶予
-    # (:IdeRelayout は実行時の現在サイズで判定する)。続けて redraw! で全面再描画する(復元描画と
-    # レイアウト組み直しの残りを一掃)。--remote-expr は RPC 評価なので nvim がどのモード(通常/端末)でも
-    # 入力を汚さず実行される。shpool の SIGWINCH は VimResized にしかならずこの経路を通らないので、
-    # iPad の狭画面フォールバックは従来どおり維持される。
-    ( sleep 0.3; nvim --server "$sock" --remote-expr "execute(['IdeRelayout','redraw!'])" ) >/dev/null 2>&1 &!
+    # 生きた nvim がいる → 既存セッションへ再アタッチ。ここでの仕事は「マウスの再武装」だけ。
+    # レイアウトの組み直しは nvim 側に任せる: shpool は再アタッチ時に jiggle resize(pty を一旦 +1 して
+    # 戻し SIGWINCH を起こす)を行うので、nvim の VimResized 追従(ide.lua)が現在サイズで自動的に
+    # 組み直す(別サイズ端末からの復帰も regime クロスなら relayout、同 regime なら rebalance)。
+    #
+    # 一方マウスは nvim 任せにできない。shpool の画面復元(session_restore_mode=screen)は画面のグリフ/
+    # 色/カーソルだけを再描画し、マウス有効化 DECSET(CSI ?1000/1002/1006h)等の端末モードは再送しない。
+    # そのため新しい端末はマウス報告モードを持たず(nvim 側は mouse=a のまま)クリックが届かない。
+    # `set mouse=`→`set mouse=a` のトグルで nvim が enable シーケンスを再送し、端末を再武装する。
+    # attach は前景ブロッキングなので先にバックグラウンドで遅延 RPC を仕込む(--remote-expr は RPC
+    # 評価なので nvim がどのモードでも入力を汚さない)。
+    ( sleep 0.3; nvim --server "$sock" --remote-expr "execute(['set mouse=','set mouse=a'])" ) >/dev/null 2>&1 &!
   else
     command rm -f -- "$sock" 2>/dev/null          # 前回のクラッシュ等で残った stale ソケットを掃除
   fi

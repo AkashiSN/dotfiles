@@ -52,6 +52,14 @@ local SHELL_CMD = { vim.o.shell }
 local NARROW_WIDTH = 140
 local NARROW_HEIGHT = 35
 
+-- リサイズ追従(動的レイアウト)用の状態。
+-- RESIZE_DEBOUNCE_MS: リサイズが止まってから組み直すまでの待ち(ドラッグ中の連発を抑える)。
+local RESIZE_DEBOUNCE_MS = 180
+-- 直近レイアウト時の wide/tall。しきい値クロス(=regime 変化)の検出基準。start_layout が更新する。
+local last_wide, last_tall
+-- リサイズのデバウンス世代。新しいリサイズが来たら古い遅延処理を破棄するためのカウンタ。
+local resize_gen = 0
+
 -- 端末バッファに付ける表示ラベルと役割の目印。bufferline の name_formatter が
 -- term_label を、レイアウト/コマンドが term_role を参照する。
 local TERMS = {
@@ -495,6 +503,7 @@ local function start_layout(opts)
   --   tall=false … 下ターミナルの上下分割を開かない
   local wide = vim.o.columns >= NARROW_WIDTH
   local tall = vim.o.lines >= NARROW_HEIGHT
+  last_wide, last_tall = wide, tall -- リサイズ追従の regime 判定基準を更新
 
   -- 端末バッファ(タブ)を先に用意。表示はこの後ペインへ割り当てる。既存があれば
   -- 再利用する(:IdeRelayout でプロセスを起こし直さないため)。分割を省く場合も
@@ -687,6 +696,35 @@ vim.api.nvim_create_autocmd("VimEnter", {
     map("<leader>ia", "claude", "Show claude in pane")
     map("<leader>it", "terminal", "Show terminal in pane")
     vim.keymap.set("n", "<leader>ir", relayout, { desc = "Relayout IDE for current screen size" })
+
+    -- ウィンドウサイズ変化に追従して動的にレイアウトを組み直す。リサイズ毎に relayout()
+    -- すると重い&ちらつくので、(1) リサイズが止まって RESIZE_DEBOUNCE_MS 後に一度だけ処理し、
+    -- (2) wide/tall のしきい値クロス(regime 変化)があるときだけ relayout() で構造を組み直す。
+    -- 同 regime 内のリサイズは rebalance_panes() で 50/50 だけ取り直す(軽量)。iPad 等の狭い
+    -- 端末は常に narrow regime に留まるので、キーボード開閉で構造の組み直しは発火しない。
+    vim.api.nvim_create_autocmd("VimResized", {
+      group = "nvim_ide",
+      callback = function()
+        if not vim.g.nvim_ide then
+          return
+        end
+        resize_gen = resize_gen + 1
+        local gen = resize_gen
+        vim.defer_fn(function()
+          -- 後続のリサイズが来た / IDE 終了 / 初期レイアウト未了 → この回は破棄
+          if gen ~= resize_gen or not vim.g.nvim_ide or last_wide == nil then
+            return
+          end
+          local wide = vim.o.columns >= NARROW_WIDTH
+          local tall = vim.o.lines >= NARROW_HEIGHT
+          if wide ~= last_wide or tall ~= last_tall then
+            relayout() -- regime が変わった → 構造を組み直す(start_layout が last_* を更新)
+          else
+            rebalance_panes() -- 同 regime → 50/50 比率だけ取り直す
+          end
+        end, RESIZE_DEBOUNCE_MS)
+      end,
+    })
 
     local argc = vim.fn.argc()
 
