@@ -7,12 +7,22 @@
 # abduco の PTY 素通しで起きていた「再接続で画面が崩れる/マウスが効かない」を解消する要。
 session_restore_mode = "screen"
 
-# 新規セッション作成時に、`shpool attach` を叩いたシェルの env からここに挙げた変数だけを
-# 引き継ぐ(再アタッチ時は無効)。ide-bedrock が export する Bedrock/AWS 用 env を nvim および
-# その子 `claude` へ伝播させるため(デーモン起動のセッションは client の env を継がないので必要)。
-# 通常の ide では CLAUDE_CODE_USE_BEDROCK 等が未設定なので何も引き継がれず影響しない。
+# デーモンは各セッションの PATH を initial_path(既定 /usr/bin:/bin:/usr/sbin:/sbin) →
+# forward_env → /etc/environment の順で組み立てる。/etc/environment(Debian/Ubuntu では PATH を
+# 定義)が最後に来て forward_env で転送した PATH を上書きしてしまうので、読み込みを止める。
+# これで下の forward_env["PATH"] が効き、--cmd(zshenv を通さず execvp)でも aqua の nvim/rg/fd
+# 等が解決できる。/etc/environment の PATH/ロケールは zshenv 側で別途整うので実害はない。
+noread_etc_environment = true
+
+# 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを
+# 引き継ぐ(再アタッチ時は無効)。
+#  - PATH: ide() の --cmd は zsh を介さず nvim を直接 execvp するため zshenv が走らず、そのままだと
+#    最小 PATH で aqua の nvim/rg/fd 等が見つからない。対話シェルのフル PATH を転送して解決する。
+#  - Bedrock/AWS 用: ide-bedrock が export する env を nvim とその子 `claude` へ伝播させる
+#    (デーモン起動のセッションは client の env を継がないので必要)。通常の ide では未設定なので無影響。
 # NVIM_IDE は ide() が --cmd の `env NVIM_IDE=1` で直接渡すのでここには不要。
 forward_env = [
+  "PATH",
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_MANTLE",
   "CLAUDE_CODE_ENABLE_AUTO_MODE",
