@@ -95,15 +95,23 @@ function ide () {
   else
     command rm -f -- "$sock" 2>/dev/null          # 前回のクラッシュ等で残った stale ソケットを掃除
   fi
-  # shpool attach は create-or-attach 一体(セッションが無ければ作り、あれば復帰する)。--cmd は
-  # シェルの代わりに nvim を直接起動する(execvp 相当)。NVIM_IDE は env 経由で渡し、ide-bedrock の
-  # Bedrock 用 env は shpool config(~/.config/shpool/config.toml)の forward_env で新規セッションへ
-  # 伝播させる。--dir で作業ディレクトリを指定(shpool は cd 不要)。--force は前回の切れ残りクライアント
-  # を奪って確実に再接続するため。--cmd は shell-words 解釈なので引数は (q) で安全にクォートする。
+  # shpool attach は create-or-attach 一体(セッションが無ければ作り、あれば復帰する)。--force は
+  # 前回の切れ残りクライアントを奪って確実に再接続するため。--dir で作業ディレクトリを指定する。
   # セッション名は先頭が - なのでフラグ誤認を防ぐため -- で区切る。
-  local cmd="env NVIM_IDE=1 nvim --listen ${(q)sock}"
-  local a; for a in "$@"; do cmd+=" ${(q)a}"; done
-  shpool attach --force --dir "$dir" --cmd "$cmd" -- "$name"
+  #
+  # --cmd はシェルを介さずコマンドを直接 execvp するが、デーモンは最小 PATH(/usr/bin:/bin:...)で
+  # セッションを起動し zshenv も走らないので、nvim を直接指定すると aqua の nvim/rg/fd や
+  # AQUA_GLOBAL_CONFIG が解決できない(実際 code 004 で失敗した)。そこで対話ログインと同じ
+  # `zsh -ic` 経由で起動し、zshenv+zshrc をロードして PATH・AQUA_*・fnm(node) 等を対話シェルと
+  # 同一に整えてから nvim を exec する(この repo が claude/codex パネル起動で使うのと同じイディオム)。
+  # NVIM_IDE は env で渡す(:q で nvim が終わればセッションも消える)。ide-bedrock の Bedrock/AWS 用
+  # env は zshrc では作られないので shpool config の forward_env で新規セッションへ転送し、zsh -ic が
+  # それを継いで nvim→claude まで伝える。クォートは二段(shpool の shell-words → zsh -ic): 内側 script は
+  # (q) で組み、それ全体を (qq) で単一トークン化する。zsh は最小 PATH でも起動できるよう絶対パスで。
+  local zshbin=${commands[zsh]:-/bin/zsh}
+  local script="exec env NVIM_IDE=1 nvim --listen ${(q)sock}"
+  local a; for a in "$@"; do script+=" ${(q)a}"; done
+  shpool attach --force --dir "$dir" --cmd "${(q)zshbin} -ic ${(qq)script}" -- "$name"
 }
 
 # agmsg Codex monitor(beta): TUI 終了時に launcher だけが死に codex-bridge.js が
