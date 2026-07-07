@@ -1,0 +1,28 @@
+# shpool config — ~/.config/shpool/config.toml
+# shpool daemon が起動時に自動ロードする(autodaemonize で最初の `shpool attach` 時に fork)。
+# 変更を既に起動中のデーモンへ効かせるには `shpool kill --all` 等でデーモンを畳んで再起動する。
+# 用途は ide()(dot_config/zsh/rc.d/50-functions.zsh)の SSH 切断耐性ラッパー。
+
+# 再アタッチ時に vt100 バッファから画面を復元し SIGWINCH を送る(既定値だが意図を固定)。
+# abduco の PTY 素通しで起きていた「再接続で画面が崩れる/マウスが効かない」を解消する要。
+session_restore_mode = "screen"
+
+# 新規セッション作成時に、`shpool attach` を叩いたシェルの env からここに挙げた変数だけを
+# 引き継ぐ(再アタッチ時は無効)。ide-bedrock が export する Bedrock/AWS 用 env を nvim および
+# その子 `claude` へ伝播させるため(デーモン起動のセッションは client の env を継がないので必要)。
+# 通常の ide では CLAUDE_CODE_USE_BEDROCK 等が未設定なので何も引き継がれず影響しない。
+# NVIM_IDE は ide() が --cmd の `env NVIM_IDE=1` で直接渡すのでここには不要。
+forward_env = [
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_MANTLE",
+  "CLAUDE_CODE_ENABLE_AUTO_MODE",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "AWS_REGION",
+  "AWS_PROFILE",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+]

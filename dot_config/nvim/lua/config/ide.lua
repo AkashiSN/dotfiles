@@ -34,6 +34,9 @@
 -- alternate screen を使わない classic で回避していたため。切断耐性を tmux から abduco
 -- (PTY を素通しするだけで端末エミュレーションをしない)へ移したことでこの二重ラップが
 -- 消え、漏れも起きなくなったので、SSH でも fullscreen のまま --remote-control だけ付ける。
+-- その後 abduco→shpool へ移行(再接続時の画面崩れ/マウス不作動対策)。shpool は再び端末
+-- エミュレーションを行うため二重ラップが復活する。OSC 52 漏れが再発したらこの classic
+-- renderer 回避(CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1)の再導入を検討すること。
 local claude_argv = "claude"
 if vim.env.SSH_CONNECTION and vim.env.SSH_CONNECTION ~= "" then
   claude_argv = "claude --remote-control"

@@ -52,8 +52,8 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 
 | コマンド | 動作 |
 | --- | --- |
-| `ide [path...]` | nvim を VSCode ライクな IDE レイアウトで起動（`NVIM_IDE=1 nvim`）。SSH 経由（かつ abduco 外）のときは作業ディレクトリ単位の abduco セッションで包んで切断耐性を付ける（切断後は同じ場所で再度 `ide` すれば復帰）。abduco は tmux と違い端末エミュレーションをしない（PTY 素通し）ので制御文字化けやフルスクリーンアプリ（claude 等）への干渉が無い。デタッチキーは既定 `^\`（nvim ターミナルの `<C-\><C-n>` と衝突）を避け `^g` に変更、ただし通常は SSH 切断で自動デタッチするので手動デタッチは基本不要。**別サイズの端末から再アタッチしたときは、attach 後に自動で `:IdeRelayout` を叩き現在の画面サイズへ組み直す**（abduco は画面復元バッファを持たないため続けて `redraw!` で全面再描画。nvim を `--listen /tmp/nvim-ide-<hash>.sock` で起動し、再アタッチ経路から RPC で呼ぶ。キーボード開閉等の resize では発火しない）。詳細は [Neovim チートシート](nvim-cheatsheet.md) |
-| `ssh <host>` | ローカルでは関数でラップされ、戻り際に必ず `term-reset` を実行（リモートで `ide`（abduco）を起動したまま Broken pipe で切れても端末が化けない）。リモートシェルでは素の ssh のまま |
+| `ide [path...]` | nvim を VSCode ライクな IDE レイアウトで起動（`NVIM_IDE=1 nvim`）。SSH 経由（かつ shpool 外）のときは作業ディレクトリ単位の shpool セッションで包んで切断耐性を付ける（切断後は同じ場所で再度 `ide` すれば復帰）。shpool はデーモンがセッション（nvim）を保持し vt100 状態を記録するので、再アタッチ時に画面を復元する（abduco の PTY 素通しで起きた再接続時の画面崩れ/マウス不作動を解消。デーモンは autodaemonize で自動起動＝systemd 不要）。デタッチキーは既定 `Ctrl-Space Ctrl-q`（2 キー列で誤爆しにくい）、通常は SSH 切断で自動デタッチするので手動デタッチは基本不要。**別サイズの端末から再アタッチしたときは、attach 後に自動で `:IdeRelayout` を叩き現在の画面サイズへ組み直す**（続けて `redraw!` で全面再描画。nvim を `--listen /tmp/nvim-ide-<hash>.sock` で起動し、再アタッチ経路から RPC で呼ぶ。shpool の SIGWINCH＝VimResized ではこの経路は発火しない）。ide-bedrock 用 env は shpool config の `forward_env` で新規セッションへ伝播。`shpool attach` は create-or-attach 一体で `--cmd` により nvim を直接起動。abduco 自体はまだ導入済みだが ide からは未使用。詳細は [Neovim チートシート](nvim-cheatsheet.md) |
+| `ssh <host>` | ローカルでは関数でラップされ、戻り際に必ず `term-reset` を実行（リモートで `ide`（shpool）を起動したまま Broken pipe で切れても端末が化けない）。リモートシェルでは素の ssh のまま |
 | `term-reset` | 端末のマウストラッキング/フォーカス報告/括弧付き貼り付けを無効化して復旧。SSH 異常切断後にクリックで `0;129;39M` 等が出て操作不能になったときに実行（ローカルの `ssh`/`tssh` 経由なら自動。それ以外で踏んだら手動で） |
 | `latex [args]` | Docker（akashisn/latexmk）で latexmk をビルド |
 | `pdfcrop [args]` | Docker で PDF の余白をクロップ |
@@ -62,7 +62,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
 | `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可 |
-| `ide-bedrock [path...]` | `ide` を Bedrock 環境で起動する版。Bedrock 用 env を export してから `ide` を呼ぶので、nvim が継承し IDE ペインの `claude` も Bedrock になる（通常の `ide` の `claude` は claude.ai のまま）。設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存の ide（abduco）セッションへ復帰する claude は起動時の env のまま＝切り替えにはセッションを畳んで再実行 |
+| `ide-bedrock [path...]` | `ide` を Bedrock 環境で起動する版。Bedrock 用 env を export してから `ide` を呼ぶので、nvim が継承し IDE ペインの `claude` も Bedrock になる（通常の `ide` の `claude` は claude.ai のまま）。設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存の ide（shpool）セッションへ復帰する claude は起動時の env のまま＝切り替えにはセッションを畳んで（`shpool kill`）再実行。env は shpool config の `forward_env` で新規セッション作成時に引き継ぐ |
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
