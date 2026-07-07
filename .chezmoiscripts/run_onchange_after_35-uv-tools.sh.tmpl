@@ -3,7 +3,8 @@
 # aqua install (20) の後に走らせる。リストを書き換えると再実行される。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "uv 管理ツール(Python CLI)をインストール中"
+{{ template "shell-log" }}
+step "uv 管理ツール(Python CLI)をインストール中"
 
 # uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"

@@ -3,7 +3,8 @@
 # run_onchange: 内容を書き換えると既存マシンでも再実行される（全操作が冪等）。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "chezmoi リポジトリの origin を SSH へ切替中"
+{{ template "shell-log" }}
+step "chezmoi リポジトリの origin を SSH へ切替中"
 
 REPO="{{ .chezmoi.sourceDir }}"
 

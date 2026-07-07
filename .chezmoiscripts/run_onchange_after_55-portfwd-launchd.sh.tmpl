@@ -5,7 +5,8 @@
 # plist hash: {{ include "Library/LaunchAgents/com.snishi.portfwd.plist.tmpl" | sha256sum }}
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "portfwd daemon を launchd に登録中"
+{{ template "shell-log" }}
+step "portfwd daemon を launchd に登録中"
 
 PLIST="$HOME/Library/LaunchAgents/com.snishi.portfwd.plist"
 DOMAIN="gui/$(id -u)"

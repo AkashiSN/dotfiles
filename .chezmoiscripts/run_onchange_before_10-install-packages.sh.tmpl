@@ -5,7 +5,8 @@
 # bash 必須: 下のパッケージ一覧を配列で持つ（apt/dnf 系には bash が標準搭載）。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "システムパッケージを準備中 (brew/apt・aqua・ffmpeg)"
+{{ template "shell-log" }}
+step "システムパッケージを準備中 (brew/apt・aqua・ffmpeg)"
 
 PREFIX="$HOME/.local"
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"

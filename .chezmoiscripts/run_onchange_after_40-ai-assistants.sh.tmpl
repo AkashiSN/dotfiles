@@ -5,7 +5,8 @@
 # run_onchange: 下のチャネル/バージョンを書き換えると既存マシンでも再実行される。
 set -eu
 
-printf '\n\033[1;36m==> %s\033[0m\n' "AI アシスタント CLI(claude/codex/ollama/agmsg/codegraph)をインストール中"
+{{ template "shell-log" }}
+step "AI アシスタント CLI(claude/codex/ollama/agmsg/codegraph)をインストール中"
 
 export PATH="$HOME/.local/bin:$PATH"
 
