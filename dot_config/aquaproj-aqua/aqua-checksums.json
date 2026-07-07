@@ -626,6 +626,11 @@
       "algorithm": "sha256"
     },
     {
+      "id": "http/static.rust-lang.org/rustup/archive/1.29.0/x86_64-unknown-linux-gnu/rustup-init",
+      "checksum": "4ACC9ACC76D5079515B46346A485974457B5A79893CFB01112423C89AEB5AA10",
+      "algorithm": "sha256"
+    },
+    {
       "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.524.0/registry.yaml",
       "checksum": "1A8FB074F184555E3E370F26D1026EDAC34377D3B9666EFAD2504EFC940BDF51",
       "algorithm": "sha256"
