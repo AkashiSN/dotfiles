@@ -81,10 +81,8 @@ done
 APT_PACKAGES=(
 	# 基本ツール: shell / 端末多重化 / バージョン管理
 	# tmux: 対話用の端末多重化 + vim-tmux-navigator 連携
-	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化(端末エミュレーション無しで制御文字化け/フルスクリーン干渉が無い)
 	zsh
 	tmux
-	abduco
 	git
 	# agmsg: メッセージ DB 用 sqlite3 CLI
 	sqlite3
@@ -101,10 +99,8 @@ APT_PACKAGES=(
 # dnf 系パッケージ。グループは apt 側と対応。名前が異なるものだけ差し替える。
 DNF_PACKAGES=(
 	# 基本ツール: shell / 端末多重化 / バージョン管理
-	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化(Fedora は標準、AL2023 等では EPEL が要る場合あり)
 	zsh
 	tmux
-	abduco
 	git
 	# agmsg: メッセージ DB 用 sqlite3 CLI (sqlite パッケージが sqlite3 バイナリを提供)
 	sqlite
@@ -142,4 +138,24 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
 	find "/tmp/ffmpeg-master-latest-${arch}-gpl/bin" -type f -exec mv {} "$PREFIX/bin/" \;
 	rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${arch}-gpl"
 fi
+
+# GitHub のソース tarball を pinned ref で取得し make でビルドして $PREFIX/bin へ入れる共通ヘルパ。
+# 依存ゼロで小さく、aqua レジストリにも静的バイナリ配布にも無い C ツール(suckless 系など)向け。
+# 既に PATH にあれば何もしない。この種のツールを増やすときは build_from_github を 1 行足すだけ。
+build_from_github() {  # <owner/repo> <git-ref> <binary-name>
+	command -v "$3" >/dev/null 2>&1 && return 0
+	local dir="/tmp/build-$3"
+	curl -fsSL -o "$dir.tar.gz" "https://github.com/$1/archive/$2.tar.gz"
+	mkdir -p "$dir"
+	tar xf "$dir.tar.gz" -C "$dir" --strip-components=1
+	make -C "$dir"
+	install -m755 "$dir/$3" "$PREFIX/bin/$3"
+	rm -rf "$dir.tar.gz" "$dir"
+}
+
+# abduco: ide(nvim)の SSH 切断耐性用セッション永続化。
+# 依存は libc + C コンパイラのみ(tree-sitter 用に build-essential / gcc・make を導入済み)。
+# 唯一のリリース v0.6(2016)は古く、ide のネスト検出に使う $ABDUCO_SESSION が未実装なので、
+# それを備えた master tip(2020-04-30 以降更新停止で安定)を commit SHA で固定してビルドする。
+build_from_github martanne/abduco 8c32909a159aaa9484c82b71f05b7a73321eb491 abduco
 {{- end }}
