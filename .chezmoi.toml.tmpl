@@ -1,0 +1,6 @@
+# chezmoi 本体の設定。`chezmoi init` 時に ~/.config/chezmoi/chezmoi.toml へ展開される。
+
+# umask を固定する。固定しないと chezmoi は実行時シェルの umask を使い、
+# 通常ファイル=0666&^umask / 実行ファイル・ディレクトリ=0777&^umask で目標モードを計算する。
+# 固定しないと同じ内容でもモードだけ 666/777 に変わり chezmoi diff に差分が出る。
+umask = 0o022
