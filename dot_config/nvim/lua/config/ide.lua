@@ -679,9 +679,31 @@ vim.api.nvim_create_autocmd("VimEnter", {
     vim.env.NVIM_IDE = nil
     vim.g.nvim_ide = true
 
-    -- shpool 再アタッチ時の追従(表示崩れ/マウス不作動の復旧)は autocmds.lua の Signal SIGWINCH
-    -- ハンドラ(:Resync)が全 nvim 共通で担う。そこで端末が現在サイズを再報告すれば下の VimResized
-    -- 追従がそのまま働くため、IDE 固有の再アタッチ処理はここには無い。
+    -- 再アタッチ検知用の pid ファイル。ide()(zsh)が NVIM_IDE_PIDFILE で SSH 先の /tmp パスを渡す。
+    -- 自 pid を書き、ide() が再アタッチ時に送る SIGUSR1 を Signal autocmd で受けて :Resync
+    -- (autocmds.lua: mode 2048 再アーム + マウス再送)を呼ぶ。この環境では reattach 時に shpool が
+    -- nvim へ SIGWINCH を届けないため、ide() の明示 SIGUSR1 で駆動する。attach の接続確立後に効かせ
+    -- たいので少し遅らせて呼ぶ。env は子(ターミナル等)へ伝播させないよう nil 化する。
+    local pidfile = vim.env.NVIM_IDE_PIDFILE
+    vim.env.NVIM_IDE_PIDFILE = nil
+    if pidfile and pidfile ~= "" then
+      pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
+      vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = "nvim_ide",
+        callback = function()
+          pcall(os.remove, pidfile)
+        end,
+      })
+      vim.api.nvim_create_autocmd("Signal", {
+        group = "nvim_ide",
+        pattern = "SIGUSR1",
+        callback = function()
+          if vim.g.nvim_ide then
+            vim.defer_fn(function() vim.cmd("Resync") end, 200)
+          end
+        end,
+      })
+    end
 
     -- IDE モード中は :q / :wq を SmartQ / SmartWQ に自動展開
     vim.cmd([[cnoreabbrev <expr> q (getcmdtype()==':' && getcmdline()=='q') ? 'SmartQ' : 'q']])

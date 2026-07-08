@@ -33,28 +33,23 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- shpool 再アタッチ時の表示崩れ / マウス不作動を復旧する。
--- 原因: nvim は in-band resize(DEC private mode 2048)対応端末(Ghostty)を検出すると、
--- 以後 SIGWINCH ではなく in-band のリサイズ通知だけを見るようになる。shpool は in-band
--- リサイズを生成できず、reattach 時は SIGWINCH しか送れないため、別サイズで再接続すると
--- nvim が新サイズに追従できず表示が崩れる。マウスも同様に、有効化シーケンスが新しい端末へ
--- 伝わっておらず効かなくなる。
--- 対策: mode 2048 を再アームして端末に現在サイズを再報告させ(→ nvim が正しいサイズに追従)、
--- マウス有効化シーケンスを再送する。shpool は reattach のたび SIGWINCH を送るので、Signal
--- SIGWINCH の autocmd に紐づければ ide 関数の介入なしで自動化できる。手動用に :Resync も公開。
+-- shpool 再アタッチ時の表示崩れ / マウス不作動を復旧する。手動でも :Resync で呼べる。
+-- 原因: nvim は in-band resize(DEC private mode 2048)対応端末(Ghostty)では SIGWINCH ではなく
+-- in-band のリサイズ通知でサイズを追う。shpool は in-band リサイズを生成せず、別サイズで reattach
+-- してもそれを nvim へ伝えないため、新サイズに追従できず表示が崩れ、マウス有効化シーケンスも新しい
+-- 端末へ伝わらず効かなくなる。
+-- 対策:
+--   * mode 2048 を再アーム(\027[?2048h) → 端末が現在サイズを in-band で再報告し、nvim が追従する。
+--   * マウス有効化シーケンスを再送する。off→on を別 tick に分けてそれぞれフラッシュさせるのが要点:
+--     同一 tick で off→on すると nvim は差し引き無変化とみなし DECRST/DECSET を一切出さず、再送に
+--     ならない。resize が落ち着いてから撃つよう少し遅らせる。
+-- 自動起動(reattach 検知)は ide.lua が Signal SIGUSR1 で :Resync を呼ぶ(ide() が kill -USR1 を送る)。
 local function resync()
-  io.stdout:write("\027[?2048h")   -- in-band resize を再アーム → 端末が現在サイズを再報告
+  io.stdout:write("\027[?2048h")
   local m = vim.o.mouse
-  vim.o.mouse = ""
-  vim.o.mouse = m                   -- マウス有効化シーケンスを再送
+  vim.defer_fn(function()
+    vim.o.mouse = ""                                -- 無効化(この tick でフラッシュ → DECRST 送出)
+    vim.schedule(function() vim.o.mouse = m end)    -- 次 tick で有効化 → DECSET 送出
+  end, 80)
 end
 vim.api.nvim_create_user_command("Resync", resync, {})
-local running = false
-vim.api.nvim_create_autocmd("Signal", {
-  pattern = "SIGWINCH",
-  callback = function()
-    if running then return end
-    running = true
-    vim.schedule(function() resync(); running = false end)
-  end,
-})

@@ -4,10 +4,9 @@
 # (万一効かない場合は `pkill -f shpool` でデーモンごと畳んでから再 attach する)。
 # 用途は ide()(dot_config/zsh/rc.d/50-functions.zsh)の SSH 切断耐性ラッパー。
 
-# 再アタッチ時に vt100 バッファから画面を復元し SIGWINCH を送る(既定値だが意図を固定)。
-# 再接続で画面が崩れず・マウスが効く状態を保つ要の設定。reattach 時の SIGWINCH は nvim 側
-# (autocmds.lua の Signal SIGWINCH = :Resync)が in-band resize(mode 2048)の再アーム+マウス
-# 再送に使うので、この mode を simple のまま維持することが重要。
+# 再アタッチ時に vt100 バッファから画面を復元する(既定値だが意図を固定)。この画面復元だけでは
+# 別サイズ reattach 時のサイズ追従とマウス有効化までは揃わないので、ide()(再アタッチ時に nvim へ
+# SIGUSR1)→ nvim の :Resync(in-band resize=mode 2048 の再アーム + マウス再送)で補う。
 session_restore_mode = "simple"
 
 # 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを
@@ -17,6 +16,8 @@ session_restore_mode = "simple"
 # PATH や AQUA_* は ide() が `zsh -ic` 経由で起動して zshenv+zshrc から対話シェルと同一に整えるので
 # ここでの転送は不要(NVIM_IDE も --cmd の `env NVIM_IDE=1` で直接渡すため不要)。
 forward_env = [
+  "SSH_CLIENT",
+  "SSH_CONNECTION",
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_MANTLE",
   "CLAUDE_CODE_ENABLE_AUTO_MODE",

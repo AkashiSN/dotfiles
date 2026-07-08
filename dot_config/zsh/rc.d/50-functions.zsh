@@ -83,11 +83,18 @@ function ide () {
   local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
   local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
   local name=ide-${${dir:t}//[.:]/_}-$hash       # セッション名に使えない . : を除去
-  # 再アタッチ時の表示崩れ / マウス不作動は nvim 側で完結して復旧するので、shell からシグナルは
-  # 送らない。shpool は reattach のたび SIGWINCH を送るので、nvim(autocmds.lua の Signal SIGWINCH
-  # ハンドラ = :Resync)が in-band resize(mode 2048)を再アームして端末に現在サイズを再報告させ
-  # (→ 新サイズに追従)、マウス有効化シーケンスを再送する。
-  #
+  # 再アタッチ検知＆ SIGUSR1 送信用の pid ファイル。nvim(ide.lua)が NVIM_IDE_PIDFILE 経由で自 pid を
+  # 書く。SSH 先の /tmp に作り、hash 由来で短く一意。
+  local pidfile=/tmp/nvim-ide-${hash}.pid
+  local pid; [[ -f $pidfile ]] && pid=$(<$pidfile 2>/dev/null)
+  if [[ -n $pid ]] && kill -0 $pid 2>/dev/null; then
+    # 生きた nvim へ再アタッチする。shpool はこの環境では reattach 時に nvim へ SIGWINCH を届けない
+    # ので、別サイズ復帰の追従/マウス復旧を nvim 任せにできない。SIGUSR1 を撃って nvim 側の :Resync
+    # (mode 2048 再アーム+マウス再送)を駆動する。attach は前景ブロッキングなのでバックグラウンドで撃つ。
+    ( kill -USR1 $pid ) 2>/dev/null &!
+  else
+    command rm -f -- "$pidfile" 2>/dev/null       # 前回のクラッシュ等で残った stale pid を掃除
+  fi
   # shpool attach は create-or-attach 一体(セッションが無ければ作り、あれば復帰する)。--force は
   # 前回の切れ残りクライアントを奪って確実に再接続するため。--dir で作業ディレクトリを指定する。
   # セッション名は先頭が - なのでフラグ誤認を防ぐため -- で区切る。
@@ -97,12 +104,14 @@ function ide () {
   # AQUA_GLOBAL_CONFIG が解決できない。そこで対話ログインと同じ
   # `zsh -ic` 経由で起動し、zshenv+zshrc をロードして PATH・AQUA_*・fnm(node) 等を対話シェルと
   # 同一に整えてから nvim を exec する(この repo が claude/codex パネル起動で使うのと同じイディオム)。
-  # NVIM_IDE は env で渡す(:q で nvim が終わればセッションも消える)。ide-bedrock の Bedrock/AWS 用
-  # env は zshrc では作られないので shpool config の forward_env で新規セッションへ転送し、
-  # zsh -ic がそれを継いで nvim→claude まで伝える。クォートは二段(shpool の shell-words → zsh -ic):
-  # 内側 script は (q) で組み、それ全体を (qq) で単一トークン化する。zsh は最小 PATH でも起動できるよう絶対パスで。
+  # NVIM_IDE / NVIM_IDE_PIDFILE は env で渡す(:q で nvim が終わればセッションも消える)。後者は
+  # nvim が自 pid を書く先(上の pidfile と同じパス)で、再アタッチ時の SIGUSR1 の宛先になる。
+  # ide-bedrock の Bedrock/AWS 用 env は zshrc では作られないので shpool config の forward_env で
+  # 新規セッションへ転送し、zsh -ic がそれを継いで nvim→claude まで伝える。クォートは二段(shpool の
+  # shell-words → zsh -ic): 内側 script は (q) で組み、それ全体を (qq) で単一トークン化する。zsh は
+  # 最小 PATH でも起動できるよう絶対パスで。
   local zshbin=${commands[zsh]:-/bin/zsh}
-  local script="exec env NVIM_IDE=1 nvim"
+  local script="exec env NVIM_IDE=1 NVIM_IDE_PIDFILE=${(q)pidfile} nvim"
   local a; for a in "$@"; do script+=" ${(q)a}"; done
   shpool attach --force --dir "$dir" --cmd "${(q)zshbin} -ic ${(qq)script}" -- "$name"
 }
