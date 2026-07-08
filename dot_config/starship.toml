@@ -1,5 +1,5 @@
 # starship prompt — https://starship.rs/config/
-# Nerd Font required (same as the previous p10k setup).
+# Nerd Font required.
 "$schema" = 'https://starship.rs/config-schema.json'
 
 add_newline = true

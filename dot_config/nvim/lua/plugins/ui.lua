@@ -37,7 +37,7 @@ return {
         close_command = function(n) Snacks.bufdelete(n) end,
         right_mouse_command = function(n) Snacks.bufdelete(n) end,
         -- タブの左クリック: IDE モードではフォーカス中のペインにそのバッファを
-        -- 表示する(ファイル/端末を自由に入れ替える)。通常起動では従来どおり
+        -- 表示する(ファイル/端末を自由に入れ替える)。通常起動では標準どおり
         -- カレント窓のバッファを切り替えるだけ(:buffer N 相当)。
         left_mouse_command = function(bufnr)
           if vim.g.nvim_ide and _G.ide_place_buf_in_current then

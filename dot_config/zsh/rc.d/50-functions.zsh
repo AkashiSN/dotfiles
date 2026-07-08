@@ -71,8 +71,8 @@ function search () {
 # ディレクトリ単位の固定名セッションにするので、切断後に同じ場所で再度 ide すれば
 # 生きている nvim にそのまま復帰できる(:q で終わればセッションも消える)。shpool は
 # デーモンがシェル(ここでは nvim)を保持し vt100 状態を記録するので、再アタッチ時に
-# 画面を復元する(abduco の PTY 素通しで再接続時に画面が崩れる/マウスが効かない問題を解消)。
-# デーモンは autodaemonize で自動起動するため systemd 不要。abduco 自体は残置(未使用)。
+# 画面を復元する(再接続時の画面崩れ/マウス不作動を防ぐ)。デーモンは autodaemonize で
+# 自動起動するため systemd 不要。
 function ide () {
   # ローカル / 既に shpool セッション内 / shpool 無し → 素の nvim
   if [[ -z $SSH_CONNECTION || -n $SHPOOL_SESSION_NAME ]] || ! command -v shpool &>/dev/null; then
@@ -83,42 +83,26 @@ function ide () {
   local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
   local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
   local name=ide-${${dir:t}//[.:]/_}-$hash       # セッション名に使えない . : を除去
-  # 再接続検知＆ SIGUSR1 送信用の pid ファイル(決め打ち)。nvim(ide.lua)が NVIM_IDE_PIDFILE
-  # 経由で自 pid を書く。SSH 先の /tmp に作り、hash 由来なので短く一意。
-  local pidfile=/tmp/nvim-ide-${hash}.pid
-  local pid; [[ -f $pidfile ]] && pid=$(<$pidfile 2>/dev/null)
-  if [[ -n $pid ]] && kill -0 $pid 2>/dev/null; then
-    # 生きた nvim がいる → 既存セッションへ再アタッチ。ここでの仕事は「起動同等処理のキック」だけ。
-    # 処理本体(relayout＝現在サイズで組み直し / マウス再武装 / redraw!)は nvim 側の SIGUSR1
-    # ハンドラ(ide.lua の do_reattach)が担当する。shpool 任せにできない 3 点を、起動と同じコードで
-    # まとめて補う: ① 同 regime の SIGWINCH は rebalance しかせず下ターミナル高さ/全体フィットが
-    # 現在サイズに揃わない(=「一ページ」問題)。同サイズ復帰では SIGWINCH 自体が来ない。② 画面復元
-    # (session_restore_mode=screen)はマウス報告 DECSET(CSI ?1000/1002/1006h)を再送しない。③ 再描画
-    # しないと組み直しの残り/DECSET が新端末へ流れない。
-    #
-    # 固定 sleep は不要: SIGUSR1 は即時に撃ち、nvim 側が受信後 pty resize(VimResized)が落ち着くまで
-    # RESIZE_DEBOUNCE_MS デバウンスしてから組み直す。よって SIGUSR1 と resize の到着順に依らず最終
-    # サイズで正しく組み直る。attach は前景ブロッキングなのでバックグラウンドで撃つ。
-    ( kill -USR1 $pid ) 2>/dev/null &!
-  else
-    command rm -f -- "$pidfile" 2>/dev/null       # 前回のクラッシュ等で残った stale pid を掃除
-  fi
+  # 再アタッチ時の表示崩れ / マウス不作動は nvim 側で完結して復旧するので、shell からシグナルは
+  # 送らない。shpool は reattach のたび SIGWINCH を送るので、nvim(autocmds.lua の Signal SIGWINCH
+  # ハンドラ = :Resync)が in-band resize(mode 2048)を再アームして端末に現在サイズを再報告させ
+  # (→ 新サイズに追従)、マウス有効化シーケンスを再送する。
+  #
   # shpool attach は create-or-attach 一体(セッションが無ければ作り、あれば復帰する)。--force は
   # 前回の切れ残りクライアントを奪って確実に再接続するため。--dir で作業ディレクトリを指定する。
   # セッション名は先頭が - なのでフラグ誤認を防ぐため -- で区切る。
   #
   # --cmd はシェルを介さずコマンドを直接 execvp するが、デーモンは最小 PATH(/usr/bin:/bin:...)で
   # セッションを起動し zshenv も走らないので、nvim を直接指定すると aqua の nvim/rg/fd や
-  # AQUA_GLOBAL_CONFIG が解決できない(実際 code 004 で失敗した)。そこで対話ログインと同じ
+  # AQUA_GLOBAL_CONFIG が解決できない。そこで対話ログインと同じ
   # `zsh -ic` 経由で起動し、zshenv+zshrc をロードして PATH・AQUA_*・fnm(node) 等を対話シェルと
   # 同一に整えてから nvim を exec する(この repo が claude/codex パネル起動で使うのと同じイディオム)。
-  # NVIM_IDE / NVIM_IDE_PIDFILE は env で渡す(:q で nvim が終わればセッションも消える)。後者は
-  # nvim が自 pid を書き、再アタッチ時に SIGUSR1 を撃つ先(上の pidfile と同じパス)。ide-bedrock の
-  # Bedrock/AWS 用 env は zshrc では作られないので shpool config の forward_env で新規セッションへ転送し、
+  # NVIM_IDE は env で渡す(:q で nvim が終わればセッションも消える)。ide-bedrock の Bedrock/AWS 用
+  # env は zshrc では作られないので shpool config の forward_env で新規セッションへ転送し、
   # zsh -ic がそれを継いで nvim→claude まで伝える。クォートは二段(shpool の shell-words → zsh -ic):
   # 内側 script は (q) で組み、それ全体を (qq) で単一トークン化する。zsh は最小 PATH でも起動できるよう絶対パスで。
   local zshbin=${commands[zsh]:-/bin/zsh}
-  local script="exec env NVIM_IDE=1 NVIM_IDE_PIDFILE=${(q)pidfile} nvim"
+  local script="exec env NVIM_IDE=1 nvim"
   local a; for a in "$@"; do script+=" ${(q)a}"; done
   shpool attach --force --dir "$dir" --cmd "${(q)zshbin} -ic ${(qq)script}" -- "$name"
 }

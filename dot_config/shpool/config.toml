@@ -5,9 +5,10 @@
 # 用途は ide()(dot_config/zsh/rc.d/50-functions.zsh)の SSH 切断耐性ラッパー。
 
 # 再アタッチ時に vt100 バッファから画面を復元し SIGWINCH を送る(既定値だが意図を固定)。
-# abduco の PTY 素通しで起きていた「再接続で画面が崩れる/マウスが効かない」を解消する要。
+# 再接続で画面が崩れず・マウスが効く状態を保つ要の設定。reattach 時の SIGWINCH は nvim 側
+# (autocmds.lua の Signal SIGWINCH = :Resync)が in-band resize(mode 2048)の再アーム+マウス
+# 再送に使うので、この mode を simple のまま維持することが重要。
 session_restore_mode = "simple"
-session_restore_engine = "vterm"
 
 # 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを
 # 引き継ぐ(再アタッチ時は無効)。ide-bedrock が export する Bedrock/AWS 用 env を nvim とその子

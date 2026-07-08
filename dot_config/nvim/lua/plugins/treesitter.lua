@@ -1,6 +1,5 @@
--- Neovim 0.12 で tree-sitter がコアへ統合され、nvim-treesitter は 2026-04 に
--- アーカイブされた。master(classic) ブランチは 0.12 非対応 (injection 処理で
--- `attempt to call method 'range'` エラー) のため、構成を以下へ移行した:
+-- Neovim 0.12 はコア統合の tree-sitter を使う。旧 nvim-treesitter の master(classic) は
+-- 0.12 非対応(injection 処理で `attempt to call method 'range'` エラー)なので、この構成にする:
 --   * パーサー/ハイライトクエリ管理 … tree-sitter-manager.nvim (アクティブメンテ)
 --   * シンタックスハイライト        … tree-sitter-manager が自動有効化
 --   * テキストオブジェクト          … nvim-treesitter-textobjects(main) を単独利用
