@@ -6,7 +6,7 @@
 
 # 再アタッチ時に vt100 バッファから画面を復元し SIGWINCH を送る(既定値だが意図を固定)。
 # abduco の PTY 素通しで起きていた「再接続で画面が崩れる/マウスが効かない」を解消する要。
-session_restore_mode = "vterm"
+session_restore_mode = "simple"
 
 # 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを
 # 引き継ぐ(再アタッチ時は無効)。ide-bedrock が export する Bedrock/AWS 用 env を nvim とその子
