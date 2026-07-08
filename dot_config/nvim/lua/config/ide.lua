@@ -59,6 +59,11 @@ local RESIZE_DEBOUNCE_MS = 180
 local last_wide, last_tall
 -- リサイズのデバウンス世代。新しいリサイズが来たら古い遅延処理を破棄するためのカウンタ。
 local resize_gen = 0
+-- 再接続(shpool 再アタッチ)追従用の状態。ide()(zsh)からの SIGUSR1 で「起動同等処理」を
+-- キックし、pty resize(VimResized)が落ち着くまで同じ RESIZE_DEBOUNCE_MS でデバウンスしてから
+-- 組み直す。reattach_pending が立っている間は VimResized の通常処理を止め、再接続側に集約する。
+local reattach_gen = 0
+local reattach_pending = false
 
 -- 端末バッファに付ける表示ラベルと役割の目印。bufferline の name_formatter が
 -- term_label を、レイアウト/コマンドが term_role を参照する。
@@ -633,6 +638,37 @@ end
 vim.api.nvim_create_user_command("IdeRelayout", relayout,
   { desc = "Tear down and rebuild the IDE layout for the current screen size" })
 
+-- 再接続(shpool 再アタッチ)時に「新規起動と同じ処理」を走らせる。relayout() が起動時の
+-- start_layout を現在サイズで再実行し(codex/claude/terminal の端末プロセスは再利用、開いていた
+-- 実ファイルは左上に残す)、続けてマウスを再武装して全面再描画する。shpool の画面復元
+-- (session_restore_mode=screen)はマウス報告 DECSET を再送しないので、mouse を空→a にトグルして
+-- nvim に enable シーケンスを再送させ、末尾の redraw! で組み直しの残りごと新端末へ流す。
+local function do_reattach()
+  reattach_pending = false
+  if not vim.g.nvim_ide then
+    return
+  end
+  relayout()
+  vim.o.mouse = ""
+  vim.o.mouse = "a"
+  vim.cmd("redraw!")
+end
+
+-- SIGUSR1(再接続)を受けて do_reattach をデバウンス起動する。デバウンスは pty resize の
+-- VimResized が来るたびリセットされる(下の VimResized autocmd)。これにより SIGUSR1 と pty
+-- resize の到着順に依らず「サイズが落ち着いてから」現在サイズで組み直せる(固定 sleep 不要)。
+local function schedule_reattach()
+  reattach_pending = true
+  reattach_gen = reattach_gen + 1
+  local gen = reattach_gen
+  vim.defer_fn(function()
+    if gen ~= reattach_gen or not vim.g.nvim_ide then
+      return
+    end
+    do_reattach()
+  end, RESIZE_DEBOUNCE_MS)
+end
+
 -- neo-tree の開閉(<leader>e トグル・:Neotree close・ツリー内 q 等いずれも)に
 -- 追従して左右 50/50 を取り直す。neo-tree は遅延ロードなので、初回ロード後に
 -- 一度だけイベント購読する。
@@ -684,6 +720,30 @@ vim.api.nvim_create_autocmd("VimEnter", {
     vim.env.NVIM_IDE = nil
     vim.g.nvim_ide = true
 
+    -- 再接続(shpool 再アタッチ)を SIGUSR1 で受け取るための pid ファイル。ide()(zsh)が
+    -- NVIM_IDE_PIDFILE で SSH 先の /tmp パスを渡してくる。自 pid を書き、SIGUSR1 で「起動同等
+    -- 処理」(do_reattach)をキックする。env は子(ターミナル等)へ伝播させないよう nil 化する。
+    local pidfile = vim.env.NVIM_IDE_PIDFILE
+    vim.env.NVIM_IDE_PIDFILE = nil
+    if pidfile and pidfile ~= "" then
+      pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
+      vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = "nvim_ide",
+        callback = function()
+          pcall(os.remove, pidfile)
+        end,
+      })
+      vim.api.nvim_create_autocmd("Signal", {
+        group = "nvim_ide",
+        pattern = "SIGUSR1",
+        callback = function()
+          if vim.g.nvim_ide then
+            schedule_reattach()
+          end
+        end,
+      })
+    end
+
     -- IDE モード中は :q / :wq を SmartQ / SmartWQ に自動展開
     vim.cmd([[cnoreabbrev <expr> q (getcmdtype()==':' && getcmdline()=='q') ? 'SmartQ' : 'q']])
     vim.cmd([[cnoreabbrev <expr> wq (getcmdtype()==':' && getcmdline()=='wq') ? 'SmartWQ' : 'wq']])
@@ -708,11 +768,18 @@ vim.api.nvim_create_autocmd("VimEnter", {
         if not vim.g.nvim_ide then
           return
         end
+        -- 再接続処理の保留中(SIGUSR1 受信〜組み直し前)は、この pty resize を再接続デバウンスの
+        -- リセットとして扱い、通常のライブリサイズ処理はスキップする。最終的に do_reattach が現在
+        -- サイズで全組み直しするので、rebalance との二重処理・組み直し順の競合を避ける。
+        if reattach_pending then
+          schedule_reattach()
+          return
+        end
         resize_gen = resize_gen + 1
         local gen = resize_gen
         vim.defer_fn(function()
-          -- 後続のリサイズが来た / IDE 終了 / 初期レイアウト未了 → この回は破棄
-          if gen ~= resize_gen or not vim.g.nvim_ide or last_wide == nil then
+          -- 後続のリサイズが来た / 再接続処理へ移った / IDE 終了 / 初期レイアウト未了 → この回は破棄
+          if gen ~= resize_gen or reattach_pending or not vim.g.nvim_ide or last_wide == nil then
             return
           end
           local wide = vim.o.columns >= NARROW_WIDTH
