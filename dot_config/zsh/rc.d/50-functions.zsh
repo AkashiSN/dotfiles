@@ -21,13 +21,17 @@ function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk:2023 pdfcrop "$@"
 }
 
-# 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソルを
-# 無効化して復旧する。SSH 異常切断(client_loop: send disconnect: Broken pipe)で
-# リモートの nvim(ide)が有効化したマウス報告(SGR mouse mode)がローカル端末に居残り、
-# クリックやスクロールで `0;129;39M` のような生エスケープが出て操作不能になる現象を
-# 解消する。tssh から自動で呼ぶほか、素の ssh で踏んだときも手動で実行できる。
+# 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソル /
+# Kitty keyboard protocol を無効化して復旧する。SSH 異常切断(client_loop: send
+# disconnect: Broken pipe)で、リモートの nvim(ide)が有効化した端末状態が pop されず
+# ローカル端末に居残る現象を解消する:
+#   - マウス報告(SGR mouse mode)の残置 → クリック/スクロールで `0;129;39M` が出る
+#   - Kitty keyboard protocol(CSI u)の残置 → キー入力で `15;1:3u` 等の生エスケープが出る
+# tssh から自動で呼ぶほか、素の ssh で踏んだときも手動で実行できる。
+# 末尾の \e[<u は nvim が push した Kitty keyboard スタックを pop、\e[=0;1u は現行フラグを
+# 0 に強制してレガシーキー入力へ戻す(素の端末で叩いても空 pop / 既 0 set で無害)。
 function term-reset () {
-  print -n -- $'\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[?2004l\e[?25h'
+  print -n -- $'\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[?2004l\e[?25h\e[<u\e[=0;1u'
 }
 
 # ローカルから出る ssh を関数でラップし、戻り際に必ず term-reset する。リモートで
