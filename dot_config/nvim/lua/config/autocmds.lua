@@ -40,16 +40,18 @@ vim.api.nvim_create_autocmd("FileType", {
 -- 端末へ伝わらず効かなくなる。
 -- 対策:
 --   * mode 2048 を再アーム(\027[?2048h) → 端末が現在サイズを in-band で再報告し、nvim が追従する。
---   * マウス有効化シーケンスを再送する。off→on を別 tick に分けてそれぞれフラッシュさせるのが要点:
---     同一 tick で off→on すると nvim は差し引き無変化とみなし DECRST/DECSET を一切出さず、再送に
---     ならない。resize が落ち着いてから撃つよう少し遅らせる。
+--   * マウス有効化シーケンスを再送する。off と on を別々の defer_fn(=別タイマー)に分け、それぞれの
+--     コールバック終了時にフラッシュさせるのが要点。同一コールバック内の off→on や defer_fn+
+--     vim.schedule では nvim が差し引き無変化とみなし DECRST/DECSET を一切出さず、再送にならない
+--     (タイマー起点=cmdline のようなフラッシュ境界が入らないため)。resize が落ち着いてから撃つよう
+--     少し遅らせる。
 -- 自動起動(reattach 検知)は ide.lua が Signal SIGUSR1 で :Resync を呼ぶ(ide() が kill -USR1 を送る)。
 local function resync()
   io.stdout:write("\027[?2048h")
   local m = vim.o.mouse
   vim.defer_fn(function()
-    vim.o.mouse = ""                                -- 無効化(この tick でフラッシュ → DECRST 送出)
-    vim.schedule(function() vim.o.mouse = m end)    -- 次 tick で有効化 → DECSET 送出
+    vim.o.mouse = ""                                   -- 無効化(このコールバック終了時にフラッシュ → DECRST 送出)
+    vim.defer_fn(function() vim.o.mouse = m end, 30)   -- 別タイマーで有効化 → DECSET 送出
   end, 80)
 end
 vim.api.nvim_create_user_command("Resync", resync, {})
