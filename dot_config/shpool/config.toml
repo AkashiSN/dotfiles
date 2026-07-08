@@ -18,6 +18,7 @@ session_restore_mode = "simple"
 forward_env = [
   "SSH_CLIENT",
   "SSH_CONNECTION",
+  "LC_PORTFWD_HOST",
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_MANTLE",
   "CLAUDE_CODE_ENABLE_AUTO_MODE",
