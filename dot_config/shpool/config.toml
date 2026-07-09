@@ -10,9 +10,10 @@
 session_restore_mode = "simple"
 
 # 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを
-# 引き継ぐ(再アタッチ時は無効)。ide-bedrock が export する Bedrock/AWS 用 env を nvim とその子
-# `claude` へ伝播させるため(デーモン起動のセッションは client の env を継がず、zshrc でも作られない
-# ので転送が必要)。通常の ide では未設定なので何も引き継がれず影響しない。
+# 引き継ぐ(再アタッチ時は無効)。ide-bedrock が渡す Bedrock/AWS 用 env(claude 用)と
+# NVIM_IDE_CODEX_BEDROCK(codex ペインを --profile bedrock で起動させるフラグ)を nvim とその子
+# `claude`/`codex` へ伝播させるため(デーモン起動のセッションは client の env を継がず、zshrc でも
+# 作られないので転送が必要)。通常の ide では未設定なので何も引き継がれず影響しない。
 # PATH や AQUA_* は ide() が `zsh -ic` 経由で起動して zshenv+zshrc から対話シェルと同一に整えるので
 # ここでの転送は不要(NVIM_IDE も --cmd の `env NVIM_IDE=1` で直接渡すため不要)。
 forward_env = [
@@ -31,4 +32,5 @@ forward_env = [
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",
   "AWS_SESSION_TOKEN",
+  "NVIM_IDE_CODEX_BEDROCK",
 ]

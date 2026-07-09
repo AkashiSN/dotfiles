@@ -62,7 +62,8 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
 | `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可 |
-| `ide-bedrock [path...]` | `ide` を Bedrock 環境で起動する版。Bedrock 用 env を export してから `ide` を呼ぶので、nvim が継承し IDE ペインの `claude` も Bedrock になる（通常の `ide` の `claude` は claude.ai のまま）。設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存の ide（shpool）セッションへ復帰する claude は起動時の env のまま＝切り替えにはセッションを畳んで（`shpool kill`）再実行。env は shpool config の `forward_env` で新規セッション作成時に引き継ぐ |
+| `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`codex --profile bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。Bedrock 設定は `~/.codex/bedrock.config.toml`（`dot_codex/private_bedrock.config.toml`）にプロファイルとして分離してあり、`--profile` でベース設定の上にレイヤする。claude と違い認証は provider 設定内の AWS プロファイル `cdx-pre-dev`（`credential_process = aws-login`）が担うため、`aws-switch` や追加 env は不要（`CLAUDE_BEDROCK_*` も無関係）。リージョン/モデルを変えるときはプロファイルファイルを直接編集 |
+| `ide-bedrock [path...]` | `ide` を Bedrock で起動する版。**claude と codex の両ペインを Bedrock に切り替える**。claude は Bedrock 用 env を export して nvim が継承（通常の `ide` の `claude` は claude.ai のまま）、codex は `NVIM_IDE_CODEX_BEDROCK=1` を渡すと ide.lua が `codex --profile bedrock` で起動する。claude 設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存の ide（shpool）セッションへ復帰する claude/codex は起動時の env のまま＝切り替えにはセッションを畳んで（`shpool kill`）再実行。env とフラグは shpool config の `forward_env` で新規セッション作成時に引き継ぐ |
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 

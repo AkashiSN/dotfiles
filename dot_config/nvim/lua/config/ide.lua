@@ -37,7 +37,13 @@ if vim.env.SSH_CONNECTION and vim.env.SSH_CONNECTION ~= "" then
   claude_argv = "claude --remote-control"
 end
 local CLAUDE_CMD = { "zsh", "-ic", claude_argv }
-local CODEX_CMD = { "zsh", "-ic", "codex" }
+-- codex ペイン。ide-bedrock が渡す NVIM_IDE_CODEX_BEDROCK=1 のときだけ Bedrock プロファイル
+-- (~/.codex/bedrock.config.toml)を --profile で被せる。通常はサブスク(OpenAI ログイン)のまま。
+local codex_argv = "codex"
+if vim.env.NVIM_IDE_CODEX_BEDROCK == "1" then
+  codex_argv = "codex --profile bedrock"
+end
+local CODEX_CMD = { "zsh", "-ic", codex_argv }
 local SHELL_CMD = { vim.o.shell }
 
 -- 狭い画面フォールバックのしきい値(起動時の画面サイズで判定)。
@@ -675,8 +681,9 @@ vim.api.nvim_create_autocmd("VimEnter", {
     if vim.env.NVIM_IDE ~= "1" then
       return
     end
-    -- 子プロセスへ伝播させない
+    -- 子プロセスへ伝播させない(NVIM_IDE_CODEX_BEDROCK は上で CODEX_CMD 構築時に読み終えている)
     vim.env.NVIM_IDE = nil
+    vim.env.NVIM_IDE_CODEX_BEDROCK = nil
     vim.g.nvim_ide = true
 
     -- 再アタッチ検知用の pid ファイル。ide()(zsh)が NVIM_IDE_PIDFILE で SSH 先の /tmp パスを渡す。

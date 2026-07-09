@@ -173,15 +173,26 @@ function claude-bedrock () {
   ( _claude-bedrock-env && command claude "$@" )
 }
 
-# ide(nvim IDE レイアウト)を Bedrock 環境で起動する版。env を export してから ide を呼ぶので、
-# nvim が継承し、IDE ペインの `zsh -ic claude` 子プロセスもそのまま Bedrock になる
-# (ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。SSH 経由で shpool に
-# 包む場合、セッションはデーモンが起動するため env は自動伝播しない。代わりに shpool config の
-# forward_env に列挙した Bedrock/AWS 用 env を新規セッション作成時に引き継ぐ(既に列挙済み)。既存
-# セッションへ復帰する場合は、その claude は起動時の env のままなので、切り替えたいときはセッションを
-# 畳んで(shpool kill)再度 ide-bedrock する。
+# codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)の
+# まま無変更。Bedrock 用設定は ~/.codex/bedrock.config.toml(bedrock プロファイル)へ分離し、
+# --profile でベース設定の上にレイヤする。認証は provider 設定の AWS プロファイル
+# cdx-pre-dev(credential_process = aws-login)が担うため、claude と違い env 準備は不要。
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+function codex-bedrock () {
+  command codex --profile bedrock "$@"
+}
+
+# ide(nvim IDE レイアウト)を Bedrock で起動する版。claude と codex の両ペインを Bedrock に切り替える。
+# claude: env を export してから ide を呼ぶので nvim が継承し、IDE ペインの `zsh -ic claude` 子プロセスも
+#   そのまま Bedrock になる(ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。
+# codex: NVIM_IDE_CODEX_BEDROCK=1 を渡すと ide.lua が codex ペインを `codex --profile bedrock` で起動する
+#   (codex の Bedrock 認証は AWS プロファイル cdx-pre-dev が担うため env は不要。フラグだけで足りる)。
+# SSH 経由で shpool に包む場合、セッションはデーモンが起動するため env は自動伝播しない。代わりに shpool
+# config の forward_env に列挙した Bedrock/AWS 用 env と NVIM_IDE_CODEX_BEDROCK を新規セッション作成時に
+# 引き継ぐ(既に列挙済み)。既存セッションへ復帰する場合は、その claude/codex は起動時の env のままなので、
+# 切り替えたいときはセッションを畳んで(shpool kill)再度 ide-bedrock する。
 function ide-bedrock () {
-  ( _claude-bedrock-env && ide "$@" )
+  ( _claude-bedrock-env && NVIM_IDE_CODEX_BEDROCK=1 ide "$@" )
 }
 
 # ログイン(対話)シェル起動時に一度だけ、非ブロッキングで孤児 bridge を回収する。
