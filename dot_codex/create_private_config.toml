@@ -6,4 +6,6 @@
 # 既定はサブスク(OpenAI ログイン / auth.json)。model_provider を指定しないことで
 # codex 既定の openai provider になる。Bedrock は codex-bedrock / ide-bedrock が
 # `--profile bedrock`(~/.codex/bedrock.config.toml)で明示的に被せる。
-model = "openai.gpt-5.5"
+# サブスクのモデル id はカタログの canonical slug(プレフィックスなし)。`openai.` 付きは
+# Bedrock 側の provider 付き id なので、そちらは bedrock プロファイルにだけ書く。
+model = "gpt-5.5"
