@@ -688,9 +688,9 @@ vim.api.nvim_create_autocmd("VimEnter", {
 
     -- 再アタッチ検知用の pid ファイル。ide()(zsh)が NVIM_IDE_PIDFILE で SSH 先の /tmp パスを渡す。
     -- 自 pid を書き、ide() が再アタッチ時に送る SIGUSR1 を Signal autocmd で受けて :Resync
-    -- (autocmds.lua: mode 2048 再アーム + マウス再送)を呼ぶ。この環境では reattach 時に shpool が
-    -- nvim へ SIGWINCH を届けないため、ide() の明示 SIGUSR1 で駆動する。attach の接続確立後に効かせ
-    -- たいので少し遅らせて呼ぶ。env は子(ターミナル等)へ伝播させないよう nil 化する。
+    -- (autocmds.lua: pty の実サイズ反映 + マウス再送)を呼ぶ。nvim は in-band resize を有効化していると
+    -- reattach 時のサイズ変化に追従しないため、ide() の明示 SIGUSR1 で駆動する。attach の接続確立後に
+    -- 効かせたいので少し遅らせて呼ぶ。env は子(ターミナル等)へ伝播させないよう nil 化する。
     local pidfile = vim.env.NVIM_IDE_PIDFILE
     vim.env.NVIM_IDE_PIDFILE = nil
     if pidfile and pidfile ~= "" then

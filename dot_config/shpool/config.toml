@@ -6,7 +6,7 @@
 
 # 再アタッチ時に vt100 バッファから画面を復元する(既定値だが意図を固定)。この画面復元だけでは
 # 別サイズ reattach 時のサイズ追従とマウス有効化までは揃わないので、ide()(再アタッチ時に nvim へ
-# SIGUSR1)→ nvim の :Resync(in-band resize=mode 2048 の再アーム + マウス再送)で補う。
+# SIGUSR1)→ nvim の :Resync(pty の実サイズ反映 + マウス再送)で補う。
 session_restore_mode = "simple"
 
 # 新規セッション作成時に、`shpool attach` を叩いた対話シェルの env からここに挙げた変数だけを

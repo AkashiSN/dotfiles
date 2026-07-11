@@ -88,10 +88,12 @@ function ide () {
   local pidfile=/tmp/nvim-ide-${hash}.pid
   local pid; [[ -f $pidfile ]] && pid=$(<$pidfile 2>/dev/null)
   if [[ -n $pid ]] && kill -0 $pid 2>/dev/null; then
-    # 生きた nvim へ再アタッチする。shpool はこの環境では reattach 時に nvim へ SIGWINCH を届けない
-    # ので、別サイズ復帰の追従/マウス復旧を nvim 任せにできない。SIGUSR1 を撃って nvim 側の :Resync
-    # (mode 2048 再アーム+マウス再送)を駆動する。attach は前景ブロッキングなのでバックグラウンドで撃つ。
-    ( kill -USR1 $pid ) 2>/dev/null &!
+    # 生きた nvim へ再アタッチする。nvim は in-band resize(mode 2048)を有効化していると reattach 時の
+    # サイズ変化に追従せず、マウス有効化シーケンスも新しい端末には送られていない。SIGUSR1 を撃って
+    # nvim 側の :Resync(pty の実サイズ反映 + マウス再送)を駆動する。attach は前景ブロッキングなので
+    # バックグラウンドで撃つ。attach 確立前に nvim が書いた分は shpool の vt100 エミュレータに吸われて
+    # 端末まで届かないことがあるため、少し置いてもう一度撃つ(:Resync は冪等)。
+    ( kill -USR1 $pid; sleep 1; kill -USR1 $pid ) 2>/dev/null &!
   else
     command rm -f -- "$pidfile" 2>/dev/null       # 前回のクラッシュ等で残った stale pid を掃除
   fi
