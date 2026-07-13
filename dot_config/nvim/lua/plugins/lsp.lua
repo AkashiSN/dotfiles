@@ -22,7 +22,6 @@ return {
         "gopls",
         "ts_ls",
         "pyright",
-        "ruff",
         "terraformls",
         "bashls",
       },
@@ -52,6 +51,10 @@ return {
           python = { analysis = { typeCheckingMode = "basic" } },
         },
       })
+
+      -- ruff は aqua 管理 (mason 経由ではない) ので、mason-lspconfig の
+      -- automatic_enable では有効化されない。ここで明示的に有効化する。
+      vim.lsp.enable("ruff")
 
       -- LspAttach 時にバッファローカルなキーマップを張る
       vim.api.nvim_create_autocmd("LspAttach", {

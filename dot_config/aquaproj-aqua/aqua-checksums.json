@@ -46,6 +46,11 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "7E157FF9A2E13676118C587E6DB0EC02D040E415B21014346D230E64789C0E78",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/astral-sh/uv/0.11.21/uv-aarch64-apple-darwin.tar.gz",
       "checksum": "1F921D491BA5FFEEA774EB04D6681ECEE379101341CBB1500394993B541BF3F4",
       "algorithm": "sha256"
