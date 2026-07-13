@@ -118,28 +118,43 @@ function ide () {
   shpool attach --force --dir "$dir" --cmd "${(q)zshbin} -ic ${(qq)script}" -- "$name"
 }
 
-# agmsg Codex monitor(beta): TUI 終了時に launcher だけが死に codex-bridge.js が
-# 残る上流バグの掃除。launcher の生存 ⇔ Codex セッションの生存なので、live な
-# launcher の引数にその project が現れない bridge=孤児だけを安全に kill する
-# (起動中の別 Codex セッションの bridge は launcher が生きているので残す)。
-# 詳細: ~/.local/share/chezmoi/docs/agmsg-cheatsheet.md「Codex monitor モード」。
+# agmsg Codex monitor(beta): orphan codex-bridge.js の掃除（.meta ベース）。
+# 各 bridge は run/ に codex-bridge.<team>.<name>.{pid,meta,appserver,thread,log}
+# を残し、.meta に pid= / project= / team= / name= / type= を記録する。live な
+# launcher の引数に project が現れない bridge = 孤児だけを安全に kill する
+# （起動中の別 Codex セッションの bridge は launcher が生きているので残す）。
 function agmsg-bridge-reap () {
   local run_dir="$HOME/.agents/skills/agmsg/run"
   [[ -d $run_dir ]] || return 0
   local launchers
   launchers=$(pgrep -fl 'codex-bridge-launcher\.sh' 2>/dev/null)
-  local pf bpid bargs bproj killed=0
-  for pf in $run_dir/codex-bridge.*.pid(N); do
-    bpid=$(<$pf 2>/dev/null)
+  local mf line bpid bproj bargs base killed=0
+  local reap_files
+  for mf in $run_dir/codex-bridge.*.meta(N); do
+    bpid="" bproj=""
+    # .meta を key=value で読む（値にスペースを含む project パスも1行なので安全）
+    while IFS= read -r line; do
+      case $line in
+        pid=*)     bpid=${line#pid=} ;;
+        project=*) bproj=${line#project=} ;;
+      esac
+    done < $mf
+
+    base=${mf%.meta}                                   # run/codex-bridge.<team>.<name>
+    reap_files=( $base.pid $base.meta $base.appserver $base.thread $base.log )
+
+    # pid 不明 / 既に死んでいる → sidecar ごと掃除
     if [[ -z $bpid ]] || ! kill -0 $bpid 2>/dev/null; then
-      rm -f $pf; continue   # pid 不明 / 既に死んだ pidfile を掃除
+      rm -f $reap_files; continue
     fi
+    # pid 再利用ガード: 実体が codex-bridge.js でなければ触らない
     bargs=$(ps -o args= -p $bpid 2>/dev/null)
-    [[ $bargs == *codex-bridge.js* ]] || continue   # pid 再利用ガード
-    bproj=${${bargs#*--project }%% --*}              # --project <path> を抽出
-    [[ -n $bproj && $launchers == *$bproj* ]] && continue   # launcher 生存→残す
+    [[ $bargs == *codex-bridge.js* ]] || continue
+    # launcher 生存（= その project の Codex セッションが生きている）→ 残す
+    [[ -n $bproj && $launchers == *$bproj* ]] && continue
+    # 孤児: bridge を止めて sidecar も一緒に掃除
     kill $bpid 2>/dev/null && (( killed++ ))
-    rm -f $pf
+    rm -f $reap_files
   done
   (( killed )) && print -ru2 -- "agmsg-bridge-reap: 孤児 bridge ${killed} 件を停止しました"
   return 0
