@@ -51,6 +51,26 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-aarch64-pc-windows-msvc.zip",
+      "checksum": "52F05487F1E9E5C4D20B06E3659104507F23EF184E5B194C600FBA945226E196",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "2EC7C0077431F96F74C3C72AEA6505E902BC2FF47127653C8DE1389EE30A3CB3",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-x86_64-apple-darwin.tar.gz",
+      "checksum": "7E6FF3BD585B5B7C47634C957AC84FB5806D3C7AB4EF0E5EC1C53CE272F489DA",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-x86_64-pc-windows-msvc.zip",
+      "checksum": "035C59ABFD7BD1102E0B656F5771E6AE7A712A45EF54B5AB575541C7FF7D1EB0",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/astral-sh/ruff/0.15.21/ruff-x86_64-unknown-linux-musl.tar.gz",
       "checksum": "7E157FF9A2E13676118C587E6DB0EC02D040E415B21014346D230E64789C0E78",
       "algorithm": "sha256"
@@ -293,6 +313,26 @@
     {
       "id": "github_release/github.com/neovim/neovim/v0.12.3/nvim-win64.zip",
       "checksum": "63DAA0A0374F2255D2FB4C0867FCACC64A09C8D7EC1C349F781AFF1B8350A8AD",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/ogulcancelik/herdr/v0.7.3/herdr-linux-aarch64",
+      "checksum": "EA490094F2C7C39099870857D00C64C628EF7B5EBA1967DF4258033455EE2CB1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/ogulcancelik/herdr/v0.7.3/herdr-linux-x86_64",
+      "checksum": "043EF43ECBABDA28465DCFF1EEC3184518150D567B8B8F20CDA9C6C88770641D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/ogulcancelik/herdr/v0.7.3/herdr-macos-aarch64",
+      "checksum": "B31345392D004EC1F1B2C821E1AD601019FA8385FE1E4C6931321EB58A920773",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/ogulcancelik/herdr/v0.7.3/herdr-macos-x86_64",
+      "checksum": "9B5F35D283B0877EEDA0CF66BA1EF1D95AE40F32E858A04DA0041F3A20DF027C",
       "algorithm": "sha256"
     },
     {
@@ -586,6 +626,31 @@
       "algorithm": "sha256"
     },
     {
+      "id": "http/get.helm.sh/helm-v4.2.2-darwin-amd64.tar.gz",
+      "checksum": "10C1E36EE8C5F2E2EE25A16599CB03AB74C0953CD889CACB980A49BA4B6574BA",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v4.2.2-darwin-arm64.tar.gz",
+      "checksum": "5410A0DAE3D5D91F45653B161260D9301AABC4AE80AE50A6605D66884B6DF8EA",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v4.2.2-linux-amd64.tar.gz",
+      "checksum": "9ADAFECAB4D406853BBA163A70E9F104F47DBBF65CE24B7653BAE7E36150BCB6",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v4.2.2-linux-arm64.tar.gz",
+      "checksum": "78803142087A0069FA4B50D3F32A84D3EF25C14D1EE8A40FBCCF86A6216D2F36",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/get.helm.sh/helm-v4.2.2-windows-amd64.tar.gz",
+      "checksum": "29589DAD546F8BCD3A6AD92261FCB4A6C9DB4A32F9E4FC4F5212DB189553DC60",
+      "algorithm": "sha256"
+    },
+    {
       "id": "http/golang.org/dl/go1.26.4.darwin-amd64.tar.gz",
       "checksum": "05DC9B5F9997744520AAEBB3D5DEAA7C755371AEBBFB7F97C2511A9F3367538D",
       "algorithm": "sha256"
@@ -643,6 +708,11 @@
     {
       "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.524.0/registry.yaml",
       "checksum": "1A8FB074F184555E3E370F26D1026EDAC34377D3B9666EFAD2504EFC940BDF51",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.538.0/registry.yaml",
+      "checksum": "2BDF2310CD8DFD9AE2015014A90554485DB37EDD0902B0AA6873023F99F53CF7",
       "algorithm": "sha256"
     }
   ]

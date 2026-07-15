@@ -7,7 +7,7 @@ checksum:
   require_checksum: false
 registries:
   - type: standard
-    ref: v4.524.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.538.0 # renovate: depName=aquaproj/aqua-registry
   - name: local
     type: local
     path: registry.yaml
@@ -26,12 +26,13 @@ packages:
     tags:
       - bootstrap
   - name: x-motemen/ghq@v1.10.1
-  # --- shell: plugin manager / prompt / env / fuzzy finder ---
+  # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.25.1 # prompt
   - name: direnv/direnv@v2.37.1
   - name: junegunn/fzf@v0.73.1
   - name: peco/peco@v0.6.0
+  - name: ogulcancelik/herdr@v0.7.3 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
   - name: neovim/neovim@v0.12.3
   - name: BurntSushi/ripgrep@15.1.0
