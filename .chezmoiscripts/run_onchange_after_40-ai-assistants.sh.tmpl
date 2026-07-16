@@ -6,7 +6,7 @@
 set -eu
 
 {{ template "shell-log" }}
-step "AI アシスタント CLI(claude/codex/ollama/agmsg/codegraph)をインストール中"
+step "AI アシスタント CLI(claude/codex/kiro/ollama/agmsg/codegraph)をインストール中"
 
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -20,6 +20,18 @@ curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CHANNEL"
 CODEX_RELEASE="latest"
 curl -fsSL https://chatgpt.com/codex/install.sh | \
 	CODEX_RELEASE="$CODEX_RELEASE" CODEX_NON_INTERACTIVE=1 sh
+
+# --- Kiro CLI (cli.kiro.dev) ---
+# Amazon Q Developer CLI のクローズドソース後継。Linux は ~/.local/bin に
+# kiro-cli / kiro-cli-chat を、macOS は /Applications に "Kiro CLI.app" を置く。
+# latest しか配布されずバージョンをピンできないためチャネル指定のみ(既定 stable)。
+# インストーラは既存を見つけると置換確認プロンプト(/dev/tty)を出し非対話で失敗するため、
+# 未導入のときだけ実行する(install-once)。更新/再インストールは端末で手動実行する:
+#   curl -fsSL https://cli.kiro.dev/install | bash -s -- --force
+KIRO_CHANNEL="stable"
+if ! command -v kiro-cli >/dev/null 2>&1 && [ ! -d "/Applications/Kiro CLI.app" ]; then
+	curl -fsSL https://cli.kiro.dev/install | bash -s -- --channel "$KIRO_CHANNEL"
+fi
 
 # --- Ollama (ollama.com) ---
 # ローカルで LLM を動かすランタイム(クラウド API ではなくオフライン実行)。
