@@ -35,7 +35,7 @@ packages:
   - name: ogulcancelik/herdr@v0.7.3 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
   - name: neovim/neovim@v0.12.3
-  - name: BurntSushi/ripgrep@15.1.0
+  - name: BurntSushi/ripgrep@15.2.0
   - name: sharkdp/fd@v10.4.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
   - name: tree-sitter/tree-sitter@v0.26.9
