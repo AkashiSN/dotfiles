@@ -28,7 +28,7 @@ packages:
   - name: x-motemen/ghq@v1.10.1
   # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
-  - name: starship/starship@v1.25.1 # prompt
+  - name: starship/starship@v1.26.0 # prompt
   - name: direnv/direnv@v2.37.1
   - name: junegunn/fzf@v0.73.1
   - name: peco/peco@v0.6.0
