@@ -46,3 +46,10 @@ if ! [ "$SSH_CONNECTION" ]; then
     export SSH_AUTH_SOCK="${HOME}/.1password/agent.sock"
   fi
 fi
+
+# kiro（統合ターミナル内のみ）: シェル統合を有効化。コマンド境界/cwd 追跡/終了コード
+# 装飾のため precmd/preexec に hook を挿す。starship(30-plugins) 初期化後に走る必要が
+# あるためこのモジュール(40)に置く。
+if [[ "$TERM_PROGRAM" == "kiro" ]] && command -v kiro &> /dev/null; then
+  . "$(kiro --locate-shell-integration-path zsh)"
+fi
