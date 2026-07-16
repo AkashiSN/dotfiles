@@ -20,7 +20,7 @@ packages:
   - name: rust-lang/rustup@1.29.0 # rust toolchain installer (cargo は rustup default stable で導入)
   - name: tofuutils/tenv@v4.14.8 # terraform / opentofu
   # --- git / リポジトリ ---
-  - name: cli/cli@v2.94.0 # gh
+  - name: cli/cli@v2.96.0 # gh
     # 初回(クリーン環境)は attestation 検証に必要な gh 認証がまだ無いため、
     # この bootstrap タグだけ先に検証なしで入れてから gh auth login する。
     tags:
