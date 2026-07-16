@@ -30,7 +30,7 @@ packages:
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.25.1 # prompt
   - name: direnv/direnv@v2.37.1
-  - name: junegunn/fzf@v0.73.1
+  - name: junegunn/fzf@v0.74.0
   - name: peco/peco@v0.6.0
   - name: ogulcancelik/herdr@v0.7.3 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
