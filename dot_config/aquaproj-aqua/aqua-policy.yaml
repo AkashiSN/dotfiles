@@ -3,7 +3,7 @@
 # Allow the standard registry and the bundled local registry (registry.yaml).
 registries:
   - type: standard
-    ref: semver(">= 3.0.0")
+    ref: semver(">= 4.0.0")
   - name: local
     type: local
     path: registry.yaml
