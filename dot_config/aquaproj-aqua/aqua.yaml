@@ -14,7 +14,7 @@ registries:
 packages:
   # --- 言語ランタイム / バージョンマネージャ ---
   - name: golang/go@go1.26.4
-  - name: denoland/deno@v2.8.3
+  - name: denoland/deno@v2.9.3
   - name: Schniz/fnm@v1.39.0 # node version manager
   - name: astral-sh/uv@0.11.29 # python
   - name: rust-lang/rustup@1.29.0 # rust toolchain installer (cargo は rustup default stable で導入)
