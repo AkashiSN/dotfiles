@@ -3,5 +3,12 @@
   "extends": [
     "config:recommended",
     "github>aquaproj/aqua-renovate-config#2.13.0"
+  ],
+  "packageRules": [
+    {
+      "description": "1password/cli は GitHub リリースを持たず Renovate が版を解決できない(no-result)ため更新対象から除外する",
+      "matchPackageNames": ["1password/cli"],
+      "enabled": false
+    }
   ]
 }
