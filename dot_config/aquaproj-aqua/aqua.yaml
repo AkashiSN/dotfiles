@@ -40,7 +40,7 @@ packages:
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
   - name: tree-sitter/tree-sitter@v0.26.11
   # python linter / formatter 兼 LSP。mason の pypi installer は python3-venv を要求するため aqua で入れる
-  - name: astral-sh/ruff@0.15.21
+  - name: astral-sh/ruff@0.15.22
   # --- secrets ---
   - name: 1password/cli@v2.31.1 # op
   # --- cloud ---
