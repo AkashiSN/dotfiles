@@ -401,6 +401,36 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Darwin_arm64.tar.gz",
+      "checksum": "0C1CE06932A21A738D9ADAF2DDAFDBF654113FC2791D31B6D2EA0044928E2F43",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Darwin_x86_64.tar.gz",
+      "checksum": "35B9456D36C0BBB7D5087D08622B087F849F4F6D9631B15737A22CEF39E5A314",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Linux_arm64.tar.gz",
+      "checksum": "2C35D9284BAAE407EF9540BDAC5F488971B0BDC7BE758A4D7C05AB270AF09FDB",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Linux_x86_64.tar.gz",
+      "checksum": "6E2AD86BAFDADB9466D6515DE7CB882726C0AEA1A21D51164DFF361D7D480A97",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Windows_arm64.zip",
+      "checksum": "3BA2AD0F7B175CB31FAC15C1F13648F3622C9C82C5CBEC0F63A46CE8A1110AC8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Windows_x86_64.zip",
+      "checksum": "37326F95D6654F7F67A5FDE3263E96AA8F9CF288DCBB9A2164AAFAE0AAA144AF",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/starship/starship/v1.26.0/starship-aarch64-apple-darwin.tar.gz",
       "checksum": "C40B27B11F580411E068F2FA6C1BE7830A387C0BC47A94D1D37F32B054C5361D",
       "algorithm": "sha256"

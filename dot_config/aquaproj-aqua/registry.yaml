@@ -40,6 +40,25 @@ packages:
       - linux/amd64
       - windows/amd64
 
+  - type: github_release
+    repo_owner: simulot
+    repo_name: immich-go
+    description: Command line to help move your photos from Google Photos takeout to your immich server
+    asset: immich-go_{{.OS}}_{{.Arch}}.{{.Format}}
+    format: tar.gz
+    replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      amd64: x86_64
+    overrides:
+      - goos: windows
+        format: zip
+    supported_envs:
+      - darwin
+      - linux
+      - windows
+
   - name: crates.io/shpool
     type: cargo
     repo_owner: shell-pool
