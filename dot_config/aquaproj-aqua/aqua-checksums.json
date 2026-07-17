@@ -401,33 +401,33 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Darwin_arm64.tar.gz",
-      "checksum": "0C1CE06932A21A738D9ADAF2DDAFDBF654113FC2791D31B6D2EA0044928E2F43",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Darwin_arm64.tar.gz",
+      "checksum": "7B5364499FADAACCA8015772811A28037393BFB974DFE3DE0F2D3233E1FCD44C",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Darwin_x86_64.tar.gz",
-      "checksum": "35B9456D36C0BBB7D5087D08622B087F849F4F6D9631B15737A22CEF39E5A314",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Darwin_x86_64.tar.gz",
+      "checksum": "E3D6E3524174D157CDB7EDE0F36C061E44733314C36B823E2907720E755FD80E",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Linux_arm64.tar.gz",
-      "checksum": "2C35D9284BAAE407EF9540BDAC5F488971B0BDC7BE758A4D7C05AB270AF09FDB",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Linux_arm64.tar.gz",
+      "checksum": "A5913D7C754123E4DF0906809D9B12455DB26C18053DF2B2EE2B43B96EF5F59C",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Linux_x86_64.tar.gz",
-      "checksum": "6E2AD86BAFDADB9466D6515DE7CB882726C0AEA1A21D51164DFF361D7D480A97",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Linux_x86_64.tar.gz",
+      "checksum": "89A9007E9FE684755DAD6BB66A2B95CD3F1BC02DB48F9D274D97FC15A9DECB45",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Windows_arm64.zip",
-      "checksum": "3BA2AD0F7B175CB31FAC15C1F13648F3622C9C82C5CBEC0F63A46CE8A1110AC8",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Windows_arm64.zip",
+      "checksum": "9AA7D246820EB5A0339440EE872CC31A543C49E16CB4E5CF2D1BE4C9C41A3759",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/simulot/immich-go/v0.32.0/immich-go_Windows_x86_64.zip",
-      "checksum": "37326F95D6654F7F67A5FDE3263E96AA8F9CF288DCBB9A2164AAFAE0AAA144AF",
+      "id": "github_release/github.com/simulot/immich-go/1.21.3/immich-go_Windows_x86_64.zip",
+      "checksum": "AF58AB0ECD60042FDB9F417F17441CB9C53E58A34EC91E89D373FF24979137C4",
       "algorithm": "sha256"
     },
     {
