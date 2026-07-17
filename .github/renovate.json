@@ -9,6 +9,11 @@
       "description": "1password/cli は GitHub リリースを持たず Renovate が版を解決できない(no-result)ため更新対象から除外する",
       "matchPackageNames": ["1password/cli"],
       "enabled": false
+    },
+    {
+      "description": "simulot/immich-go は v 無しの迷子タグ 1.21.3(2024) が semver-coerced で最新扱いされ誤って major upgrade を提案する。実際の最新は v0.32.0、次期 major は v1.0.0-alpha1(プレリリース)なので 1.x を除外する",
+      "matchPackageNames": ["simulot/immich-go"],
+      "allowedVersions": "<1.0.0"
     }
   ]
 }
