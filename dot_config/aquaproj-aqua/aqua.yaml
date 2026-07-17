@@ -57,7 +57,7 @@ packages:
     registry: local
   - name: wez/atomicparsley@20221229.172126.d813aa6 # yt-dlp 用メタデータ書込
     registry: local
-  - name: simulot/immich-go@v0.32.0 # immich サーバへの写真アップロード / takeout 移行
+  - name: simulot/immich-go@1.21.3 # immich サーバへの写真アップロード / takeout 移行
     registry: local
   - name: crates.io/shpool@0.11.0 # 軽量なシェルセッション永続化 (cargo build)
     registry: local
