@@ -23,7 +23,7 @@ jobs:
       # update-checksum-action は aqua 本体を入れないので先に導入する。
       - uses: aquaproj/aqua-installer@v4.0.5
         with:
-          aqua_version: v2.62.0
+          aqua_version: v2.62.1
         env:
           AQUA_GITHUB_TOKEN: ${{ github.token }}
       # aqua.yaml はリポジトリ直下ではなくこのディレクトリにある。
