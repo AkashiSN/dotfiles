@@ -118,7 +118,7 @@
 | ide での実現手段 | herdr での代替 |
 | --- | --- |
 | shpool による SSH 切断耐性ラッパー | herdr の永続セッション（サーバ常駐） + `herdr --remote` |
-| `claude --remote-control`（モバイル操作） | `herdr --remote <ssh-target>` でリモートのセッションへアタッチ |
+| `claude --remote-control`（モバイル操作） | `herdr --remote <ssh-target>` でセッションへアタッチ。加えて SSH 接続先で引数なしの `claude` は zsh ラッパー（`50-functions.zsh`）が `--remote-control` を自動付与する |
 | ide.lua の codex/claude/terminal パネル配置 | `<prefix> v` / `<prefix> -` で分割し、各ペインで `codex` / `claude` を直接起動 |
 | 非フォーカス端末の追従スクロール自作 | herdr のペイン管理・サイドバーで状態を把握 |
 | nvim ide.lua の CJK IME 回避（SIGUSR1/Resync 等） | `[experimental]` の CJK IME オプション |

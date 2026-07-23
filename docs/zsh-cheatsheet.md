@@ -52,26 +52,23 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 
 | コマンド | 動作 |
 | --- | --- |
-| `ide [path...]` | nvim を VSCode ライクな IDE レイアウトで起動（`NVIM_IDE=1 nvim`）。SSH 経由（かつ shpool 外）のときは作業ディレクトリ単位の shpool セッションで包んで切断耐性を付ける（切断後は同じ場所で再度 `ide` すれば復帰）。shpool はデーモンがセッション（nvim）を保持し vt100 状態を記録するので、再アタッチ時に画面を復元する（abduco の PTY 素通しで起きた再接続時の画面崩れ/マウス不作動を解消。デーモンは autodaemonize で自動起動＝systemd 不要）。デタッチキーは既定 `Ctrl-Space Ctrl-q`（2 キー列で誤爆しにくい）、通常は SSH 切断で自動デタッチするので手動デタッチは基本不要。**再アタッチ時の表示崩れ/マウス不作動は `ide` が nvim へ `SIGUSR1` を撃って復旧させる**。原因は nvim の **in-band resize（DEC private mode 2048）**：Ghostty のような対応端末では nvim が in-band 通知だけでサイズを追い SIGWINCH を無視するため、in-band を生成しない shpool が別サイズで reattach してもそれを nvim へ伝えられず、新サイズに追従できず崩れる（マウス有効化シーケンスも新端末へ伝わらず効かなくなる）。そこで `ide` が生きた nvim（pid は `/tmp/nvim-ide-<hash>.pid` = `NVIM_IDE_PIDFILE`）へ `SIGUSR1` を**即時と 1 秒後の 2 回**撃ち（1 回目が attach 確立前に走ると再送したシーケンスが端末へ届かないことがある。`:Resync` は冪等）、nvim が `Signal SIGUSR1` autocmd で `:Resync`（**pty の実サイズを読んで `lines`/`columns` へ反映** → `VimResized` 追従＋**mode 2048 再アーム**＋**マウス有効化シーケンス再送**）を走らせる。pty サイズを直接読むので、mode 2048 非対応の端末（iOS の Termius を VT100 モードで使う等）から再アタッチしても復旧する。ide-bedrock 用 env は shpool config の `forward_env` で新規セッションへ伝播。`shpool attach` は create-or-attach 一体で、`--cmd` の `zsh -ic` 経由で nvim を起動（デーモンは最小 PATH でセッションを起動するため、zshenv/zshrc をロードして PATH・aqua・node を対話シェルと同一に整えてから exec する）。abduco 自体はまだ導入済みだが ide からは未使用。詳細は [Neovim チートシート](nvim-cheatsheet.md) |
-| `ssh <host>` | ローカルでは関数でラップされ、戻り際に必ず `term-reset` を実行（リモートで `ide`（shpool）を起動したまま Broken pipe で切れても端末が化けない）。リモートシェルでは素の ssh のまま |
-| `term-reset` | 端末のマウストラッキング/フォーカス報告/括弧付き貼り付け/Kitty keyboard protocol を無効化して復旧。SSH 異常切断後にクリックで `0;129;39M`、キー入力で `15;1:3u` 等が出て操作不能になったときに実行（ローカルの `ssh`/`tssh` 経由なら自動。それ以外で踏んだら手動で） |
 | `latex [args]` | Docker（akashisn/latexmk）で latexmk をビルド |
 | `pdfcrop [args]` | Docker で PDF の余白をクロップ |
 | `search <word>...` | カレント以下のファイルパスを複数語で AND 絞り込み（クォート出力） |
 | `convert-crlf-to-lf` | CRLF のファイルを検出して LF へ一括変換（nkf） |
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
-| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可 |
+| `claude [args]` | `claude` をラップし、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。セッション名プレフィックスは claude 既定でホスト名）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。ローカルや非対話シェルでは実バイナリのまま無変更 |
+| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可。`claude`（関数）経由なので SSH 素起動なら Remote Control も乗る |
 | `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`codex --profile bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。Bedrock 設定は `~/.codex/bedrock.config.toml`（`dot_codex/private_bedrock.config.toml`）にプロファイルとして分離してあり、`--profile` でベース設定の上にレイヤする。claude と違い認証は provider 設定内の AWS プロファイル `cdx-pre-dev`（`credential_process = aws-login`）が担うため、`aws-switch` や追加 env は不要（`CLAUDE_BEDROCK_*` も無関係）。リージョン/モデルを変えるときはプロファイルファイルを直接編集 |
-| `ide-bedrock [path...]` | `ide` を Bedrock で起動する版。**claude と codex の両ペインを Bedrock に切り替える**。claude は Bedrock 用 env を export して nvim が継承（通常の `ide` の `claude` は claude.ai のまま）、codex は `NVIM_IDE_CODEX_BEDROCK=1` を渡すと ide.lua が `codex --profile bedrock` で起動する。claude 設定は `claude-bedrock` と共通（下表の `CLAUDE_BEDROCK_*`）。既存の ide（shpool）セッションへ復帰する claude/codex は起動時の env のまま＝切り替えにはセッションを畳んで（`shpool kill`）再実行。env とフラグは shpool config の `forward_env` で新規セッション作成時に引き継ぐ |
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
 portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
 
-### `claude-bedrock` / `ide-bedrock` の上書き変数
+### `claude-bedrock` の上書き変数
 
-両関数で共通。呼び出し前に export しておくと既定値を上書きできる（未設定なら既定値）。
+呼び出し前に export しておくと既定値を上書きできる（未設定なら既定値）。
 `AWS_REGION` はグローバルプロファイルでも SigV4 署名用に具体リージョンが必要（ルーティングは
 グローバルプロファイルが自動）。`AWS_PROFILE`（または AWS 認証情報）が無いと起動前にエラーで止まる。
 

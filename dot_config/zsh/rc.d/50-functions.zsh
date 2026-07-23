@@ -21,33 +21,6 @@ function pdfcrop () {
   docker run --rm -it --name="pdfcrop" -v `pwd`:/workdir akashisn/latexmk:2023 pdfcrop "$@"
 }
 
-# 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソル /
-# Kitty keyboard protocol を無効化して復旧する。SSH 異常切断(client_loop: send
-# disconnect: Broken pipe)で、リモートの nvim(ide)が有効化した端末状態が pop されず
-# ローカル端末に居残る現象を解消する:
-#   - マウス報告(SGR mouse mode)の残置 → クリック/スクロールで `0;129;39M` が出る
-#   - Kitty keyboard protocol(CSI u)の残置 → キー入力で `15;1:3u` 等の生エスケープが出る
-# tssh から自動で呼ぶほか、素の ssh で踏んだときも手動で実行できる。
-# 末尾の \e[<u は nvim が push した Kitty keyboard スタックを pop、\e[=0;1u は現行フラグを
-# 0 に強制してレガシーキー入力へ戻す(素の端末で叩いても空 pop / 既 0 set で無害)。
-function term-reset () {
-  print -n -- $'\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[?2004l\e[?25h\e[<u\e[=0;1u'
-}
-
-# ローカルから出る ssh を関数でラップし、戻り際に必ず term-reset する。リモートで
-# ide(shpool)を起動したまま Broken pipe で切れると、リモートの nvim が有効化した
-# マウス報告の解除シーケンスがローカルに届かず端末が化けるため、ssh から戻った
-# 時点でローカル側を強制復旧する。リモートシェル($SSH_CONNECTION あり)では多重
-# ラップやリモートセッションへの余計な干渉を避けるため定義しない。
-if [[ -z $SSH_CONNECTION ]]; then
-  function ssh () {
-    command ssh "$@"
-    local r=$?
-    term-reset
-    return $r
-  }
-fi
-
 function convert-crlf-to-lf () {
   find . -type f | xargs file | grep CRLF \
     | awk -F: '{print $1}' | xargs nkf -Lu --overwrite
@@ -64,58 +37,6 @@ function search () {
     printf %q "$r"
     echo
   done
-}
-
-# nvim を VSCode ライクな IDE レイアウトで起動する。
-# SSH 経由(かつ shpool 外)のときは shpool セッションで包んで切断耐性を付ける。作業
-# ディレクトリ単位の固定名セッションにするので、切断後に同じ場所で再度 ide すれば
-# 生きている nvim にそのまま復帰できる(:q で終わればセッションも消える)。shpool は
-# デーモンがシェル(ここでは nvim)を保持し vt100 状態を記録するので、再アタッチ時に
-# 画面を復元する(再接続時の画面崩れ/マウス不作動を防ぐ)。デーモンは autodaemonize で
-# 自動起動するため systemd 不要。
-function ide () {
-  # ローカル / 既に shpool セッション内 / shpool 無し → 素の nvim
-  if [[ -z $SSH_CONNECTION || -n $SHPOOL_SESSION_NAME ]] || ! command -v shpool &>/dev/null; then
-    NVIM_IDE=1 nvim "$@"
-    return
-  fi
-  # SSH 経由 & shpool 外 → 作業ディレクトリ単位の shpool セッションで包む。
-  local dir; [[ -n $1 && -d $1 ]] && dir=${1:A} || dir=$PWD
-  local hash=$(print -n -- $dir | cksum | cut -d' ' -f1)
-  local name=ide-${${dir:t}//[.:]/_}-$hash       # セッション名に使えない . : を除去
-  # 再アタッチ検知＆ SIGUSR1 送信用の pid ファイル。nvim(ide.lua)が NVIM_IDE_PIDFILE 経由で自 pid を
-  # 書く。SSH 先の /tmp に作り、hash 由来で短く一意。
-  local pidfile=/tmp/nvim-ide-${hash}.pid
-  local pid; [[ -f $pidfile ]] && pid=$(<$pidfile 2>/dev/null)
-  if [[ -n $pid ]] && kill -0 $pid 2>/dev/null; then
-    # 生きた nvim へ再アタッチする。nvim は in-band resize(mode 2048)を有効化していると reattach 時の
-    # サイズ変化に追従せず、マウス有効化シーケンスも新しい端末には送られていない。SIGUSR1 を撃って
-    # nvim 側の :Resync(pty の実サイズ反映 + マウス再送)を駆動する。attach は前景ブロッキングなので
-    # バックグラウンドで撃つ。attach 確立前に nvim が書いた分は shpool の vt100 エミュレータに吸われて
-    # 端末まで届かないことがあるため、少し置いてもう一度撃つ(:Resync は冪等)。
-    ( kill -USR1 $pid; sleep 1; kill -USR1 $pid ) 2>/dev/null &!
-  else
-    command rm -f -- "$pidfile" 2>/dev/null       # 前回のクラッシュ等で残った stale pid を掃除
-  fi
-  # shpool attach は create-or-attach 一体(セッションが無ければ作り、あれば復帰する)。--force は
-  # 前回の切れ残りクライアントを奪って確実に再接続するため。--dir で作業ディレクトリを指定する。
-  # セッション名は先頭が - なのでフラグ誤認を防ぐため -- で区切る。
-  #
-  # --cmd はシェルを介さずコマンドを直接 execvp するが、デーモンは最小 PATH(/usr/bin:/bin:...)で
-  # セッションを起動し zshenv も走らないので、nvim を直接指定すると aqua の nvim/rg/fd や
-  # AQUA_GLOBAL_CONFIG が解決できない。そこで対話ログインと同じ
-  # `zsh -ic` 経由で起動し、zshenv+zshrc をロードして PATH・AQUA_*・fnm(node) 等を対話シェルと
-  # 同一に整えてから nvim を exec する(この repo が claude/codex パネル起動で使うのと同じイディオム)。
-  # NVIM_IDE / NVIM_IDE_PIDFILE は env で渡す(:q で nvim が終わればセッションも消える)。後者は
-  # nvim が自 pid を書く先(上の pidfile と同じパス)で、再アタッチ時の SIGUSR1 の宛先になる。
-  # ide-bedrock の Bedrock/AWS 用 env は zshrc では作られないので shpool config の forward_env で
-  # 新規セッションへ転送し、zsh -ic がそれを継いで nvim→claude まで伝える。クォートは二段(shpool の
-  # shell-words → zsh -ic): 内側 script は (q) で組み、それ全体を (qq) で単一トークン化する。zsh は
-  # 最小 PATH でも起動できるよう絶対パスで。
-  local zshbin=${commands[zsh]:-/bin/zsh}
-  local script="exec env NVIM_IDE=1 NVIM_IDE_PIDFILE=${(q)pidfile} nvim"
-  local a; for a in "$@"; do script+=" ${(q)a}"; done
-  shpool attach --force --dir "$dir" --cmd "${(q)zshbin} -ic ${(qq)script}" -- "$name"
 }
 
 # agmsg Codex monitor(beta): orphan codex-bridge.js の掃除（.meta ベース）。
@@ -183,11 +104,25 @@ function _claude-bedrock-env () {
   export ANTHROPIC_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL}"
 }
 
+# claude を Remote Control 付きで起動できるようラップする。SSH 接続先で「引数なしの素の起動」の
+# ときだけ --remote-control を付け、claude.ai / モバイル等のリモートからそのインタラクティブ
+# セッションを操作できるようにする。引数付き(プロンプト・-p/--print・mcp/update 等のサブコマンド・
+# -c/--resume 等)は素通しする。Remote Control のセッション名プレフィックスは claude 既定でホスト名。
+# 非対話シェル(スクリプト等)では rc.d が読まれず実バイナリのままなので影響しない。
+function claude () {
+  if [[ -n $SSH_CONNECTION && $# -eq 0 ]]; then
+    command claude --remote-control
+    return
+  fi
+  command claude "$@"
+}
+
 # Claude Code 単体を Bedrock で起動する。通常の `claude` は claude.ai のまま無変更。
-# サブシェルで env を閉じ込めるので、呼び出し後のシェルには設定が残らない。
+# サブシェルで env を閉じ込めるので、呼び出し後のシェルには設定が残らない。claude(関数)経由で
+# 呼ぶので、SSH 接続先で引数なし起動なら Remote Control も乗る。
 # 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
 function claude-bedrock () {
-  ( _claude-bedrock-env && command claude "$@" )
+  ( _claude-bedrock-env && claude "$@" )
 }
 
 # codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)の
@@ -197,19 +132,6 @@ function claude-bedrock () {
 # 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
 function codex-bedrock () {
   command codex --profile bedrock "$@"
-}
-
-# ide(nvim IDE レイアウト)を Bedrock で起動する版。claude と codex の両ペインを Bedrock に切り替える。
-# claude: env を export してから ide を呼ぶので nvim が継承し、IDE ペインの `zsh -ic claude` 子プロセスも
-#   そのまま Bedrock になる(ide.lua は NVIM_IDE のみ nil 化し、Claude 用 env は伝播させるため透過)。
-# codex: NVIM_IDE_CODEX_BEDROCK=1 を渡すと ide.lua が codex ペインを `codex --profile bedrock` で起動する
-#   (codex の Bedrock 認証は AWS プロファイル cdx-pre-dev が担うため env は不要。フラグだけで足りる)。
-# SSH 経由で shpool に包む場合、セッションはデーモンが起動するため env は自動伝播しない。代わりに shpool
-# config の forward_env に列挙した Bedrock/AWS 用 env と NVIM_IDE_CODEX_BEDROCK を新規セッション作成時に
-# 引き継ぐ(既に列挙済み)。既存セッションへ復帰する場合は、その claude/codex は起動時の env のままなので、
-# 切り替えたいときはセッションを畳んで(shpool kill)再度 ide-bedrock する。
-function ide-bedrock () {
-  ( _claude-bedrock-env && NVIM_IDE_CODEX_BEDROCK=1 ide "$@" )
 }
 
 # ログイン(対話)シェル起動時に一度だけ、非ブロッキングで孤児 bridge を回収する。
