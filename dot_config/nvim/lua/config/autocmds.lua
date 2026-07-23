@@ -49,7 +49,7 @@ vim.api.nvim_create_autocmd("FileType", {
 --     vim.schedule では nvim が差し引き無変化とみなし DECRST/DECSET を一切出さず、再送にならない
 --     (タイマー起点=cmdline のようなフラッシュ境界が入らないため)。resize が落ち着いてから撃つよう
 --     少し遅らせる。
--- 自動起動(reattach 検知)は ide.lua が Signal SIGUSR1 で :Resync を呼ぶ(ide() が kill -USR1 を送る)。
+-- 手動専用のコマンド。リサイズ後の表示崩れ / マウス不作動が起きたら :Resync で復旧する。
 
 -- nvim を動かしている pty の実サイズ。nvim 自身の fd 0 には触れず /proc/self/fd/0 を開き直して読む
 -- (uv の tty ハンドルを閉じると開いた fd も閉じるため、fd 0 を直接渡すと nvim の入力が壊れる)。
@@ -103,3 +103,66 @@ local function resync()
   end, 80)
 end
 vim.api.nvim_create_user_command("Resync", resync, {})
+
+-- 名前付き・通常(buftype 空)の「実ファイル」バッファが残っているか
+local function has_real_file_buffers()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(b)
+      and vim.bo[b].buflisted
+      and vim.bo[b].buftype == ""
+      and vim.api.nvim_buf_get_name(b) ~= "" then
+      return true
+    end
+  end
+  return false
+end
+
+local function buf_displayed(buf)
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_buf(w) == buf then
+      return true
+    end
+  end
+  return false
+end
+
+-- 実ファイルが 1 つも無くなったら、空無名バッファを表示しているメインエディタ窓に
+-- ダッシュボードを出し、残った無名空バッファ([No Name] タブ)を掃除する。
+-- フロート/ターミナル/neo-tree の窓は対象外。
+local function dashboard_when_empty()
+  if has_real_file_buffers() then
+    return
+  end
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local b = vim.api.nvim_win_get_buf(w)
+    if vim.api.nvim_win_get_config(w).relative == ""
+      and vim.bo[b].buftype == ""
+      and vim.api.nvim_buf_get_name(b) == ""
+      and vim.bo[b].filetype ~= "snacks_dashboard" then
+      pcall(function() Snacks.dashboard.open({ win = w }) end)
+      break
+    end
+  end
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.bo[b].buflisted
+      and vim.bo[b].buftype == ""
+      and vim.api.nvim_buf_get_name(b) == ""
+      and not buf_displayed(b) then
+      pcall(vim.api.nvim_buf_delete, b, { force = true })
+    end
+  end
+end
+
+-- ファイルタブ(bufferline)を閉じていって最後の実ファイルが無くなったら、
+-- [No Name] ではなくダッシュボードを表示する。閉じ方(×ボタン/:bd/
+-- Snacks.bufdelete/<leader>bd)を問わず効くよう BufDelete で捕捉する。
+vim.api.nvim_create_autocmd("BufDelete", {
+  group = vim.api.nvim_create_augroup("dashboard_when_empty", { clear = true }),
+  callback = function(ev)
+    -- 無名バッファの削除(上の掃除処理を含む)では反応しない = 再帰防止
+    if ev.file == "" then
+      return
+    end
+    vim.schedule(dashboard_when_empty)
+  end,
+})

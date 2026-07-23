@@ -152,8 +152,7 @@ return {
     },
     cmd = "Neotree",
     keys = {
-      -- トグル: 開いていれば閉じる(閉じると IDE モードでは右の claude ペインが
-      -- 画面幅の 50% まで広がる / 開くと残り幅を 50/50 に取り直す)。
+      -- トグル: 開いていれば閉じる。
       { "<leader>e", "<cmd>Neotree toggle filesystem left<cr>", desc = "Explorer toggle" },
       { "<leader>E", "<cmd>Neotree reveal<cr>", desc = "Explorer reveal file" },
       -- VSCode のソース管理パネル相当: 左ツリーを Git モードに切り替える
@@ -162,12 +161,10 @@ return {
     opts = {
       close_if_last_window = true,
       sources = { "filesystem", "buffers", "git_status" },
-      -- 既定の open_files_do_not_replace_types には "terminal" が含まれ、
-      -- フォーカス中のペインが端末(IDE モードの codex/claude/terminal は
-      -- buftype=terminal)だと neo-tree がそのペインを開く先として拒否し、
-      -- ツリー脇に新しい分割窓を作ってしまう。IDE では「選択中のペインに
-      -- ファイルを開く」挙動を期待するため、"terminal" を除外する。
-      open_files_do_not_replace_types = { "Trouble", "qf", "edgy" },
+      -- neo-tree からファイルを開くとき、これらの種別の窓は開く先にせず別窓に開く。
+      -- "terminal" を含めることで、フォーカス中のペインが端末でもそれを潰さない
+      -- (LazyVim 既定の挙動)。
+      open_files_do_not_replace_types = { "Trouble", "qf", "edgy", "terminal" },
       -- 上部にクリック可能なタブ(Files / Buffers / Git)を表示。
       -- マウスでタブをクリックして左ツリーの表示ソースを切り替えられる。
       source_selector = {
@@ -360,8 +357,6 @@ return {
         },
         keymaps = {
           -- diff/パネルどこでも `q` で確実に diffview ごと閉じて元に戻る。
-          -- (IDE モードでは :q が SmartQ に化けて片ペインだけ消える事故が
-          --  起きるため、専用に潰しておく)
           view = {
             { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Close Diffview" } },
           },

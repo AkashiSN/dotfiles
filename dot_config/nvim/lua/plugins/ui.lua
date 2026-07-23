@@ -33,26 +33,12 @@ return {
         -- タブを閉じると、そのバッファを表示していたウィンドウごと閉じてしまう
         -- (vanilla Vim の挙動)。ペインを次々畳んでいくと最終的に nvim ごと
         -- 終了する事故になるため、ウィンドウを保ったままバッファだけ消す
-        -- Snacks.bufdelete に統一する(<leader>bd / SmartQ と同じ挙動)。
+        -- Snacks.bufdelete に統一する(<leader>bd と同じ挙動)。
         close_command = function(n) Snacks.bufdelete(n) end,
         right_mouse_command = function(n) Snacks.bufdelete(n) end,
-        -- タブの左クリック: IDE モードではフォーカス中のペインにそのバッファを
-        -- 表示する(ファイル/端末を自由に入れ替える)。通常起動では標準どおり
-        -- カレント窓のバッファを切り替えるだけ(:buffer N 相当)。
+        -- タブの左クリックはカレント窓のバッファを切り替える(:buffer N 相当)。
         left_mouse_command = function(bufnr)
-          if vim.g.nvim_ide and _G.ide_place_buf_in_current then
-            _G.ide_place_buf_in_current(bufnr)
-          else
-            vim.cmd("buffer " .. bufnr)
-          end
-        end,
-        -- IDE モードの端末バッファ(codex/claude/terminal)はバッファ変数 term_label を
-        -- 持つ。これをタブ名に使い、既定の `term://...` 表示を避ける。
-        name_formatter = function(buf)
-          local ok, label = pcall(vim.api.nvim_buf_get_var, buf.bufnr, "term_label")
-          if ok and label and label ~= "" then
-            return label
-          end
+          vim.cmd("buffer " .. bufnr)
         end,
         offsets = {
           { filetype = "neo-tree", text = "Explorer", separator = true },
