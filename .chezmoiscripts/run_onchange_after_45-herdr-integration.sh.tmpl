@@ -1,0 +1,29 @@
+#!/bin/sh
+# herdr のエージェント状態通知フックを各エージェントへ導入する。
+# herdr は端末出力ヒューリスティックでも状態を推定できるが、公式 integration を入れると
+# claude/codex 側のフックから「作業中/要対応/完了」を正確に報告でき、config.toml の
+# [ui.toast] delivery=system 通知や session 復元の精度が上がる。
+#
+# install が書くもの(chezmoi 管理外・herdr がバージョン管理):
+#   claude: ~/.claude/hooks/herdr-agent-state.sh（フック本体・ポータブル）
+#   codex : ~/.codex/herdr-agent-state.sh + ~/.codex/hooks.json + config.toml に hooks=true
+# claude の settings.json への SessionStart hook 追記だけは chezmoi 管理ファイルと衝突する
+# ため、hook エントリは private_dot_claude/settings.json.tmpl 側に焼き込み済み（install は
+# そこへ冪等に上書きするだけ＝ドリフトしない）。この after スクリプトは settings.json 展開後に
+# 走り、フック本体スクリプトを最新版で置く役割。
+# integration のバージョンが上がったとき（`herdr integration status` が outdated 表示）は
+# 下のマーカーを書き換えると既存マシンでも再実行してフックを更新する。
+# herdr-integration-marker: 2026-07-23
+set -eu
+
+{{ template "shell-log" }}
+
+# herdr が未導入(aqua 20-install 前 等)ならスキップ。
+command -v herdr >/dev/null 2>&1 || exit 0
+
+step "herdr のエージェント状態フック(claude/codex)を導入中"
+
+for agent in claude codex; do
+	note "herdr integration install ${agent}"
+	herdr integration install "${agent}"
+done

@@ -132,21 +132,6 @@ name = "catppuccin"  # ← 設定
 # width = "80%"
 # height = "80%"
 
-# ← 設定: 旧 nvim ide の <leader>ic / <leader>ia に相当。カレントタブに codex / claude の
-# ペインを分割起動する(type=pane はコマンド終了=エージェント終了でペインも閉じる)。zsh -ic 経由で
-# 起動して zshenv+zshrc をロードし、PATH・aqua(codex/claude 本体)・fnm(node) を対話シェルと揃える。
-# Bedrock で回したいときは codex/claude を codex-bedrock / claude-bedrock に置き換えるか、
-# ここは素のまま起動してペイン内で切り替える(config に AWS 認証は持たせない)。
-[[keys.command]]
-key = "prefix+alt+c"
-type = "pane"
-command = "zsh -ic codex"
-
-[[keys.command]]
-key = "prefix+alt+a"
-type = "pane"
-command = "zsh -ic claude"
-
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
 # [keys.indexed]
