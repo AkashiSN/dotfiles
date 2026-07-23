@@ -1,3 +1,6 @@
 # chezmoi apply 時にこれらの target を削除する（ソースから消しただけでは home に残るため）。
 # IDE モード撤去（herdr へ一本化）で不要になった nvim の旧レイアウトモジュール。
 .config/nvim/lua/config/ide.lua
+# shpool 撤去（herdr へ一本化）で不要になった設定。
+.config/shpool/config.toml
+.config/shpool

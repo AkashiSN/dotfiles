@@ -59,9 +59,3 @@ packages:
     registry: local
   - name: simulot/immich-go@v0.32.0 # immich サーバへの写真アップロード / takeout 移行
     registry: local
-  - name: crates.io/shpool@0.11.0 # 軽量なシェルセッション永続化 (cargo build)
-    registry: local
-    tags:
-      # cargo 必須。20-aqua-install(--exclude-tags rust)では入れず、
-      # rust toolchain 導入後の 32-rust-default(aqua install -t rust)でビルドする。
-      - rust

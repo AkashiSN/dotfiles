@@ -37,8 +37,6 @@ FORMULAE=(
 	bash
 	# tmux: 対話用の端末多重化 + vim-tmux-navigator 連携(libevent/ncurses 依存のため aqua でなく system 導入)
 	tmux
-	# abduco: ide(nvim)の SSH 切断耐性用セッション永続化。tmux と違い端末エミュレーションをしないため制御文字化け/フルスクリーン干渉が無い
-	abduco
 	git
 	wget
 	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
@@ -140,23 +138,4 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
 	rm -rf /tmp/ffmpeg.tar.xz "/tmp/ffmpeg-master-latest-${arch}-gpl"
 fi
 
-# GitHub のソース tarball を pinned ref で取得し make でビルドして $PREFIX/bin へ入れる共通ヘルパ。
-# 依存ゼロで小さく、aqua レジストリにも静的バイナリ配布にも無い C ツール(suckless 系など)向け。
-# 既に PATH にあれば何もしない。この種のツールを増やすときは build_from_github を 1 行足すだけ。
-build_from_github() {  # <owner/repo> <git-ref> <binary-name>
-	command -v "$3" >/dev/null 2>&1 && return 0
-	local dir="/tmp/build-$3"
-	curl -fsSL -o "$dir.tar.gz" "https://github.com/$1/archive/$2.tar.gz"
-	mkdir -p "$dir"
-	tar xf "$dir.tar.gz" -C "$dir" --strip-components=1
-	make -C "$dir"
-	install -m755 "$dir/$3" "$PREFIX/bin/$3"
-	rm -rf "$dir.tar.gz" "$dir"
-}
-
-# abduco: ide(nvim)の SSH 切断耐性用セッション永続化。
-# 依存は libc + C コンパイラのみ(tree-sitter 用に build-essential / gcc・make を導入済み)。
-# 唯一のリリース v0.6(2016)は古く、ide のネスト検出に使う $ABDUCO_SESSION が未実装なので、
-# それを備えた master tip(2020-04-30 以降更新停止で安定)を commit SHA で固定してビルドする。
-build_from_github martanne/abduco 8c32909a159aaa9484c82b71f05b7a73321eb491 abduco
 {{- end }}
