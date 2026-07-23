@@ -45,7 +45,7 @@ packages:
   - name: 1password/cli@v2.31.1 # op
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入)
-  - name: aws/aws-cli@2.36.6
+  - name: aws/aws-cli@2.36.7
   - name: kubernetes/kubernetes/kubectl@v1.36.3
   - name: helm/helm@v4.2.3 # kubernetes package manager
   # --- network / data utilities ---
