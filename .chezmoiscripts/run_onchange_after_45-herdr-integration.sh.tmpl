@@ -21,9 +21,9 @@ set -eu
 # herdr が未導入(aqua 20-install 前 等)ならスキップ。
 command -v herdr >/dev/null 2>&1 || exit 0
 
-step "herdr のエージェント状態フック(claude/codex/kiro)を導入中"
+step "herdr のエージェント状態フック(claude/codex)を導入中"
 
-for agent in claude codex kiro; do
+for agent in claude codex; do
 	note "herdr integration install ${agent}"
 	herdr integration install "${agent}"
 done
