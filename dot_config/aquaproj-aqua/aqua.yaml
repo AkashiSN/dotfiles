@@ -26,13 +26,15 @@ packages:
     tags:
       - bootstrap
   - name: x-motemen/ghq@v1.10.1
-  # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer ---
+  - name: gitui-org/gitui@v0.28.1 # git TUI (herdr の popup から差分確認・ステージング)
+  # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer / file manager ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.26.0 # prompt
   - name: direnv/direnv@v2.37.1
   - name: junegunn/fzf@v0.74.1
   - name: peco/peco@v0.6.0
   - name: ogulcancelik/herdr@v0.7.5 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
+  - name: sxyazi/yazi@v26.5.6 # プレビュー付きファイラ (herdr の popup から起動)
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
   - name: neovim/neovim@v0.12.4
   - name: BurntSushi/ripgrep@15.2.0

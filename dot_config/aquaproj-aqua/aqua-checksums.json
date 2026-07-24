@@ -211,6 +211,26 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/gitui-org/gitui/v0.28.1/gitui-linux-aarch64.tar.gz",
+      "checksum": "2A640DA05B73E9152A7BF92BFD7C23ACD9D60438F4F2CABB62357014A5FD7C28",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/gitui-org/gitui/v0.28.1/gitui-linux-x86_64.tar.gz",
+      "checksum": "F6149B9AE203397158B0C89C13CFDE718E7121D3D3CD2EBC597F93D6628D9B5B",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/gitui-org/gitui/v0.28.1/gitui-mac.tar.gz",
+      "checksum": "3B519A593383841289361BACF579D4A222169AA7EBBDEAE6CC449D488D8BB967",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/gitui-org/gitui/v0.28.1/gitui-win.tar.gz",
+      "checksum": "FAB116CCDF9AE4E17378DB912D76CC26E60AEFD2226F44E665120DEA166867E4",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/jqlang/jq/jq-1.8.2/jq-linux-amd64",
       "checksum": "B1C22172DD303F3BE49E935AA56AA48A8B7A46E0BC838B4997D3BB451495870F",
       "algorithm": "sha256"
@@ -458,6 +478,31 @@
     {
       "id": "github_release/github.com/starship/starship/v1.26.0/starship-x86_64-unknown-linux-musl.tar.gz",
       "checksum": "B7C232B0E8249D8E55A40BEB79C5C43A7D370F3F9408BD215DEB0170DAEAADF3",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sxyazi/yazi/v26.5.6/yazi-aarch64-apple-darwin.zip",
+      "checksum": "7ABD71725E2FE27BED036BECBF6CE79FA17964EB68491D34190011C94B8C7CA8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sxyazi/yazi/v26.5.6/yazi-aarch64-unknown-linux-musl.zip",
+      "checksum": "DFF4A6774069BDDE616C3CD145275B462A5887229CD9BF6341E78063DA37E84F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sxyazi/yazi/v26.5.6/yazi-x86_64-apple-darwin.zip",
+      "checksum": "6846066F992C1688D8EC77431A3AB53F5EF268019FCEF86E5649B8C27010868D",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sxyazi/yazi/v26.5.6/yazi-x86_64-pc-windows-msvc.zip",
+      "checksum": "6C6C52A4B2648E179F917BDAA7C57E793D18561B380A8BFA025F10CD1B9B2AD1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/sxyazi/yazi/v26.5.6/yazi-x86_64-unknown-linux-musl.zip",
+      "checksum": "1031A02560D053301537195A6661D227C15CB4CE5C30481050B31E2B88681BFF",
       "algorithm": "sha256"
     },
     {
