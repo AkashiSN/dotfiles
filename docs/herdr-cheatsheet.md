@@ -78,9 +78,18 @@
 **閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi とも `q`）。
 popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
 
+**yazi 内のキー（popup 内で押す）**: `Enter` は従来どおり popup の**内側**で `$EDITOR`(=nvim) を開く（サッと見る用）。
+一方 `e` はカーソル中のファイルを **herdr の新規タブ**で起動した nvim で開く（腰を据えて編集する用）。
+`e` は橋渡しスクリプト `~/.local/bin/herdr-edit` を呼び、herdr socket API（`tab create` → `pane run`）で
+新規タブに nvim を立てる。非ブロッキングなので yazi は開いたまま残り、`e` の後に `q` で yazi を閉じると
+フォーカス済みの nvim タブが前面に出る（popup はモーダルなので新規タブは popup の裏に作られるため）。
+
 **yazi の設定**: `dot_config/yazi/yazi.toml`（→ `~/.config/yazi/yazi.toml`）で
 `[mgr] show_hidden = true` にしており、dotfiles を扱うため隠しファイルを最初から表示する。
 yazi 内で `.` を押せば一時的にトグルできる。
+キーマップは `dot_config/yazi/keymap.toml`（→ `~/.config/yazi/keymap.toml`）で `[[mgr.prepend_keymap]]`
+により既定を温存したまま `e`（= `herdr-edit` で新規タブの nvim）を追加している。Yazi のファイル指定は
+プレースホルダで、`%h` がカーソル中ファイル・`%s` が選択ファイル（`$@` ではない）。
 プレビューの MIME 判定に `file(1)` を使うため、Linux では `file` パッケージが要る
 （`.chezmoiscripts/run_onchange_before_10-install-packages.sh.tmpl` で導入。macOS は標準搭載）。
 無いと `cannot find 'file' to detect the file's MIME type` が出てプレビューが表示されない。

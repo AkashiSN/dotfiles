@@ -1,0 +1,12 @@
+# yazi keymap — chezmoi 管理 (dot_config/yazi/keymap.toml → ~/.config/yazi/keymap.toml)
+# herdr popup (<prefix> f) から開く yazi のキー追加。既定は prepend で温存し、必要な分だけ足す。
+# 全項目のリファレンスは https://yazi-rs.github.io/docs/configuration/keymap/
+
+[[mgr.prepend_keymap]]
+# カーソル中のファイル（%h）を herdr の新規タブの nvim で開く。
+# popup の内側ではなく herdr の独立タブに開くので、腰を据えて編集する用。
+# 非ブロッキングで yazi は開いたまま残るため、q で閉じるとフォーカス済みの nvim タブが前面に出る。
+# PATH に ~/.local/bin が無い popup 環境でも動くよう $HOME 絶対パスで呼ぶ。
+on   = "e"
+run  = 'shell "$HOME/.local/bin/herdr-edit %h"'
+desc = "カーソル中のファイルを herdr の新規タブの nvim で開く"
