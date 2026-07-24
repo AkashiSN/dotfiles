@@ -1,0 +1,37 @@
+#!/bin/bash
+# herdr-edit - 引数のファイルを herdr の新規タブで起動した nvim で開く
+#
+# 実際に行うこと:
+#   1. herdr socket API で新規タブを作成する (herdr tab create --focus)
+#   2. 出力 JSON から新タブの pane_id（最初に現れる pane_id = root_pane）を取り出す
+#   3. そのペインで nvim <files> を起動する (herdr pane run)
+#
+# 使用方法:
+#   herdr-edit <file> [<file> ...]
+#   - 主に yazi の keymap（e キー）から呼ばれる。herdr popup 内の yazi で選んだファイルを、
+#     popup の内側ではなく herdr の独立タブの nvim で開くための橋渡し。
+#   - 引数が空なら何もしない。herdr に接続できないときはエラー終了する。
+set -euo pipefail
+
+# 開くファイルが無ければ何もしない（yazi でカーソルも選択も無いケース）
+[ "$#" -gt 0 ] || exit 0
+
+# herdr に届くか確認する（socket 応答が無い / herdr 不在なら中断）
+if ! command -v herdr >/dev/null 2>&1 || ! herdr tab list >/dev/null 2>&1; then
+  echo "herdr-edit: herdr セッションに接続できません" >&2
+  exit 1
+fi
+
+# 新規タブを作成し、その root_pane の pane_id を取り出す（出力中 最初の pane_id）
+dir=$(dirname -- "$1")
+label=$(basename -- "$1")
+pane_id=$(herdr tab create --focus --cwd "$dir" --label "$label" \
+  | grep -oE '"pane_id":"[^"]+"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$pane_id" ]; then
+  echo "herdr-edit: 新規タブの pane_id を取得できませんでした" >&2
+  exit 1
+fi
+
+# 作成したタブのペインで nvim を起動する
+herdr pane run "$pane_id" nvim "$@"
