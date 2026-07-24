@@ -30,6 +30,10 @@
 | `herdr config check` | `config.toml` を検証して診断を表示 |
 | `herdr config reset-keys` | `config.toml` をバックアップしてカスタムキーを除去 |
 
+> `reset-keys` は `[keys]` / `[keys.indexed]` / `[[keys.command]]`（`<prefix> d` / `<prefix> f` の
+> popup を含む）をまとめて除去する。誤って実行しても `chezmoi apply` で chezmoi ソース側の
+> `config.toml` を再展開すれば復元できる。
+
 ---
 
 ## キーバインド（prefix モード）
@@ -69,10 +73,14 @@
 | キー | 動作 |
 | --- | --- |
 | `<prefix> d` | gitui を popup で開く（差分確認・hunk 単位のステージング・コミット） |
-| `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。`Enter` で nvim で開く） |
+| `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。テキストファイルは `Enter` で `$EDITOR`(=nvim)） |
 
 > gitui / yazi は aqua 管理（`dot_config/aquaproj-aqua/aqua.yaml`）。
 > `prefix+alt+X` 形式は ghostty 依存で効かないことがあるため単一キーにしている。
+
+> popup コマンドは `/bin/sh -c` で実行され、環境変数は**herdr サーバ起動時のもの**を継承する。
+> したがって `EDITOR` 等を変えても `herdr server reload-config` / `<prefix> shift+r` では
+> popup 側に反映されず、`herdr server stop` からの再起動が要る。
 
 ---
 
@@ -86,7 +94,7 @@
 | `[ui.toast] delivery` | `system` | 背景エージェントの状態変化（要対応/完了）を macOS 通知センターへ。初回は OS の通知許可が必要 |
 | `[experimental] switch_ascii_input_source_in_prefix` | `true` | prefix モード中だけ ASCII 配列へ一時切替し、抜けたら元へ戻す（日本語 IME 有効のまま prefix を取りこぼさない。macOS 専用） |
 | `[experimental] reveal_hidden_cursor_for_cjk_ime` | `true` | claude/codex など自前カーソル描画の TUI でも IME 候補ウィンドウが追従する |
-| `[experimental] cjk_ime_agents` | `["claude","codex","pi"]` | カーソル追従を実際に使うエージェントに限定 |
+| `[experimental] cjk_ime_agents` | `["claude","codex","kiro"]` | カーソル追従を実際に使うエージェントに限定 |
 | `[[keys.command]]` | `<prefix> d` = gitui / `<prefix> f` = yazi | 差分確認とファイル探索を popup で。nvim を開かずサッと見る用（詳細は上の「カスタムコマンド（popup）」） |
 
 > 反映は `herdr server reload-config` または `<prefix> shift+r`。検証は `herdr config check`。

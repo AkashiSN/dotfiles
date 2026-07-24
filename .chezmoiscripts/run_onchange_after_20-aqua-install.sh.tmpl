@@ -1,7 +1,8 @@
 #!/bin/sh
 # Install/sync all aqua-managed tools. Re-runs whenever the aqua config changes.
-# aqua.yaml      hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
-# registry.yaml  hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
+# aqua.yaml           hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
+# registry.yaml       hash: {{ include "dot_config/aquaproj-aqua/registry.yaml" | sha256sum }}
+# aqua-checksums.json hash: {{ include "dot_config/aquaproj-aqua/aqua-checksums.json" | sha256sum }}
 set -eu
 
 {{ template "shell-log" }}
