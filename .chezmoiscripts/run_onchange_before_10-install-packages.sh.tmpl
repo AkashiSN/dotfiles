@@ -93,6 +93,8 @@ APT_PACKAGES=(
     zstd
 	# サンドボックス: codex の bwrap 用 (aqua レジストリに無く Linux のみ導入)
 	bubblewrap
+	# yazi: プレビューの MIME 判定に file(1) を使う (macOS は標準搭載、Linux は最小構成だと無い)
+	file
 )
 
 # dnf 系パッケージ。グループは apt 側と対応。名前が異なるものだけ差し替える。
@@ -112,6 +114,8 @@ DNF_PACKAGES=(
     zstd
 	# サンドボックス: codex の bwrap 用
 	bubblewrap
+	# yazi: プレビューの MIME 判定に file(1) を使う (macOS は標準搭載、Linux は最小構成だと無い)
+	file
 )
 
 if command -v apt-get >/dev/null 2>&1; then

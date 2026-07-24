@@ -81,6 +81,9 @@ popup は Escape を含む全ての入力を中のアプリへ渡すため、her
 **yazi の設定**: `dot_config/yazi/yazi.toml`（→ `~/.config/yazi/yazi.toml`）で
 `[mgr] show_hidden = true` にしており、dotfiles を扱うため隠しファイルを最初から表示する。
 yazi 内で `.` を押せば一時的にトグルできる。
+プレビューの MIME 判定に `file(1)` を使うため、Linux では `file` パッケージが要る
+（`.chezmoiscripts/run_onchange_before_10-install-packages.sh.tmpl` で導入。macOS は標準搭載）。
+無いと `cannot find 'file' to detect the file's MIME type` が出てプレビューが表示されない。
 
 > gitui / yazi は aqua 管理（`dot_config/aquaproj-aqua/aqua.yaml`）。
 > `prefix+alt+X` 形式は ghostty 依存で効かないことがあるため単一キーにしている。
