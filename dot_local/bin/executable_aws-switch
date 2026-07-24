@@ -40,7 +40,16 @@ unset AWS_SESSION_TOKEN
 # プロファイル名の取得
 if [[ -z $1 ]]; then
     # 引数なしの場合、pecoでプロファイルを選択（signinを除外）
-    AWS_PROFILE=$(aws configure list-profiles | grep -v -E "signin" | peco --select-1 --query "$LBUFFER")
+    #
+    # peco をキャンセル（Ctrl+C / ESC / 候補を絞り込めないまま Enter）したときの終了コードは
+    # 0 になることがあり、set -e では中断を検知できない。選択結果が空かどうかで判定する。
+    # 空のまま進むと aws-login に空文字を渡し、"-signin" プロファイルで意図しないログインを
+    # 試みたうえ .env の AWS_PROFILE 行まで壊れる。
+    AWS_PROFILE=$(aws configure list-profiles | grep -v -E "signin" | peco --select-1 --query "$LBUFFER") || true
+    if [[ -z $AWS_PROFILE ]]; then
+        echo "Profile selection cancelled. Nothing changed." >&2
+        exit 1
+    fi
 else
     # 引数でプロファイル名が指定された場合
     AWS_PROFILE=$1
