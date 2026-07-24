@@ -1,0 +1,7 @@
+# yazi configuration — chezmoi 管理 (dot_config/yazi/yazi.toml → ~/.config/yazi/yazi.toml)
+# herdr の popup (<prefix> f) から開くファイラ。既定から変えた項目だけ書き、残りは yazi の
+# デフォルトに任せる。全項目のリファレンスは https://yazi-rs.github.io/docs/configuration/yazi/
+
+[mgr]
+# dotfiles を扱うので隠しファイルを最初から表示する。`.` で一時的にトグルできる。
+show_hidden = true

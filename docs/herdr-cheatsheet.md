@@ -78,6 +78,10 @@
 **閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi とも `q`）。
 popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
 
+**yazi の設定**: `dot_config/yazi/yazi.toml`（→ `~/.config/yazi/yazi.toml`）で
+`[mgr] show_hidden = true` にしており、dotfiles を扱うため隠しファイルを最初から表示する。
+yazi 内で `.` を押せば一時的にトグルできる。
+
 > gitui / yazi は aqua 管理（`dot_config/aquaproj-aqua/aqua.yaml`）。
 > `prefix+alt+X` 形式は ghostty 依存で効かないことがあるため単一キーにしている。
 
