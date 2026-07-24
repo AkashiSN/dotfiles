@@ -45,6 +45,13 @@ set -e
 # ロックファイル（.aws/.aws-login-*.lock）の置き場所。共有ユーザー環境では USER_DIR で分離する
 USER_DIR=${USER_DIR:-~}
 
+# プロファイル名は必須。空のまま進むと "-signin" という別プロファイルを掴んでしまい、
+# 呼び出し元の不具合が「意図しないプロファイルでのログイン」として表面化する。
+if [[ -z $1 ]]; then
+    echo "aws-login: プロファイル名を指定してください（例: aws-login my-profile）" >&2
+    exit 1
+fi
+
 # プロファイル名に"-signin"サフィックスを付与
 # 例: "my-profile" → "my-profile-signin"
 export AWS_PROFILE="$1-signin"

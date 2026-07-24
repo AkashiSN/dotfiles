@@ -63,6 +63,12 @@ aws-switch my-profile <role_arn> # assume role 付きで切り替え
   IAM ユーザー権限のまま。
 - assume role 時はブラウザでの認証画面で **ユーザーではなく対象ロールを選ぶ** 必要がある
   （スクリプトが警告を表示する）。
+- peco の選択を **キャンセル**（Ctrl+C / ESC / 候補ゼロのまま Enter）すると
+  `Profile selection cancelled. Nothing changed.` を出して終了ステータス 1 で中断する。
+  `.env` は書き換えず、`aws-login` も呼ばない（現在のプロファイルはそのまま）。
+  - peco はキャンセル時の終了コードが 0 になることがあり `set -e` では捕まらないため、
+    選択結果が空かどうかで中断を判定している。防御として `aws-login` 側も空のプロファイル名を
+    拒否する（空だと `-signin` という別プロファイルを掴んでしまうため）。
 
 ### aws-login
 
