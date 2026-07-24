@@ -21,8 +21,6 @@ esac
 alias rsync="rsync -azP"
 alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
 
-export EDITOR=nvim
-export VISUAL=nvim
 alias vi=nvim
 alias vim=nvim
 
