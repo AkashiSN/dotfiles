@@ -60,6 +60,22 @@
 
 ---
 
+## カスタムコマンド（popup）
+
+`[[keys.command]]` で割り当てた外部 TUI。`type = "popup"` はタブ/ペイン構成を変えない
+セッションモーダル端末で、閉じれば元のレイアウトに戻る。**フォーカス中ペインの作業ディレクトリ**で
+起動するので、エージェントを動かしているペインから押せばそのリポジトリのまま開く。
+
+| キー | 動作 |
+| --- | --- |
+| `<prefix> d` | gitui を popup で開く（差分確認・hunk 単位のステージング・コミット） |
+| `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。`Enter` で nvim で開く） |
+
+> gitui / yazi は aqua 管理（`dot_config/aquaproj-aqua/aqua.yaml`）。
+> `prefix+alt+X` 形式は ghostty 依存で効かないことがあるため単一キーにしている。
+
+---
+
 ## 設定挙動（`config.toml` で有効化している項目）
 
 デフォルトから変更 / 有効化しているのは以下。ファイル内では該当行に `# ← 設定` を付けている。
@@ -71,6 +87,7 @@
 | `[experimental] switch_ascii_input_source_in_prefix` | `true` | prefix モード中だけ ASCII 配列へ一時切替し、抜けたら元へ戻す（日本語 IME 有効のまま prefix を取りこぼさない。macOS 専用） |
 | `[experimental] reveal_hidden_cursor_for_cjk_ime` | `true` | claude/codex など自前カーソル描画の TUI でも IME 候補ウィンドウが追従する |
 | `[experimental] cjk_ime_agents` | `["claude","codex","pi"]` | カーソル追従を実際に使うエージェントに限定 |
+| `[[keys.command]]` | `<prefix> d` = gitui / `<prefix> f` = yazi | 差分確認とファイル探索を popup で。nvim を開かずサッと見る用（詳細は上の「カスタムコマンド（popup）」） |
 
 > 反映は `herdr server reload-config` または `<prefix> shift+r`。検証は `herdr config check`。
 > `~/.config/herdr/` 内の `session.json` / `*.log` / `release-notes.json` は**実行時の状態ファイル**で、
@@ -124,5 +141,7 @@
 | nvim ide.lua の CJK IME 回避（SIGUSR1/Resync 等） | `[experimental]` の CJK IME オプション |
 | 狭画面フォールバック（iPad/Termius） | `[ui] mobile_width_threshold` によるモバイル 1 カラムレイアウト |
 
-エディタでの差分確認は herdr の範囲外。必要なときはペイン内で `nvim` / `git diff` / lazygit を開く
-（`[[keys.command]]` に lazygit を割り当てる例が `config.toml` にコメントで残っている）。
+差分確認には 2 つのルートがある。**サッと見る**なら `<prefix> d` の gitui popup（レイアウトを
+壊さず、閉じれば元に戻る）。**腰を据えて読む / その場で直す**ならペインで `nvim` を開き、
+neo-tree の Git タブから diffview へ（`docs/nvim-cheatsheet.md`）。ファイル探索も同様に、
+`<prefix> f` の yazi popup と nvim の neo-tree / fzf-lua を用途で使い分ける。

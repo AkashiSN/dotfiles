@@ -132,6 +132,24 @@ name = "catppuccin"  # ← 設定
 # width = "80%"
 # height = "80%"
 
+# ← 設定: エージェントのペインを見ながら差分確認 / ファイル探索をするための popup。
+# popup はフォーカス中ペインの作業ディレクトリで起動するので、そのリポジトリのまま開く。
+# タブ/ペイン構成を変えないモーダルなので、閉じれば元のレイアウトに戻る。
+# alt 併用のバインドは端末(ghostty)依存で効かないことがあるため単一キーにする。
+[[keys.command]]
+key = "prefix+d"     # ← 設定: diff
+type = "popup"
+command = "gitui"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "prefix+f"     # ← 設定: files
+type = "popup"
+command = "yazi"
+width = "90%"
+height = "90%"
+
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
 # [keys.indexed]
