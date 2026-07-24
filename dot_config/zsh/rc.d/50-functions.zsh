@@ -84,23 +84,21 @@ function agmsg-bridge-reap () {
 # claude.ai 障害時などに Claude Code を Amazon Bedrock(グローバル推論プロファイル)へ
 # 切り替えるための共通 env を「現在のシェル」へ export する内部ヘルパー。claude-bedrock /
 # ide-bedrock から サブシェル内で呼ぶので、呼び出し元の対話シェルは汚さない(per-invocation)。
-# 認証は aws-login(credential_process) + AWS_PROFILE を流用するため追加ログイン不要(トークン
-# 期限切れも aws-login が自動更新)。Bedrock 側で対象モデルのアクセス権を有効化しておくこと。
-# リージョン/モデルは CLAUDE_BEDROCK_* で上書き可能。AWS_REGION はグローバルプロファイルでも
-# SigV4 署名用に具体リージョンが必要(ルーティングはグローバルプロファイルが自動で行う)。
-# 認証情報が無ければ非ゼロで返し、呼び出し側を停止させる。
+# 使う AWS プロファイルは CLAUDE_CODE_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)で AWS_PROFILE を
+# 常に上書きするので、対話中に aws-switch で選んでいるプロファイルには影響されない。認証は
+# aws-login(credential_process)が担うため追加ログイン不要(トークン期限切れも自動更新)。
+# Bedrock 側で対象モデルのアクセス権を有効化しておくこと。リージョン/モデルは
+# CLAUDE_CODE_BEDROCK_* で上書き可能。AWS_REGION はグローバルプロファイルでも SigV4 署名用に
+# 具体リージョンが必要(ルーティングはグローバルプロファイルが自動で行う)。
 function _claude-bedrock-env () {
-  if [[ -z $AWS_PROFILE && -z $AWS_ACCESS_KEY_ID ]]; then
-    print -ru2 -- "claude-bedrock: AWS 認証情報が見当たりません。先に aws-switch でプロファイルを選択してください。"
-    return 1
-  fi
+  export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
   export CLAUDE_CODE_USE_BEDROCK=1
   export CLAUDE_CODE_USE_MANTLE=1
   export CLAUDE_CODE_ENABLE_AUTO_MODE=1
-  export AWS_REGION="${CLAUDE_BEDROCK_REGION:-us-east-1}"
-  export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-4-8[1m]}"
-  export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
-  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+  export AWS_REGION="${CLAUDE_CODE_BEDROCK_REGION:-us-east-1}"
+  export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-4-8[1m]}"
+  export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
+  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_CODE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
   export ANTHROPIC_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL}"
 }
 
@@ -127,11 +125,12 @@ function claude-bedrock () {
 
 # codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)の
 # まま無変更。Bedrock 用設定は ~/.codex/bedrock.config.toml(bedrock プロファイル)へ分離し、
-# --profile でベース設定の上にレイヤする。認証は provider 設定の AWS プロファイル
-# cdx-pre-dev(credential_process = aws-login)が担うため、claude と違い env 準備は不要。
+# --profile でベース設定の上にレイヤする。使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE
+# (既定 cdx-pre-dev)で AWS_PROFILE に渡し、その credential_process = aws-login が認証を担う。
+# サブシェルで閉じ込めるので呼び出し元の対話シェルの AWS_PROFILE は汚さない。
 # 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
 function codex-bedrock () {
-  command codex --profile bedrock "$@"
+  ( export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}" && command codex --profile bedrock "$@" )
 }
 
 # ログイン(対話)シェル起動時に一度だけ、非ブロッキングで孤児 bridge を回収する。

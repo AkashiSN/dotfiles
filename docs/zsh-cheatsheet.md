@@ -59,28 +59,46 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
 | `claude [args]` | `claude` をラップし、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。セッション名プレフィックスは claude 既定でホスト名）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。ローカルや非対話シェルでは実バイナリのまま無変更 |
-| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。認証は `aws-login`（credential_process）+ `AWS_PROFILE` を流用（追加ログイン不要）。事前に `aws-switch` で Bedrock アクセス権のあるプロファイルを選択しておく。リージョン/モデルは下表の `CLAUDE_BEDROCK_*` で上書き可。`claude`（関数）経由なので SSH 素起動なら Remote Control も乗る |
-| `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`codex --profile bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。Bedrock 設定は `~/.codex/bedrock.config.toml`（`dot_codex/private_bedrock.config.toml`）にプロファイルとして分離してあり、`--profile` でベース設定の上にレイヤする。claude と違い認証は provider 設定内の AWS プロファイル `cdx-pre-dev`（`credential_process = aws-login`）が担うため、`aws-switch` や追加 env は不要（`CLAUDE_BEDROCK_*` も無関係）。リージョン/モデルを変えるときはプロファイルファイルを直接編集 |
+| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` を常に上書きするので、対話中に `aws-switch` で選んでいるプロファイルには影響されない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。`claude`（関数）経由なので SSH 素起動なら Remote Control も乗る |
+| `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`codex --profile bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。Bedrock 設定は `~/.codex/bedrock.config.toml`（`dot_codex/private_bedrock.config.toml`）にプロファイルとして分離してあり、`--profile` でベース設定の上にレイヤする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` に渡し（サブシェルに閉じ込め対話シェルは汚さない）、その `credential_process = aws-login` が認証を担う。リージョン/モデルを変えるときはプロファイルファイルを直接編集 |
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
 portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
 
-### `claude-bedrock` の上書き変数
+### bedrock 起動で使う AWS プロファイル
+
+`claude-bedrock` / `codex-bedrock` はそれぞれ専用の環境変数で `AWS_PROFILE` を決める（未設定なら
+既定値）。対話中に `aws-switch` で選んでいるプロファイルは無視され、bedrock 用は常にこの専用
+プロファイルに固定される（両者ともサブシェルに閉じ込めるので対話シェルの `AWS_PROFILE` は不変）。
+
+| 変数 | 既定値 | 対象 |
+| --- | --- | --- |
+| `CLAUDE_CODE_BEDROCK_AWS_PROFILE` | `cdx-pre-dev` | `claude-bedrock` |
+| `CODEX_BEDROCK_AWS_PROFILE` | `cdx-pre-dev` | `codex-bedrock` |
+
+### `claude-bedrock` のリージョン/モデル上書き変数
 
 呼び出し前に export しておくと既定値を上書きできる（未設定なら既定値）。
 `AWS_REGION` はグローバルプロファイルでも SigV4 署名用に具体リージョンが必要（ルーティングは
-グローバルプロファイルが自動）。`AWS_PROFILE`（または AWS 認証情報）が無いと起動前にエラーで止まる。
+グローバルプロファイルが自動）。
 
 | 変数 | 既定値 |
 | --- | --- |
-| `CLAUDE_BEDROCK_REGION` | `us-east-1` |
-| `CLAUDE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-4-8` |
-| `CLAUDE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-4-6` |
-| `CLAUDE_BEDROCK_HAIKU_MODEL` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `CLAUDE_CODE_BEDROCK_REGION` | `us-east-1` |
+| `CLAUDE_CODE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-4-8` |
+| `CLAUDE_CODE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-4-6` |
+| `CLAUDE_CODE_BEDROCK_HAIKU_MODEL` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 > 内部で `CLAUDE_CODE_USE_BEDROCK=1` と上記モデルを `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` に
 > 渡して `claude` を起動する。Bedrock 連携の詳細は [AWS チートシート](aws-cheatsheet.md) の認証フロー（`aws-switch` / `aws-login`）も参照。
+
+> **経緯**: 以前は codex の AWS プロファイルを `dot_codex/private_bedrock.config.toml` に
+> `profile = "cdx-pre-dev"` とハードコードし、`claude-bedrock` は `aws-switch` で選んだ
+> `AWS_PROFILE` を流用（未設定ならエラー停止）していた。その後、両者を専用環境変数
+> `{CODEX,CLAUDE_CODE}_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で切り替える方式に統一し、codex 側は
+> config から `profile` を削除して `AWS_PROFILE` 経由に一本化した。あわせて claude 側の上書き変数を
+> `CLAUDE_BEDROCK_*` から公式 `CLAUDE_CODE_*` に揃えるため `CLAUDE_CODE_BEDROCK_*` へ改名した。
 
 ---
 

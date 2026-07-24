@@ -1,13 +1,14 @@
 # codex の bedrock プロファイル。`codex --profile bedrock`(codex-bedrock / ide-bedrock)が
 # ベース ~/.codex/config.toml の上にレイヤする Bedrock 用オーバレイ。プレーン codex は
 # サブスク(OpenAI ログイン)のまま無変更で、Bedrock を使うときだけこのファイルを被せる。
-# 認証は AWS プロファイル cdx-pre-dev(~/.aws/config の credential_process = aws-login)が
-# 担うため、シェル側の env 準備は不要。codex は実行時状態をベース config.toml にしか書かない
-# ので、このオーバレイは読み取り専用として chezmoi で常時同期する。
+# 認証に使う AWS プロファイルはここに書かず、codex-bedrock 関数が環境変数
+# CODEX_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)から AWS_PROFILE を渡す。そのプロファイルの
+# credential_process = aws-login が認証を担うため、シェル側の追加ログインは不要。codex は
+# 実行時状態をベース config.toml にしか書かないので、このオーバレイは読み取り専用として
+# chezmoi で常時同期する。
 model = "openai.gpt-5.5"
 model_provider = "amazon-bedrock"
 
 [model_providers.amazon-bedrock.aws]
 region = "us-east-2"
 wire_api = "responses"
-profile = "cdx-pre-dev"
