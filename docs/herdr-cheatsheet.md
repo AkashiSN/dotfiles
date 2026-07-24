@@ -75,6 +75,9 @@
 | `<prefix> d` | gitui を popup で開く（差分確認・hunk 単位のステージング・コミット） |
 | `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。テキストファイルは `Enter` で `$EDITOR`(=nvim)） |
 
+**閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi とも `q`）。
+popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
+
 > gitui / yazi は aqua 管理（`dot_config/aquaproj-aqua/aqua.yaml`）。
 > `prefix+alt+X` 形式は ghostty 依存で効かないことがあるため単一キーにしている。
 
