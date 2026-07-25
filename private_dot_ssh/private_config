@@ -73,9 +73,16 @@ Host gitlab.com
     HostName        gitlab.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
 
-Host github.com
+# github.com はアカウントごとに鍵を使い分ける。
+# デフォルト（github.com）と github.com-AkashiSN は AkashiSN の鍵。
+# 別アカウントは git@github.com-<user>:owner/repo.git の形で remote を指定する。
+Host github.com github.com-AkashiSN
     HostName        github.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+
+Host github.com-su-nishi
+    HostName        github.com
+    IdentityFile    ~/.ssh/1password_su-nishi.pub
 
 Host gist.github.com
     HostName        github.com
