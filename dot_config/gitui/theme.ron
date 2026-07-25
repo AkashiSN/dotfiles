@@ -1,0 +1,9 @@
+(
+    // 下部コマンドバーを端末の背景色に馴染ませる。
+    // Catppuccin Mocha では ANSI Blue が水色 (#89b4fa) で描画され、
+    // 既定の白文字と低コントラストで見にくいため、背景を透過して
+    // 端末の暗い背景に明るい文字を載せて可読性を確保する。
+    cmdbar_bg: Some(Reset),
+    cmdbar_extra_lines_bg: Some(Reset),
+    command_fg: Some(White),
+)
