@@ -133,5 +133,38 @@ function codex-bedrock () {
   ( export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}" && command codex --profile bedrock "$@" )
 }
 
+# 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソル /
+# Kitty keyboard protocol を無効化して端末状態を復旧する。リモート(herdr / ssh 先)で
+# 起動した nvim 等が有効化した端末モードは、接続が異常切断(Broken pipe)されると解除
+# シーケンスがローカルへ届かず居残り、次のような化けを起こす:
+#   - マウス報告(SGR mouse mode)の残置 → クリック/スクロールで `0;129;39M` が出る
+#   - Kitty keyboard protocol(CSI u)の残置 → キー入力で `15;1:3u` 等の生エスケープが出る
+# 末尾の \e[<u は push 済みの Kitty keyboard スタックを pop、\e[=0;1u は現行フラグを
+# 0 に強制してレガシーキー入力へ戻す(素の端末で叩いても空 pop / 既 0 set で無害)。
+function term-reset () {
+  print -n -- $'\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[?2004l\e[?25h\e[<u\e[=0;1u'
+}
+
+# ローカルから出る herdr / ssh を関数でラップし、戻り際に必ず term-reset する。
+# herdr --remote や ssh 先で起動した nvim 等が有効化した端末モードは、接続が異常切断
+# されると解除シーケンスがローカルへ届かず端末が化けるため、戻った時点でローカル側を
+# 強制復旧する。herdr は内部で自前の ssh を exec するので、ssh ラッパーだけでは
+# herdr 経由の切断を拾えない(herdr 自体もラップする)。リモートシェル($SSH_CONNECTION
+# あり)では多重ラップやリモートセッションへの干渉を避けるため定義しない。
+if [[ -z $SSH_CONNECTION ]]; then
+  function herdr () {
+    command herdr "$@"
+    local r=$?
+    term-reset
+    return $r
+  }
+  function ssh () {
+    command ssh "$@"
+    local r=$?
+    term-reset
+    return $r
+  }
+fi
+
 # ログイン(対話)シェル起動時に一度だけ、非ブロッキングで孤児 bridge を回収する。
 [[ -d $HOME/.agents/skills/agmsg/run ]] && ( agmsg-bridge-reap & ) 2>/dev/null

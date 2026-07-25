@@ -172,3 +172,28 @@ yazi 内で `.` を押せば一時的にトグルできる。
 壊さず、閉じれば元に戻る）。**腰を据えて読む / その場で直す**ならペインで `nvim` を開き、
 neo-tree の Git タブから diffview へ（`docs/nvim-cheatsheet.md`）。ファイル探索も同様に、
 `<prefix> f` の yazi popup と nvim の neo-tree / fzf-lua を用途で使い分ける。
+
+---
+
+## SSH 異常切断後の端末化け（`term-reset`）
+
+`herdr --remote <ssh-target>` で接続中に SSH が異常切断（`client_loop: send disconnect:
+Broken pipe` 等）されてローカルターミナルに戻ると、リモートの nvim 等が有効化した端末モードの
+解除シーケンスがローカルへ届かず居残り、端末が化ける:
+
+- **Kitty keyboard protocol（CSI u）の残置** → キー入力ごとに `15;1:3u` / `01;1:3u` のような
+  生エスケープが漏れて表示される（`:3` はキーリリースイベント）。
+- **マウス報告（SGR mouse mode）の残置** → クリック / スクロールで `0;129;39M` が出る。
+
+対策として `dot_config/zsh/rc.d/50-functions.zsh` に `term-reset` 関数を置き、ローカルの
+`herdr` / `ssh` を zsh 関数でラップして**戻り際に必ず `term-reset` を呼ぶ**。`term-reset` は
+マウス報告・フォーカス報告・括弧付き貼り付けを無効化し、`\e[<u` で Kitty keyboard スタックを
+pop、`\e[=0;1u` で現行フラグを 0 に戻す（素の端末で叩いても無害なので、化けたときは手動で
+`term-reset` と打っても復旧できる）。herdr は内部で自前の ssh を exec するため、`ssh` ラッパー
+だけでは herdr 経由の切断を拾えず、`herdr` 自体もラップしている。リモートシェル
+（`$SSH_CONNECTION` あり）ではラッパーを定義しない。
+
+> **経緯**: この `term-reset` + ラッパーは元々 `ide`（shpool）ワークフロー用に存在したが、
+> 上記の ide 撤去（`11f40d3`）で一緒に消えた。端末状態のリークは多重化の実装（shpool→herdr）
+> とは独立した問題で、herdr でも SSH 異常切断で同じ化けが再発するため、ラップ対象を `ssh` に
+> 加えて `herdr` へ広げる形で復活させた。

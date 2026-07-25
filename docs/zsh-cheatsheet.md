@@ -61,6 +61,8 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `claude [args]` | `claude` をラップし、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。セッション名プレフィックスは claude 既定でホスト名）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。ローカルや非対話シェルでは実バイナリのまま無変更 |
 | `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` を常に上書きするので、対話中に `aws-switch` で選んでいるプロファイルには影響されない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。`claude`（関数）経由なので SSH 素起動なら Remote Control も乗る |
 | `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`codex --profile bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。Bedrock 設定は `~/.codex/bedrock.config.toml`（`dot_codex/private_bedrock.config.toml`）にプロファイルとして分離してあり、`--profile` でベース設定の上にレイヤする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` に渡し（サブシェルに閉じ込め対話シェルは汚さない）、その `credential_process = aws-login` が認証を担う。リージョン/モデルを変えるときはプロファイルファイルを直接編集 |
+| `term-reset` | 端末のマウス報告 / フォーカス報告 / 括弧付き貼り付け / Kitty keyboard protocol（`\e[<u` で pop、`\e[=0;1u` でフラグ 0）を無効化して端末状態を復旧。SSH 異常切断でリモートの nvim 等が有効化した端末モードが居残り、キー入力で `15;1:3u` 等・マウスで `0;129;39M` 等が漏れたときに叩く（素の端末でも無害）。詳細は [herdr チートシート](herdr-cheatsheet.md#ssh-異常切断後の端末化けterm-reset) |
+| `herdr [args]` / `ssh [args]` | ローカルシェルでのみ実バイナリをラップし、戻り際に必ず `term-reset` する（`herdr --remote` / `ssh` 先の異常切断による端末化けを自動復旧）。herdr は内部で自前の ssh を exec するため `herdr` 自体もラップ対象。リモートシェル（`$SSH_CONNECTION` あり）ではラップしない |
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
