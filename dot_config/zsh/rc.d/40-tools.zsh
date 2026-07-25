@@ -40,11 +40,22 @@ if command -v kubectl > /dev/null 2>&1;then
   alias k="kubectl"
 fi
 
-# ssh agent (1Password)
-if ! [ "$SSH_CONNECTION" ]; then
-  if [ -S "${HOME}/.1password/agent.sock" ]; then
-    export SSH_AUTH_SOCK="${HOME}/.1password/agent.sock"
+# ssh agent
+# 1Password のエージェントがあるホストはそれを使う。無いホスト（開発サーバ等）は
+# 通常の ssh-agent を常駐させて既定鍵を登録する。gitui/libgit2 は SSH 鍵を agent
+# 経由でしか使えず、agent が無いと push が "bad credentials" で失敗するため。
+# 既に使える agent（forward された agent 等）がある場合は上書きしない。
+if ! [ "$SSH_CONNECTION" ] && [ -S "${HOME}/.1password/agent.sock" ]; then
+  export SSH_AUTH_SOCK="${HOME}/.1password/agent.sock"
+elif ! ssh-add -l > /dev/null 2>&1; then
+  _ssh_agent_env="${XDG_RUNTIME_DIR:-$HOME}/.ssh-agent.env"
+  [ -f "$_ssh_agent_env" ] && . "$_ssh_agent_env" > /dev/null
+  if ! ssh-add -l > /dev/null 2>&1; then
+    ssh-agent -s > "$_ssh_agent_env"
+    . "$_ssh_agent_env" > /dev/null
   fi
+  ssh-add > /dev/null 2>&1
+  unset _ssh_agent_env
 fi
 
 # kiro（統合ターミナル内のみ）: シェル統合を有効化。コマンド境界/cwd 追跡/終了コード

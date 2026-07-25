@@ -150,3 +150,18 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 > `terraform`/`aws` は bash 動的補完（`complete -C`）、`fzf`/`gcloud`/`kubectl` は source 方式。
 
 > CLI ツール自体は **aqua**（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理。
+
+### SSH エージェント（`40-tools.zsh`）
+
+対話シェル起動時に SSH エージェントを用意する（`$SSH_CONNECTION` が無いローカルシェルが対象）。
+
+| 条件 | 挙動 |
+| --- | --- |
+| `~/.1password/agent.sock` がある | 1Password の SSH エージェントを使う（`SSH_AUTH_SOCK` をそこへ向ける） |
+| 使える agent が既にある（forward された agent 等、`ssh-add -l` が成功） | そのまま利用（上書きしない） |
+| どちらも無い（開発サーバ等） | 通常の `ssh-agent` を常駐起動し既定鍵（`~/.ssh/id_ed25519` 等）を `ssh-add`。socket は `${XDG_RUNTIME_DIR:-$HOME}/.ssh-agent.env` に保存して以降のシェルで再利用（多重起動しない） |
+
+> **gitui の push が `bad credentials` で失敗する時**はこれが原因。gitui は libgit2 経由で
+> SSH 鍵を **agent 経由でしか使えず**、鍵ファイルを直読みしない。上記フォールバックで
+> agent に鍵が載るので、**新しいシェルを開いて**（または `exec zsh`）から gitui を起動すれば通る。
+> 詳細は [gitui チートシート](gitui-cheatsheet.md#push-が-bad-credentials-で失敗する)。
