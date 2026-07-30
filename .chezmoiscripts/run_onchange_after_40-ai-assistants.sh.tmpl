@@ -6,9 +6,10 @@
 set -eu
 
 {{ template "shell-log" }}
-step "AI アシスタント CLI(claude/codex/kiro/ollama/agmsg/codegraph)をインストール中"
+step "AI アシスタント CLI(claude/codex/kiro/ollama/agmsg/codegraph/graphify)をインストール中"
 
-export PATH="$HOME/.local/bin:$PATH"
+# graphify は uv (aqua 管理) で入れるため aqua の bin も解決可能にする。
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
 
 # --- Claude Code (claude.ai/install.sh) ---
 # stable / latest / 固定バージョン(例: 2.1.179)。
@@ -74,3 +75,26 @@ fi
 curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
 codegraph install --yes
 codegraph telemetry off
+
+# --- Graphify (github.com/Graphify-Labs/graphify) ---
+# コードは tree-sitter でローカル解析し、加えてドキュメント/PDF/画像/動画/SQL スキーマも
+# 取り込む知識グラフ生成ツール。CodeGraph が呼び出し関係の精密な追跡を担うのに対し、
+# graphify はプロジェクト全体の概念マップを作るので併用する(docs/graphify-cheatsheet.md)。
+# PyPI 上のパッケージ名は graphifyy、コマンド名は graphify。
+# latest だと毎回 --upgrade で最新へ追従する。固定したいときは版を書く(例: 0.9.13)。
+# 値を書き換えると run_onchange で既存マシンでも再実行される。
+GRAPHIFY_VERSION="latest"
+# `graphify install`(グローバル)は ~/.claude/skills/graphify/SKILL.md を置き、
+# ~/.claude/CLAUDE.md に登録行を追記する(プロンプトなし)。登録行は
+# private_dot_claude/modify_CLAUDE.md の USER_BLOCK に宣言済みのため no-change になる。
+# PreToolUse フックを書き込むのは `graphify install --project` の方で、
+# grep/Read への割り込みは codegraph prompt-hook と二重になるため入れていない。
+# グラフ本体と git フックはリポジトリごとに手動で入れる(`/graphify .` / `graphify hook install`)。
+if command -v uv >/dev/null 2>&1; then
+	if [ "$GRAPHIFY_VERSION" = "latest" ]; then
+		uv tool install --upgrade graphifyy
+	else
+		uv tool install "graphifyy==$GRAPHIFY_VERSION"
+	fi
+	graphify install
+fi

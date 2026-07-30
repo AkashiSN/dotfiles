@@ -7,6 +7,11 @@
 # 単純な静的ファイルにすると codegraph の再注入と chezmoi が衝突するため、
 # modify_ スクリプトでユーザ部分のみを強制し、codegraph ブロックは現物
 # （stdin = 適用先の現在の内容）からそのまま引き継ぐ。
+#
+# `graphify install` も `# graphify` セクションを追記しようとするが、こちらは
+# マーカーコメントを持たず引き継ぎが効かない。graphify は本文に "graphify" の
+# 文字列があれば追記をスキップするので、下の USER_BLOCK に登録行を宣言して
+# chezmoi 側が所有する（追記 → apply で消えるフラッピングを避ける）。
 set -eu
 
 # --- ユーザの手書きグローバルルール（ここを編集する） -------------------------
@@ -28,6 +33,10 @@ GitHub の issue・PR・コメントなど**公開される場所**の本文に�
 セッションには非公開のやり取りや作業ログが含まれ、URL を知る者が閲覧できてしまう
 ため、外部へ露出させてはならない。生成した本文にこれらの URL が紛れ込んでいないか
 投稿前に必ず確認する。
+
+# graphify
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 EOF
 )
 # -----------------------------------------------------------------------------
