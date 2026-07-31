@@ -1,0 +1,116 @@
+#!/bin/bash
+#
+# uv-cache-prune - uv のキャッシュを掃除するスクリプト
+#
+# 実際に行うこと:
+#   1. uv のキャッシュ先と合計サイズ、バケット別の内訳を表示する
+#   2. -y のときだけ `uv cache prune`（--all なら `uv cache clean`）を実行する
+#   3. 実行前後のサイズ差から解放量を表示する
+#
+# 使用方法:
+#   uv-cache-prune         # ドライラン: キャッシュ先・サイズ・内訳と、実行されるコマンドを表示
+#   uv-cache-prune -y      # uv cache prune（未参照エントリと不要になった環境を削除）
+#   uv-cache-prune --all -y # uv cache clean（キャッシュを丸ごと削除）
+#
+# 前提:
+#   - 削除自体は uv 本体のサブコマンドに任せる。どのエントリが参照中かは uv しか
+#     判断できないため、ディレクトリを直接消さない。
+#   - uv は wheel をハードリンク/CoW で venv へ展開するので、キャッシュを消しても
+#     作成済みの venv は壊れない（次回の同期で再ダウンロードが要るだけ）。
+#   - キャッシュ先は `uv cache dir`（UV_CACHE_DIR / uv.toml の設定を反映）。
+#
+# 関連:
+#   - tf-cache-prune : terraform provider キャッシュの掃除
+#   - docs/uv-cheatsheet.md
+
+set -euo pipefail
+
+ASSUME_YES=0
+PRUNE_ALL=0
+
+usage() {
+	cat <<'EOS'
+使用方法: uv-cache-prune [--all] [-y]
+
+  --all      キャッシュを丸ごと削除する（uv cache clean）
+  -y, --yes  実際に削除する（付けない限りドライラン）
+  -h, --help このヘルプ
+EOS
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-y | --yes)
+		ASSUME_YES=1
+		;;
+	--all)
+		PRUNE_ALL=1
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		echo "uv-cache-prune: 不明なオプション: $1" >&2
+		usage >&2
+		exit 1
+		;;
+	esac
+	shift
+done
+
+if ! command -v uv >/dev/null 2>&1; then
+	echo "uv-cache-prune: uv が見つかりません（aqua 管理）" >&2
+	exit 1
+fi
+
+# KB を人間可読な単位へ。du は -k で単位を KB に固定して取る。
+human() {
+	awk -v kb="$1" 'BEGIN {
+		split("K M G T", unit, " ")
+		i = 1
+		while (kb >= 1024 && i < 4) { kb /= 1024; i++ }
+		fmt = (kb >= 10 || i == 1) ? "%.0f%s\n" : "%.1f%s\n"
+		printf fmt, kb, unit[i]
+	}'
+}
+
+CACHE_DIR=$(uv cache dir)
+
+if [ ! -d "$CACHE_DIR" ]; then
+	echo "uv-cache-prune: キャッシュディレクトリがありません: $CACHE_DIR"
+	exit 0
+fi
+
+before_kb=$(du -sk "$CACHE_DIR" | cut -f1)
+printf 'uv cache: %s (合計 %s)\n\n' "$CACHE_DIR" "$(human "$before_kb")"
+
+# バケット（archive-v0 / environments-v2 / simple-vNN ...）別の内訳。大きい順。
+while IFS=$'\t' read -r entry_kb entry_path; do
+	[ -n "$entry_path" ] || continue
+	printf '  %-24s %8s\n' "$(basename "$entry_path")" "$(human "$entry_kb")"
+done <<EOF
+$(find "$CACHE_DIR" -mindepth 1 -maxdepth 1 -exec du -sk {} + | sort -rn)
+EOF
+
+if [ "$PRUNE_ALL" -eq 1 ]; then
+	uv_cmd=(uv cache clean)
+else
+	uv_cmd=(uv cache prune)
+fi
+
+printf '\n'
+if [ "$ASSUME_YES" -ne 1 ]; then
+	printf '実行されるコマンド: %s\n' "${uv_cmd[*]}"
+	printf 'ドライランです。実際に削除するには -y を付けてください。\n'
+	exit 0
+fi
+
+"${uv_cmd[@]}"
+
+after_kb=$(du -sk "$CACHE_DIR" 2>/dev/null | cut -f1 || echo 0)
+freed_kb=$((before_kb - after_kb))
+if [ "$freed_kb" -lt 0 ]; then
+	freed_kb=0
+fi
+printf '\n%s → %s（約 %s を解放）\n' "$(human "$before_kb")" "$(human "$after_kb")" "$(human "$freed_kb")"

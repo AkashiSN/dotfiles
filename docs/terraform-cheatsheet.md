@@ -108,3 +108,7 @@ registry.terraform.io/hashicorp/aws
 | `.terraform/providers` のリンク切れ | `tf-cache-prune` で消した後に起きる。該当プロジェクトで `terraform init` |
 | キャッシュが効いていない | `echo $TF_PLUGIN_CACHE_DIR` を確認。空なら `.zshenv` が読まれていない（新しいシェルを開く） |
 | キャッシュを一時的に無効化したい | `TF_PLUGIN_CACHE_DIR= terraform init`（その実行だけ空にする） |
+
+## 関連
+
+- [uv-cheatsheet.md](uv-cheatsheet.md) — 同じ流儀の `uv-cache-prune`（uv のキャッシュ掃除）
