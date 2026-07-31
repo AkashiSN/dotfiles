@@ -15,7 +15,7 @@ AWS CLI の `aws login`（新機能）と `credential_process` を使って AWS 
 ```
 aws-switch <profile>
    │  └─ aws-login <profile> で `aws login` 認証
-   └─ ${USER_DIR}/.env の AWS 行を書き換え (export AWS_PROFILE=<profile>)
+   └─ ${USER_DIR}/.env の AWS_PROFILE 行を書き換え (export AWS_PROFILE=<profile>)
         │
         ▼ 次のプロンプトで direnv が発火
 ~/.envrc が `dotenv` で ${USER_DIR}/.env を読み込む
@@ -31,6 +31,9 @@ aws-switch <profile>
 - `~/.envrc`（chezmoi: `dot_envrc`）の中身は `dotenv` の一行のみ。これが `${USER_DIR}/.env` を読む。
 - `USER_DIR` は共有ユーザー環境などで `.env` とロックファイルを分離するための変数。
   ローカルでは未設定でよく、その場合 `~` が使われる。
+- `.env` の書き換え対象は `AWS_PROFILE` 行だけ。`aws-switch` / `aws-logout` が消すのも
+  `^(export )?AWS_PROFILE=` にマッチする行に限られるので、`CODEX_BEDROCK_AWS_PROFILE` の
+  ように名前に `AWS` を含む別の変数を `.env` に置いても巻き込まれない。
 - 必要パッケージ（aqua 管理）: `direnv`、`peco`、`aws` CLI v2。
 - `flock`（aws-login の多重ログイン防止）は **aqua に無い**。Linux は `util-linux` 同梱、
   macOS は Homebrew で導入する（`run_onchange_before_10-install-packages.sh.tmpl` の FORMULAE）。
@@ -49,7 +52,7 @@ touch ~/.env                  # 無ければ作成（aws-switch が追記する�
 | --- | --- |
 | `aws-switch [profile] [role_arn]` | プロファイルを切り替える（必要なら assume role）。`.env` を書き換え |
 | `aws-login <profile>` | 認証本体。`credential_process` として AWS CLI から自動で呼ばれる |
-| `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の AWS 行を削除 |
+| `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行を削除 |
 
 ### aws-switch
 
@@ -117,7 +120,7 @@ aws-logout              # 環境変数 AWS_PROFILE のプロファイルから�
 aws-logout --all        # すべての -signin プロファイルを掃除
 ```
 
-- `.env` の AWS 行を消すので、次のプロンプト以降はプロファイル無指定（既定）に戻る。
+- `.env` の `AWS_PROFILE` 行を消すので、次のプロンプト以降はプロファイル無指定（既定）に戻る。
 
 ## ~/.aws/config の構成と制約
 

@@ -57,8 +57,10 @@ fi
 
 export AWS_PROFILE
 echo "Current profile is \"${AWS_PROFILE}\"."
-# .env の古い AWS 行を一旦すべて削除する（このあと新しい AWS_PROFILE 行を追記する）
-sed -i '/AWS/d' ${USER_DIR}/.env
+# .env の古い AWS_PROFILE 行を削除する（このあと新しい AWS_PROFILE 行を追記する）。
+# このスクリプトが .env に書くのは AWS_PROFILE 行だけなので、削除対象もそれに限定する。
+# AWS を含む他の変数（CODEX_BEDROCK_AWS_PROFILE 等）を巻き込まないため。
+sed -i -E '/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=/d' ${USER_DIR}/.env
 
 
 # ロールARNの決定

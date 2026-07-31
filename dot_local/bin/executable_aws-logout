@@ -3,7 +3,7 @@
 # aws-logout - AWS からログアウトするためのスクリプト
 #
 # 実際に行うこと:
-#   1. ${USER_DIR}/.env から AWS 行を削除し、direnv 経由のプロファイル指定を解除
+#   1. ${USER_DIR}/.env から AWS_PROFILE 行を削除し、direnv 経由のプロファイル指定を解除
 #   2. aws logout でセッションを破棄
 #   3. ~/.aws/config から -signin（--all 時）/ 対象プロファイルのセクションを削除
 #
@@ -29,9 +29,9 @@ USER_DIR=${USER_DIR:-~}
 if [ "$1" = "--all" ]; then
     echo "Logging out from all profiles..."
 
-    # .envファイルから既存のAWS関連設定を削除
-    # AWS環境変数をクリーンアップ
-    sed -i '/AWS/d' ${USER_DIR}/.env
+    # .env から AWS_PROFILE 行を削除する。aws-switch が .env に書くのは
+    # AWS_PROFILE 行だけなので、AWS を含む他の変数（CODEX_BEDROCK_AWS_PROFILE 等）は残す。
+    sed -i -E '/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=/d' ${USER_DIR}/.env
 
     # AWS CLI: すべてのプロファイルからログアウト
     aws logout --all || true
@@ -71,9 +71,9 @@ else
     # 引数で指定されたプロファイル名、または環境変数AWS_PROFILEを使用
     echo "Current profile is \"${1:-$AWS_PROFILE}\"."
 
-    # .envファイルから既存のAWS関連設定を削除
-    # AWS環境変数をクリーンアップ
-    sed -i '/AWS/d' ${USER_DIR}/.env
+    # .env から AWS_PROFILE 行を削除する。aws-switch が .env に書くのは
+    # AWS_PROFILE 行だけなので、AWS を含む他の変数（CODEX_BEDROCK_AWS_PROFILE 等）は残す。
+    sed -i -E '/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=/d' ${USER_DIR}/.env
 
     # プロファイル名に"-signin"サフィックスを付与
     # AWS CLI v2のログアウトではサインインプロファイルを使用する必要がある
