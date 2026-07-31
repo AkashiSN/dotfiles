@@ -506,33 +506,33 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Darwin_arm64.tar.gz",
-      "checksum": "D09590A063FBC2B83615667F935A34E42E3B61CFBD7B5D92415E80554FDD9FDF",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Darwin_arm64.tar.gz",
+      "checksum": "46697B3F8E94596B9FB354ACB22F238746AC5A1E07F9627E383405D81F221C41",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Darwin_x86_64.tar.gz",
-      "checksum": "15120255EFF8AC8F42A3EA541A215BFB561490BC8BB65B8483D76E30A9E88097",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Darwin_x86_64.tar.gz",
+      "checksum": "29A912BA349F463CD3808C3EB6A01556E9AED820273EF5E9F2FDAA0630EC4DBE",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Linux_arm64.tar.gz",
-      "checksum": "1DF2F02084E09616FDACD8688B244BA36755A6316BE55EFAFBCB38174DBAAA90",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Linux_arm64.tar.gz",
+      "checksum": "7EA9BAFCFD9145F69751E94FBDC42A6CD3D161002B04E0A5BAE3D53E3E88278B",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Linux_x86_64.tar.gz",
-      "checksum": "7A1774A9422D2713EE2991FFF17E615077F340993A086D8EF2C590982950F6B8",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Linux_x86_64.tar.gz",
+      "checksum": "0D931096EEFB9D9147BC23F3F29F9BF302A2EE8D3455A86D0171787A7B06BCE6",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Windows_arm64.zip",
-      "checksum": "5FE0C13786409CE6641F3781B3C64461E837B69A6E7256E2D2715BCB1ECBDC6C",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Windows_arm64.zip",
+      "checksum": "412990B5CA754578BA6D31C6F66D98109A9FFAABEA89B1B0D68E4F226EF3181F",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/tofuutils/tenv/v4.14.8/tenv_v4.14.8_Windows_x86_64.zip",
-      "checksum": "6BAFB4E2CCB4498B47659B8B39A0A644F44985FC63641FD2E43A1D12B89C7882",
+      "id": "github_release/github.com/tofuutils/tenv/v4.15.1/tenv_v4.15.1_Windows_x86_64.zip",
+      "checksum": "EC05686751AED00B97CDA73E8B6C7A7386FC3110C2F312505C6E2762E1978556",
       "algorithm": "sha256"
     },
     {
