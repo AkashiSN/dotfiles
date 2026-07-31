@@ -88,6 +88,12 @@ path=(
   ${path}
 )
 
+# terraform - provider をユーザー共通のキャッシュへ置き、プロジェクトごとの再ダウンロードを避ける。
+# 同じパスを ~/.terraformrc の plugin_cache_dir にも書いてあり(zsh を経由しない実行でも効かせるため)、
+# 両方ある場合はこの環境変数が優先される。ディレクトリ作成は run_onchange の
+# 36-terraform-plugin-cache が行う。掃除は tf-cache-prune。
+export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache"
+
 # portfwd: タグ付きホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
 # LC_PORTFWD_HOST は ssh config の `Match tagged portfwd` 内 SetEnv でのみ渡るため、
 # ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。

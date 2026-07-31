@@ -1,0 +1,13 @@
+#!/bin/sh
+# terraform の provider キャッシュ置き場を用意する。
+# terraform 自身はこのディレクトリを作らず、存在しないと init が
+# "Invalid plugin cache directory" で失敗するため、apply 時に先回りして作る。
+# パスは ~/.terraformrc の plugin_cache_dir / .zshenv の TF_PLUGIN_CACHE_DIR と揃える。
+set -eu
+
+{{ template "shell-log" }}
+step "terraform provider キャッシュを準備中"
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache"
+mkdir -p "$cache_dir"
+note "$cache_dir"

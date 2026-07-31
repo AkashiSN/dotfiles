@@ -1,0 +1,185 @@
+#!/bin/bash
+#
+# tf-cache-prune - terraform の provider キャッシュを掃除するスクリプト
+#
+# 実際に行うこと:
+#   1. plugin cache 配下を <host>/<namespace>/<name>/<version> 単位で走査する
+#   2. provider ごとに新しい方から --keep 個を残し、それより古いものを削除候補にする
+#   3. 既定はドライラン。-y を付けたときだけ実際に削除する
+#
+# 使用方法:
+#   tf-cache-prune                # ドライラン: 一覧と削除候補を表示
+#   tf-cache-prune -y             # 各 provider の最新 1 バージョンだけ残して削除
+#   tf-cache-prune --keep 2 -y    # 最新 2 バージョンを残す
+#   tf-cache-prune --all -y       # キャッシュを丸ごと空にする
+#
+# 前提:
+#   - キャッシュ先は TF_PLUGIN_CACHE_DIR（.zshenv で設定）。未設定なら
+#     ${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache を見る。
+#   - terraform はキャッシュに置いた provider を自分では削除しないため、
+#     容量の管理はこのスクリプトで行う。
+#   - バージョンの新旧比較は `sort -V`（辞書順ではなくバージョン順）。
+#
+# 関連:
+#   - ~/.terraformrc            : plugin_cache_dir の宣言（chezmoi: dot_terraformrc.tmpl）
+#   - docs/terraform-cheatsheet.md
+
+set -euo pipefail
+
+CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache}"
+
+KEEP=1
+ASSUME_YES=0
+PRUNE_ALL=0
+
+usage() {
+	cat <<'EOS'
+使用方法: tf-cache-prune [--keep N] [--all] [-y]
+
+  --keep N   provider ごとに残す最新バージョン数（既定: 1）
+  --all      キャッシュを丸ごと空にする
+  -y, --yes  実際に削除する（付けない限りドライラン）
+  -h, --help このヘルプ
+EOS
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-y | --yes)
+		ASSUME_YES=1
+		;;
+	--all)
+		PRUNE_ALL=1
+		;;
+	--keep)
+		if [ $# -lt 2 ]; then
+			echo "tf-cache-prune: --keep には個数が必要です" >&2
+			exit 1
+		fi
+		KEEP=$2
+		shift
+		;;
+	--keep=*)
+		KEEP=${1#*=}
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		echo "tf-cache-prune: 不明なオプション: $1" >&2
+		usage >&2
+		exit 1
+		;;
+	esac
+	shift
+done
+
+case "$KEEP" in
+'' | *[!0-9]*)
+	echo "tf-cache-prune: --keep には 0 以上の整数を指定してください: $KEEP" >&2
+	exit 1
+	;;
+esac
+
+# KB を人間可読な単位へ。du は -k で単位を KB に固定して取る。
+human() {
+	awk -v kb="$1" 'BEGIN {
+		split("K M G T", unit, " ")
+		i = 1
+		while (kb >= 1024 && i < 4) { kb /= 1024; i++ }
+		fmt = (kb >= 10 || i == 1) ? "%.0f%s\n" : "%.1f%s\n"
+		printf fmt, kb, unit[i]
+	}'
+}
+
+# 削除後の案内。キャッシュは symlink 元なので、消すと参照側が壊れる。
+reinit_notice() {
+	cat <<'EOS'
+
+注意: 削除した provider を使っていたプロジェクトは .terraform/providers が
+リンク切れになります。該当プロジェクトで terraform init をやり直してください。
+EOS
+}
+
+if [ ! -d "$CACHE_DIR" ]; then
+	echo "tf-cache-prune: キャッシュディレクトリがありません: $CACHE_DIR"
+	exit 0
+fi
+
+total_kb=$(du -sk "$CACHE_DIR" | cut -f1)
+printf 'terraform provider cache: %s (合計 %s)\n' "$CACHE_DIR" "$(human "$total_kb")"
+
+if [ "$PRUNE_ALL" -eq 1 ]; then
+	if [ "$ASSUME_YES" -ne 1 ]; then
+		printf '\n--all: キャッシュ全体 (%s) を削除します。実行するには -y を付けてください。\n' \
+			"$(human "$total_kb")"
+		exit 0
+	fi
+	find "$CACHE_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+	printf '\nキャッシュを空にしました (%s を解放)。\n' "$(human "$total_kb")"
+	reinit_notice
+	exit 0
+fi
+
+del_kb=0
+del_n=0
+found=0
+
+# provider ディレクトリ = <host>/<namespace>/<name> なので cache から見て深さ 3。
+# パイプではなくヒアドキュメントで回すのは、集計変数を現在のシェルに残すため。
+while IFS= read -r provider_dir; do
+	[ -n "$provider_dir" ] || continue
+	found=1
+	printf '\n%s\n' "${provider_dir#"$CACHE_DIR"/}"
+
+	versions=$(find "$provider_dir" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -V)
+	n=$(printf '%s\n' "$versions" | sed '/^$/d' | wc -l | tr -d ' ')
+	drop=$((n - KEEP))
+	if [ "$drop" -lt 0 ]; then
+		drop=0
+	fi
+
+	idx=0
+	while IFS= read -r version; do
+		[ -n "$version" ] || continue
+		idx=$((idx + 1))
+		version_kb=$(du -sk "$provider_dir/$version" | cut -f1)
+		# sort -V の昇順なので、先頭から drop 個が古い側。
+		if [ "$idx" -le "$drop" ]; then
+			printf '  delete  %-18s %8s\n' "$version" "$(human "$version_kb")"
+			del_kb=$((del_kb + version_kb))
+			del_n=$((del_n + 1))
+			if [ "$ASSUME_YES" -eq 1 ]; then
+				rm -rf "$provider_dir/$version"
+			fi
+		else
+			printf '  keep    %-18s %8s\n' "$version" "$(human "$version_kb")"
+		fi
+	done <<EOF
+$versions
+EOF
+done <<EOF
+$(find "$CACHE_DIR" -mindepth 3 -maxdepth 3 -type d | sort)
+EOF
+
+if [ "$found" -eq 0 ]; then
+	printf '\nキャッシュ済みの provider はありません。\n'
+	exit 0
+fi
+
+printf '\n'
+if [ "$del_n" -eq 0 ]; then
+	printf '削除対象はありません（--keep %s）。\n' "$KEEP"
+	exit 0
+fi
+
+if [ "$ASSUME_YES" -eq 1 ]; then
+	# provider を消して空になった <name>/<namespace>/<host> の階層も畳む。
+	find "$CACHE_DIR" -mindepth 1 -type d -empty -delete
+	printf '%s バージョンを削除しました（約 %s を解放）。\n' "$del_n" "$(human "$del_kb")"
+	reinit_notice
+else
+	printf '削除対象: %s バージョン / 約 %s\n' "$del_n" "$(human "$del_kb")"
+	printf 'ドライランです。実際に削除するには -y を付けてください。\n'
+fi

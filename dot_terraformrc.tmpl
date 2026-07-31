@@ -1,0 +1,9 @@
+{{- $cacheHome := env "XDG_CACHE_HOME" | default (printf "%s/.cache" .chezmoi.homeDir) -}}
+# terraform CLI 設定。
+
+# provider をユーザー共通のキャッシュに置き、プロジェクトごとの再ダウンロードと
+# 重複配置を避ける。同じパスを .zshenv の TF_PLUGIN_CACHE_DIR でも指定しており、
+# 環境変数が設定されていればそちらが優先される。
+# このディレクトリは terraform 自身では作られないため、
+# .chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl が用意する。
+plugin_cache_dir = "{{ $cacheHome }}/terraform/plugin-cache"

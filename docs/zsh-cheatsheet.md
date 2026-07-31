@@ -8,6 +8,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_zshenv.tmpl` で設定。非インタラクティブ実行にも適用）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_zshenv.tmpl` で設定。全シェル/スクリプトに適用）
 - Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
+- Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_zshenv.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
 - 構成: `dot_zshrc` はローダー。実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
 
 > 表記: `C-]` = Ctrl+]、`S-...` = Shift。エイリアス/関数の一部は対応ツール（terraform/kubectl 等）が
