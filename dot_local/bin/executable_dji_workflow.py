@@ -75,8 +75,9 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -89,6 +90,12 @@ VIDEO_EXTS = {"MP4", "MOV"}
 DEFAULT_DEVICE_TAG = "DJI Osmo Pocket 4"
 DEFAULT_EXTS = ["MP4", "JPG"]
 DEFAULT_TZ = "Asia/Tokyo"
+
+# dest_base 直下でオリジナル走査の対象外にするディレクトリ。
+# それ以外の直下ディレクトリは SD の DCIM 同型のオリジナル置き場とみなす。
+RESERVED_DIRS = {"merged", "upload", "failed_merges"}
+# rsync の中断ファイル置き場。転送先と同名のファイルが入るので走査から外す。
+PARTIAL_DIR = ".rsync-partial"
 
 
 # ============================================================
@@ -286,6 +293,103 @@ SEQ_RE = re.compile(r"_(\d{4})_D$")
 DATE_DIR_RE = re.compile(r"^\d{8}$")
 
 
+def parse_since(s: str) -> date:
+    """``--since`` の文字列を date にする。YYYYMMDD と YYYY-MM-DD を受け付ける。"""
+    for fmt in ("%Y%m%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    die(f"--since の書式が不正です: {s!r} (YYYYMMDD または YYYY-MM-DD)")
+
+
+def file_date(p: Path, tz: ZoneInfo) -> date:
+    """撮影日を返す。
+
+    ``DJI_YYYYMMDDHHMMSS_...`` はファイル名の壁時計をそのまま撮影日とする
+    (壁時計は既に ``tz`` の時刻なので変換不要)。パノラマの ``PANO_0001.JPG``
+    のようにタイムスタンプを持たないファイルは、カメラが記録し rsync -a が
+    保存した mtime を ``tz`` で解釈する。
+    """
+    m = TS_RE.match(p.name)
+    if m:
+        try:
+            return datetime.strptime(m.group(1), "%Y%m%d%H%M%S").date()
+        except ValueError:
+            pass
+    return datetime.fromtimestamp(p.stat().st_mtime, tz).date()
+
+
+def iter_media(root: Path, exts: list[str]) -> Iterator[Path]:
+    """``root`` 配下の対象拡張子ファイルを列挙する。
+
+    root 直下の予約ディレクトリと、あらゆる階層のドット始まりディレクトリは
+    辿らない。後者は rsync の ``--partial-dir`` が転送先と同名の不完全ファイルを
+    置くため、拾うと壊れた動画が upload/ に混入する。
+    """
+    exts_lower = {e.lower() for e in exts}
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            entries = sorted(d.iterdir())
+        except OSError as e:
+            warn(f"走査できません: {d} ({e})")
+            continue
+        for p in entries:
+            if p.is_dir():
+                if p.name.startswith("."):
+                    continue
+                if d == root and p.name in RESERVED_DIRS:
+                    continue
+                stack.append(p)
+            elif p.is_file() and p.suffix.lstrip(".").lower() in exts_lower:
+                yield p
+
+
+@dataclass
+class Targets:
+    videos: list[Path]
+    photos: list[Path]
+
+    def __bool__(self) -> bool:
+        return bool(self.videos or self.photos)
+
+
+def collect_targets(cfg: Config, since: date) -> Targets:
+    """dest_base 配下から ``since`` 以降のメディアを集めて動画/写真に分ける。"""
+    video_exts = {e.lower() for e in cfg.video_exts}
+    videos: list[Path] = []
+    photos: list[Path] = []
+    for p in iter_media(cfg.dest_base, cfg.exts):
+        if file_date(p, cfg.tz) < since:
+            continue
+        if p.suffix.lstrip(".").lower() in video_exts:
+            videos.append(p)
+        else:
+            photos.append(p)
+    # ディレクトリを跨いでも撮影順に並ぶよう、パス全体ではなくファイル名で揃える
+    videos.sort(key=lambda p: p.name)
+    photos.sort(key=lambda p: p.name)
+    return Targets(videos, photos)
+
+
+def resolve_since(cfg: Config, sd_mounted: bool) -> date:
+    """``--since`` を解決する。未指定なら SD 内の最古撮影日を使う。"""
+    if cfg.since is not None:
+        return cfg.since
+    if not sd_mounted:
+        die(f"SD カード ({cfg.sd_mount}) が未マウントです。"
+            f"--since で対象日を指定してください")
+    dates = [file_date(p, cfg.tz) for p in iter_media(cfg.src_dcim, cfg.exts)]
+    if not dates:
+        die(f"SD カード ({cfg.src_dcim}) に対象ファイル "
+            f"({', '.join(cfg.exts)}) がありません")
+    since = min(dates)
+    log(f"--since 未指定。SD 内の最古撮影日を採用: {since:%Y-%m-%d}")
+    return since
+
+
 def get_session_id_from_sd(src_dcim: Path) -> str | None:
     """SD 内の最古撮影日 (YYYYMMDD) を返す。見つからなければ None"""
     days = sorted({
@@ -343,6 +447,57 @@ def get_dir_size_bytes(path: Path) -> int:
 
 def fmt_gib(b: int) -> str:
     return f"{b / 1024**3:.2f} GiB"
+
+
+def same_file(a: Path, b: Path) -> bool:
+    """rsync の既定判定と同じ基準 (size + 秒精度の mtime) で同一とみなす。
+
+    16GiB 級の動画が対象なので内容ハッシュは取らない。
+    """
+    sa, sb = a.stat(), b.stat()
+    return sa.st_size == sb.st_size and int(sa.st_mtime) == int(sb.st_mtime)
+
+
+def timestamped_name(p: Path, tz: ZoneInfo) -> str:
+    """衝突回避用に mtime の壁時計を stem 末尾へ付けたファイル名を返す。"""
+    stamp = datetime.fromtimestamp(p.stat().st_mtime, tz).strftime("%Y%m%d%H%M%S")
+    return f"{p.stem}_{stamp}{p.suffix}"
+
+
+def resolve_collision_dst(src: Path, dst_dir: Path, tz: ZoneInfo) -> Path:
+    """``dst_dir`` 内で未使用になるまで連番を足した退避先パスを返す。"""
+    name = timestamped_name(src, tz)
+    cand = dst_dir / name
+    stem, suffix = Path(name).stem, Path(name).suffix
+    n = 2
+    while cand.exists():
+        cand = dst_dir / f"{stem}_{n}{suffix}"
+        n += 1
+    return cand
+
+
+def find_collisions(cfg: Config) -> list[tuple[Path, Path]]:
+    """(SD 側ファイル, 同じ相対パスにある既存ファイル) のうち内容が違う組を返す。"""
+    out: list[tuple[Path, Path]] = []
+    for src in iter_media(cfg.src_dcim, cfg.exts):
+        dst = cfg.dest_base / src.relative_to(cfg.src_dcim)
+        if dst.exists() and not same_file(src, dst):
+            out.append((src, dst))
+    return out
+
+
+def copy_collisions(cfg: Config, collisions: list[tuple[Path, Path]]) -> int:
+    """衝突ファイルをタイムスタンプ付きの名前でコピーする。失敗件数を返す。"""
+    n_fail = 0
+    for src, existing in collisions:
+        dst = resolve_collision_dst(src, existing.parent, cfg.tz)
+        log(f"衝突回避: {src.relative_to(cfg.src_dcim)} → "
+            f"{dst.relative_to(cfg.dest_base)}")
+        r = subprocess.run(["rsync", "-ah", "--progress", str(src), str(dst)])
+        if r.returncode != 0:
+            warn(f"衝突ファイルのコピーに失敗: {src}")
+            n_fail += 1
+    return n_fail
 
 
 def copy_from_sd(cfg: Config, originals_dir: Path) -> None:
