@@ -39,28 +39,34 @@ DJI Osmo Pocket 4 を主対象としているが、`--device-tag` と `--ext` �
   - --tz は (1) 結合後 MP4 の mtime 計算 (filename_to_epoch)、
     (2) --fix-timezone の書き戻しオフセット、の両方で同じ値を使う。
 
-出力レイアウト ($DEST_DIR 配下):
-  originals/      rsync で SD から取り込んだファイル (`--ext` でフィルタ)
-  upload/         immich-go の入力ディレクトリ。結合済みMP4 + 単独動画/写真の hardlink
-  failed_merges/  結合に失敗した分割動画グループ (再実行や手動結合の判断はユーザに委ねる)
+出力レイアウト ($DEST_BASE 配下):
+  DJI_001/, PANORAMA/ ...  SD の DCIM と同構成でオリジナルを蓄積する (rsync 先)
+  merged/                  結合済み MP4 の実体。オリジナルと同じ相対パスを維持
+  upload/                  immich-go の入力。実行のたびに作り直すハードリンクのみ
+  failed_merges/           結合に失敗した分割動画グループ
+
+オリジナルは絶対に上書きしない。SD 側と同名で内容の異なるファイルがあった場合は
+mtime の壁時計を付けた名前 (PANO_0001_20260509122400.JPG) で退避する。
 
 実行例:
   # IMMICH_API_KEY は ~/.zshenv 等で永続化推奨
   export IMMICH_API_KEY=XXXX
 
-  # 取り込み + 結合 + upload/ 構築 + immich-go コマンド表示
-  ./scripts/dji_workflow.py --immich-server https://immich.example.com
+  # SD を挿した状態で取り込み + 結合 + upload/ 構築 + immich-go コマンド表示
+  # (--since 未指定なら SD 内の最古撮影日が対象下限になる)
+  ./dji_workflow.py --immich-server https://immich.example.com
 
-  # (immich-go でのアップロード完了後) 撮影日時のずれを Immich API で修正
-  ./scripts/dji_workflow.py --fix-timezone \
+  # SD 無しで、蓄積済みオリジナルから指定日以降の upload/ を組み直す
+  ./dji_workflow.py --since 20260718 \
       --immich-server https://immich.example.com
 
-  # 全工程ドライラン (rsync -n、結合・hardlink・eject 全てスキップ、
-  # 表示 immich-go コマンドにも --dry-run が付く)
-  ./scripts/dji_workflow.py --dry-run
+  # (immich-go でのアップロード完了後) 撮影日時のずれを Immich API で修正
+  ./dji_workflow.py --fix-timezone \
+      --immich-server https://immich.example.com
 
-  # SD を抜いた状態で結合からやり直す (SD 未マウントなら自動でコピーをスキップ)
-  ./scripts/dji_workflow.py
+  # 全工程ドライラン (rsync -n、結合・hardlink・upload/ 削除・eject 全てスキップ、
+  # 表示 immich-go コマンドにも --dry-run が付く)
+  ./dji_workflow.py --dry-run
 """
 from __future__ import annotations
 
@@ -133,7 +139,7 @@ def confirm(prompt: str) -> bool:
 class Config:
     sd_mount: Path
     dest_base: Path
-    dest_dir: Path | None
+    since: date | None
     immich_server: str
     immich_client_timeout: str
     immich_concurrency: int
@@ -153,6 +159,20 @@ class Config:
     @property
     def src_dcim(self) -> Path:
         return self.sd_mount / "DCIM"
+
+    @property
+    def merged_dir(self) -> Path:
+        """結合済み MP4 の実体置き場。upload/ を作り直しても失われない。"""
+        return self.dest_base / "merged"
+
+    @property
+    def upload_dir(self) -> Path:
+        """immich-go の入力。実行のたびに削除して作り直す使い捨て。"""
+        return self.dest_base / "upload"
+
+    @property
+    def failed_dir(self) -> Path:
+        return self.dest_base / "failed_merges"
 
     @property
     def video_exts(self) -> list[str]:
@@ -175,7 +195,7 @@ class Config:
         return cls(
             sd_mount=Path(ns.sd_mount),
             dest_base=Path(ns.dest_base).expanduser(),
-            dest_dir=Path(ns.dest_dir).expanduser() if ns.dest_dir else None,
+            since=parse_since(ns.since) if ns.since else None,
             immich_server=immich_server,
             immich_client_timeout=ns.immich_client_timeout,
             immich_concurrency=ns.immich_concurrency,
@@ -216,8 +236,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="SD カードのマウントポイント")
     parser.add_argument("--dest-base", default="/Volumes/SanDisk 2TB/OsmoPocket4",
                         help="コピー先ベースディレクトリ")
-    parser.add_argument("--dest-dir", default=None,
-                        help="既存ディレクトリ再利用時に指定。未指定なら自動決定")
+    parser.add_argument("--since", default=None,
+                        help="upload/ に入れる対象の下限日 (YYYYMMDD または "
+                             "YYYY-MM-DD、指定日を含む)。未指定時は SD 内の "
+                             "最古撮影日。SD 未マウント時は必須")
     parser.add_argument("--immich-server", default=None,
                         help="表示コマンドに埋め込む Immich サーバー URL "
                              "(未指定時は環境変数 IMMICH_SERVER)")
@@ -265,7 +287,8 @@ def build_parser() -> argparse.ArgumentParser:
                              "--tz オフセット付きで書き戻して時刻ずれを修正する "
                              "(要 IMMICH_API_KEY / --immich-server)")
     parser.add_argument("--yes", "-y", action="store_true",
-                        help="--fix-timezone の適用確認プロンプトをスキップ")
+                        help="upload/ 削除と --fix-timezone 適用の確認プロンプトを"
+                             "スキップ")
     return parser
 
 
@@ -285,12 +308,10 @@ def check_deps(cfg: Config) -> None:
 
 
 # ============================================================
-# DEST_DIR 解決
+# 対象ファイルの解決
 # ============================================================
-SESSION_RE = re.compile(r"^DJI_(\d{8})")
 TS_RE = re.compile(r"^DJI_(\d{14})_")
 SEQ_RE = re.compile(r"_(\d{4})_D$")
-DATE_DIR_RE = re.compile(r"^\d{8}$")
 
 
 def parse_since(s: str) -> date:
@@ -390,49 +411,6 @@ def resolve_since(cfg: Config, sd_mounted: bool) -> date:
     return since
 
 
-def get_session_id_from_sd(src_dcim: Path) -> str | None:
-    """SD 内の最古撮影日 (YYYYMMDD) を返す。見つからなければ None"""
-    days = sorted({
-        m.group(1)
-        for p in src_dcim.rglob("DJI_*_D.MP4")
-        if (m := SESSION_RE.match(p.name))
-    })
-    return days[0] if days else None
-
-
-def find_latest_existing_dest(dest_base: Path) -> Path | None:
-    """dest_base 配下で YYYYMMDD 形式かつ originals/ にデータがあるディレクトリのうち、
-    名前順最新を返す。手動で作った非日付ディレクトリは候補外。"""
-    if not dest_base.is_dir():
-        return None
-    candidates: list[Path] = []
-    for child in dest_base.iterdir():
-        if not child.is_dir() or not DATE_DIR_RE.match(child.name):
-            continue
-        originals = child / "originals"
-        if originals.is_dir() and any(originals.rglob("DJI_*_D.MP4")):
-            candidates.append(child)
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.name)[-1]
-
-
-def resolve_dest_dir(cfg: Config, sd_mounted: bool) -> Path:
-    if cfg.dest_dir is not None:
-        return cfg.dest_dir
-    if sd_mounted:
-        session_id = (get_session_id_from_sd(cfg.src_dcim)
-                      or datetime.now(cfg.tz).strftime("%Y%m%d"))
-        return cfg.dest_base / session_id
-    latest = find_latest_existing_dest(cfg.dest_base)
-    if latest is None:
-        die(f"SD カード ({cfg.sd_mount}) もマウントされておらず、"
-            f"{cfg.dest_base} 配下に YYYYMMDD 形式の既存ディレクトリ "
-            f"(originals/ を含む) もありません")
-    log(f"SD 未マウント。YYYYMMDD 形式で最新の既存ディレクトリを採用: {latest}")
-    return latest  # type: ignore[unreachable]
-
-
 # ============================================================
 # Step 1: SD からコピー
 # ============================================================
@@ -464,13 +442,19 @@ def timestamped_name(p: Path, tz: ZoneInfo) -> str:
     return f"{p.stem}_{stamp}{p.suffix}"
 
 
-def resolve_collision_dst(src: Path, dst_dir: Path, tz: ZoneInfo) -> Path:
-    """``dst_dir`` 内で未使用になるまで連番を足した退避先パスを返す。"""
+def resolve_collision_dst(src: Path, dst_dir: Path, tz: ZoneInfo) -> Path | None:
+    """``dst_dir`` 内で未使用になるまで連番を足した退避先パスを返す。
+
+    同じ内容で退避済みの候補が既にあれば None を返す。SD を挿したまま
+    繰り返し実行しても同じファイルが増え続けないようにするため。
+    """
     name = timestamped_name(src, tz)
     cand = dst_dir / name
     stem, suffix = Path(name).stem, Path(name).suffix
     n = 2
     while cand.exists():
+        if same_file(src, cand):
+            return None
         cand = dst_dir / f"{stem}_{n}{suffix}"
         n += 1
     return cand
@@ -491,6 +475,9 @@ def copy_collisions(cfg: Config, collisions: list[tuple[Path, Path]]) -> int:
     n_fail = 0
     for src, existing in collisions:
         dst = resolve_collision_dst(src, existing.parent, cfg.tz)
+        if dst is None:
+            log(f"退避済みのためスキップ: {src.relative_to(cfg.src_dcim)}")
+            continue
         log(f"衝突回避: {src.relative_to(cfg.src_dcim)} → "
             f"{dst.relative_to(cfg.dest_base)}")
         r = subprocess.run(["rsync", "-ah", "--progress", str(src), str(dst)])
@@ -500,17 +487,17 @@ def copy_collisions(cfg: Config, collisions: list[tuple[Path, Path]]) -> int:
     return n_fail
 
 
-def copy_from_sd(cfg: Config, originals_dir: Path) -> None:
-    log("=== Step 1: SDカードから originals/ へコピー ===")
+def copy_from_sd(cfg: Config) -> None:
+    log("=== Step 1: SD カードから dest_base へコピー ===")
     if cfg.dry_run:
-        log("(dry-run) rsync は -n でプレビューのみ、ディレクトリも作成しない")
+        log("(dry-run) rsync は -n でプレビューのみ")
 
     src = cfg.src_dcim
     if not src.is_dir():
         die(f"SD カードの DCIM が見つかりません: {src}")
 
     log(f"コピー元: {src}")
-    log(f"コピー先: {originals_dir}")
+    log(f"コピー先: {cfg.dest_base}")
 
     src_size = get_dir_size_bytes(src)
     df_target = cfg.dest_base if cfg.dest_base.exists() else cfg.dest_base.parent
@@ -524,29 +511,42 @@ def copy_from_sd(cfg: Config, originals_dir: Path) -> None:
         die(f"転送先の空き容量が不足しています "
             f"(SD 全体: {fmt_gib(src_size)}, 空き: {fmt_gib(free_space)})")
 
-    if not cfg.dry_run:
-        originals_dir.mkdir(parents=True, exist_ok=True)
+    collisions = find_collisions(cfg)
+    if collisions:
+        warn(f"同名で内容の異なるファイルを {len(collisions)} 件検出しました。"
+             f"既存は上書きせず、タイムスタンプ付きの名前でコピーします")
+        for _, existing in collisions:
+            console.print(f"  衝突: {existing.relative_to(cfg.dest_base)}")
 
-    # mtime + size 比較で差分転送 (SD は read-only 運用前提)
+    if not cfg.dry_run:
+        cfg.dest_base.mkdir(parents=True, exist_ok=True)
+
+    # --ignore-existing で既存オリジナルには一切書き込まない。
+    # --partial-dir を使うのは、中断した部分ファイルを転送先に残すと
+    # --ignore-existing がそれを「既存」とみなして永久にスキップするため。
     cmd = [
-        "rsync", "-ah", "--progress", "--partial", "--stats",
+        "rsync", "-ah", "--progress", "--stats",
+        "--ignore-existing", f"--partial-dir={PARTIAL_DIR}",
         *(["-n"] if cfg.dry_run else []),
         "--include=*/",
         *[f"--include=*.{ext}" for ext in cfg.exts],
         "--exclude=*",
-        f"{src}/", f"{originals_dir}/",
+        f"{src}/", f"{cfg.dest_base}/",
     ]
     subprocess.run(cmd, check=True)
 
     if cfg.dry_run:
         return
 
-    log("コピー済みファイル種別:")
+    n_fail = copy_collisions(cfg, collisions)
+    if n_fail:
+        warn(f"衝突ファイル {n_fail} 件のコピーに失敗しました")
+
+    log("蓄積済みファイル種別:")
     counts: dict[str, int] = {}
-    for p in originals_dir.rglob("*"):
-        if p.is_file():
-            ext = p.suffix.lstrip(".") or "(none)"
-            counts[ext] = counts.get(ext, 0) + 1
+    for p in iter_media(cfg.dest_base, cfg.exts):
+        ext = p.suffix.lstrip(".") or "(none)"
+        counts[ext] = counts.get(ext, 0) + 1
     for ext, n in sorted(counts.items()):
         console.print(f"  {n:5d} {ext}")
 
@@ -585,7 +585,7 @@ def get_duration(p: Path) -> float | None:
         return None
 
 
-def detect_groups(originals_dir: Path, tolerance: int,
+def detect_groups(videos: list[Path], tolerance: int,
                   min_split_size: int, tz: ZoneInfo) -> list[list[Path]]:
     """連続録画グループを検出する。
 
@@ -595,7 +595,7 @@ def detect_groups(originals_dir: Path, tolerance: int,
         (DJI は ~16GiB で自動分割するため、これ未満なら分割ではなく
         ユーザ操作などで終了した別録画とみなす)
     """
-    files = sorted(originals_dir.rglob("DJI_*_D.MP4"))
+    files = videos
     if not files:
         return []
 
@@ -725,28 +725,37 @@ def set_mtime_to_recording_end(out_path: Path, files: list[Path],
     os.utime(out_path, (end, end))
 
 
-def merge_group(files: list[Path], upload_dir: Path, tz: ZoneInfo) -> bool:
-    """結合に成功したら True、失敗 (or パース不能) なら False を返す。"""
-    if len(files) < 2:
-        return True
+def merged_output_path(files: list[Path], merged_dir: Path,
+                       dest_base: Path) -> Path | None:
+    """結合後ファイルの出力先を返す。ファイル名をパースできなければ None。
 
-    first_stem = files[0].stem
-    last_stem = files[-1].stem
-    first_seq_m = SEQ_RE.search(first_stem)
-    last_seq_m = SEQ_RE.search(last_stem)
-    first_ts_m = TS_RE.match(first_stem)
+    オリジナルからの相対パスを merged/ 側でも維持する
+    (``DJI_001/xxx.MP4`` → ``merged/DJI_001/xxx_MERGED.MP4``)。
+    """
+    first_seq_m = SEQ_RE.search(files[0].stem)
+    last_seq_m = SEQ_RE.search(files[-1].stem)
+    first_ts_m = TS_RE.match(files[0].stem)
     if not (first_seq_m and last_seq_m and first_ts_m):
-        warn(f"ファイル名パース失敗、スキップ: {first_stem}")
-        return False
-
+        return None
     out_name = (f"DJI_{first_ts_m.group(1)}"
                 f"_{first_seq_m.group(1)}-{last_seq_m.group(1)}_MERGED.MP4")
-    out_path = upload_dir / out_name
+    return merged_dir / files[0].parent.relative_to(dest_base) / out_name
+
+
+def merge_group(files: list[Path], merged_dir: Path, dest_base: Path,
+                tz: ZoneInfo) -> Path | None:
+    """結合に成功したら merged/ 内の出力パス、失敗なら None を返す。"""
+    out_path = merged_output_path(files, merged_dir, dest_base)
+    if out_path is None:
+        warn(f"ファイル名パース失敗、スキップ: {files[0].stem}")
+        return None
+    out_name = out_path.name
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if out_path.exists():
         log(f"結合済みのためスキップ: {out_name}")
         set_mtime_to_recording_end(out_path, files, tz)
-        return True
+        return out_path
 
     log(f"結合: {len(files)} ファイル → {out_name}")
     for f in files:
@@ -776,11 +785,11 @@ def merge_group(files: list[Path], upload_dir: Path, tz: ZoneInfo) -> bool:
             if not merge_via_ts(out_path, files):
                 err(f"結合失敗: {out_name}")
                 out_path.unlink(missing_ok=True)
-                return False
+                return None
         size_mb = out_path.stat().st_size / (1024 * 1024)
         log(f"✓ 結合完了: {size_mb:.1f}MB {out_name}")
         set_mtime_to_recording_end(out_path, files, tz)
-        return True
+        return out_path
     finally:
         list_file.unlink(missing_ok=True)
 
@@ -801,41 +810,53 @@ def stage_failed_group(group: list[Path], failed_dir: Path) -> Path:
     return target
 
 
+@dataclass
+class MergeResult:
+    """結合結果。``merged`` / ``failed`` とも (元ファイル群, 出力先) の組。"""
+    merged: list[tuple[list[Path], Path]]
+    failed: list[tuple[list[Path], Path]]
+
+
 def merge_splits(groups: list[list[Path]],
-                 upload_dir: Path,
+                 merged_dir: Path,
+                 dest_base: Path,
                  failed_dir: Path,
                  dry_run: bool,
-                 tz: ZoneInfo) -> list[tuple[list[Path], Path]]:
-    """結合に失敗したグループ (元ファイル群, ステージング先) のリストを返す。
+                 tz: ZoneInfo) -> MergeResult:
+    """分割グループを結合する。
 
-    dry_run=True なら ffmpeg を起動せず、結合候補の一覧と件数だけ表示する。
+    dry_run=True なら ffmpeg を起動せず、出力先だけ決めて結果に載せる。
+    こうすることで upload/ 構築側の件数表示もドライランで正しくなる。
     """
-    if not dry_run:
-        upload_dir.mkdir(parents=True, exist_ok=True)
+    result = MergeResult(merged=[], failed=[])
     merge_count = 0
     single_count = 0
-    failed: list[tuple[list[Path], Path]] = []
     for g in groups:
-        if len(g) >= 2:
-            merge_count += 1
-            if dry_run:
-                log(f"(dry-run) 結合対象 {len(g)} ファイル: "
-                    f"{g[0].name} 〜 {g[-1].name}")
-                continue
-            try:
-                ok = merge_group(g, upload_dir, tz)
-            except Exception as e:
-                warn(f"結合中エラー: {e}")
-                ok = False
-            if not ok:
-                staged = stage_failed_group(g, failed_dir)
-                failed.append((g, staged))
-        else:
+        if len(g) < 2:
             single_count += 1
+            continue
+        merge_count += 1
+        if dry_run:
+            out = merged_output_path(g, merged_dir, dest_base)
+            log(f"(dry-run) 結合対象 {len(g)} ファイル: "
+                f"{g[0].name} 〜 {g[-1].name} → "
+                f"{out.name if out else '(ファイル名パース失敗)'}")
+            if out is not None:
+                result.merged.append((g, out))
+            continue
+        try:
+            out = merge_group(g, merged_dir, dest_base, tz)
+        except Exception as e:
+            warn(f"結合中エラー: {e}")
+            out = None
+        if out is None:
+            result.failed.append((g, stage_failed_group(g, failed_dir)))
+        else:
+            result.merged.append((g, out))
     prefix = "(dry-run) " if dry_run else ""
     log(f"{prefix}単独動画: {single_count} 本 / 結合グループ: {merge_count} 個 "
-        f"(うち失敗: {len(failed)} 個)")
-    return failed
+        f"(うち失敗: {len(result.failed)} 個)")
+    return result
 
 
 # ============================================================
@@ -850,33 +871,67 @@ def hardlink_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def organize_for_upload(groups: list[list[Path]],
-                        originals_dir: Path,
-                        upload_dir: Path,
-                        photo_exts: list[str],
-                        dry_run: bool) -> None:
-    log("=== Step 3: upload/ ディレクトリを構築 ===")
-    if not dry_run:
+def reset_upload_dir(cfg: Config, upload_dir: Path) -> None:
+    """既存 upload/ を削除して作り直せる状態にする。
+
+    upload/ の中身は originals と merged/ へのハードリンクだけなので、
+    削除しても実データは失われない。
+    """
+    if not upload_dir.exists():
+        return
+    if cfg.dry_run:
+        log(f"(dry-run) 既存 upload/ は削除しない: {upload_dir}")
+        return
+    n = sum(1 for p in upload_dir.rglob("*") if p.is_file())
+    if not cfg.assume_yes:
+        log(f"既存 upload/ に {n} ファイルあります "
+            f"(中身はハードリンクなので削除しても実データは残ります)")
+        if not confirm(f"{upload_dir} を削除して作り直しますか?"):
+            die("中止しました")
+    shutil.rmtree(upload_dir)
+    log(f"既存 upload/ を削除しました ({n} ファイル)")
+
+
+def link_into_upload(src: Path, base: Path, upload_dir: Path) -> None:
+    """``base`` からの相対パスを保ったまま upload/ へハードリンクする。"""
+    dst = upload_dir / src.relative_to(base)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    hardlink_or_copy(src, dst)
+
+
+def organize_for_upload(cfg: Config, targets: Targets, result: MergeResult,
+                        upload_dir: Path) -> None:
+    log("=== Step 4: upload/ を構築 ===")
+    if not cfg.dry_run:
         upload_dir.mkdir(parents=True, exist_ok=True)
 
+    # 結合済み・結合失敗グループの元ファイルは upload/ に入れない
+    grouped = {f for g, _ in result.merged for f in g}
+    grouped |= {f for g, _ in result.failed for f in g}
+
     linked_videos = 0
-    for g in groups:
-        if len(g) == 1:
-            src = g[0]
-            if not dry_run:
-                hardlink_or_copy(src, upload_dir / src.name)
-            linked_videos += 1
+    for p in targets.videos:
+        if p in grouped:
+            continue
+        if not cfg.dry_run:
+            link_into_upload(p, cfg.dest_base, upload_dir)
+        linked_videos += 1
 
-    photo_exts_lower = {e.lower() for e in photo_exts}
     linked_photos = 0
-    for p in originals_dir.rglob("*"):
-        if p.is_file() and p.suffix.lstrip(".").lower() in photo_exts_lower:
-            if not dry_run:
-                hardlink_or_copy(p, upload_dir / p.name)
-            linked_photos += 1
+    for p in targets.photos:
+        if not cfg.dry_run:
+            link_into_upload(p, cfg.dest_base, upload_dir)
+        linked_photos += 1
 
-    prefix = "(dry-run) " if dry_run else ""
-    log(f"{prefix}単独動画 {linked_videos} 本 / 写真 {linked_photos} 枚を upload/ に配置")
+    linked_merged = 0
+    for _, out in result.merged:
+        if not cfg.dry_run:
+            link_into_upload(out, cfg.merged_dir, upload_dir)
+        linked_merged += 1
+
+    prefix = "(dry-run) " if cfg.dry_run else ""
+    log(f"{prefix}単独動画 {linked_videos} 本 / 写真 {linked_photos} 枚 / "
+        f"結合済み {linked_merged} 本を upload/ に配置")
 
 
 # ============================================================
@@ -929,7 +984,7 @@ def print_upload_command(cfg: Config, upload_dir: Path) -> None:
         f"  --immich-server {server_arg}",
         f"  --device-tag {shlex.quote(cfg.device_tag)}",
         f"  --tz {shlex.quote(cfg.tz_name)}",
-        f"  --dest-dir {shlex.quote(str(upload_dir.parent))}",
+        f"  --dest-base {shlex.quote(str(cfg.dest_base))}",
     ]
     if cfg.dry_run:
         fix_lines.append("  --dry-run")
@@ -1068,13 +1123,13 @@ class TzUpdate:
     new_iso: str
 
 
-def build_local_name_set(dest_dir: Path) -> set[str]:
-    """dest_dir 配下のファイル名集合。
+def build_local_name_set(upload_dir: Path) -> set[str]:
+    """upload/ 配下のファイル名集合。
 
-    タグには他セッションのアセットも含まれ得るので、本セッションで取り込んだ
-    ファイル名と一致するものだけに更新対象を絞る安全網。
+    タグには他セッションのアセットも含まれ得るので、直近のアップロード対象と
+    一致するものだけに更新対象を絞る安全網。
     """
-    return {p.name for p in dest_dir.rglob("*") if p.is_file()}
+    return {p.name for p in upload_dir.rglob("*") if p.is_file()}
 
 
 def build_tz_plan(server: str, key: str, tag_id: str,
@@ -1103,7 +1158,7 @@ def build_tz_plan(server: str, key: str, tag_id: str,
     return updates, total, no_local, unparsed
 
 
-def fix_timezone(cfg: Config, dest_dir: Path) -> int:
+def fix_timezone(cfg: Config, upload_dir: Path) -> int:
     """アップロード済み Immich アセットの撮影日時をファイル名から書き戻す。"""
     log("=== --fix-timezone: Immich アセット撮影日時を修正 ===")
     if not cfg.immich_server:
@@ -1115,11 +1170,11 @@ def fix_timezone(cfg: Config, dest_dir: Path) -> int:
     server = cfg.immich_server
     log(f"Immich サーバ: {server}")
     log(f"対象タグ: {cfg.device_tag}")
-    log(f"ローカル照合ベース: {dest_dir}")
+    log(f"ローカル照合ベース: {upload_dir}")
     log(f"TZ: {cfg.tz_name}")
 
     tag_id = resolve_tag_id(server, api_key, cfg.device_tag)
-    local_names = build_local_name_set(dest_dir)
+    local_names = build_local_name_set(upload_dir)
     log(f"ローカルファイル {len(local_names)} 件で照合")
 
     updates, total, no_local, unparsed = build_tz_plan(
@@ -1169,58 +1224,62 @@ def main(argv: list[str]) -> int:
 
     check_deps(cfg)
 
-    sd_mounted = cfg.src_dcim.is_dir()
-    dest_dir = resolve_dest_dir(cfg, sd_mounted)
-    originals_dir = dest_dir / "originals"
-    upload_dir = dest_dir / "upload"
-    failed_dir = dest_dir / "failed_merges"
+    upload_dir = cfg.upload_dir
 
     if cfg.fix_timezone:
-        log(f"作業ディレクトリ: {dest_dir}")
-        return fix_timezone(cfg, dest_dir)
+        if not upload_dir.is_dir():
+            die(f"{upload_dir} がありません。"
+                f"--since を指定して upload/ を組み直してから実行してください")
+        return fix_timezone(cfg, upload_dir)
 
-    if not cfg.dry_run:
-        dest_dir.mkdir(parents=True, exist_ok=True)
+    sd_mounted = cfg.src_dcim.is_dir()
+    since = resolve_since(cfg, sd_mounted)
+
     log("ワークフロー開始")
     if cfg.dry_run:
         log("(dry-run) 全工程プレビュー: 実 I/O は行わない")
-    log(f"作業ディレクトリ: {dest_dir}")
+    log(f"オリジナル蓄積先: {cfg.dest_base}")
+    log(f"対象: {since:%Y-%m-%d} 以降")
     log(f"撮影タイムゾーン: {cfg.tz_name}")
-    if originals_dir.is_dir() and any(originals_dir.iterdir()):
-        log("(既存ディレクトリに差分追加します)")
 
-    has_originals = (originals_dir.is_dir()
-                     and any(originals_dir.rglob("DJI_*_D.MP4")))
     if cfg.skip_copy:
         log("--skip-copy 指定のためコピーをスキップ")
     elif sd_mounted:
-        copy_from_sd(cfg, originals_dir)
-    elif has_originals:
-        log("SD 未マウント、originals/ に既存データを検出 → コピーをスキップ")
+        copy_from_sd(cfg)
     else:
-        die("SD カードがマウントされておらず、originals/ にもデータがありません")
+        log(f"SD 未マウント ({cfg.sd_mount}) → コピーをスキップ")
 
-    log("=== Step 2: 分割ファイル検出 ===")
-    groups = detect_groups(originals_dir, cfg.split_tolerance,
+    log("=== Step 2: 対象ファイルを収集 ===")
+    targets = collect_targets(cfg, since)
+    log(f"対象: 動画 {len(targets.videos)} 本 / 写真 {len(targets.photos)} 枚")
+    if not targets:
+        warn(f"{since:%Y-%m-%d} 以降の対象ファイルがありません。"
+             f"upload/ は作りません")
+        return 1
+
+    log("=== Step 3: 分割ファイル検出と結合 ===")
+    groups = detect_groups(targets.videos, cfg.split_tolerance,
                            cfg.split_min_size_bytes, cfg.tz)
     log(f"検出グループ数: {len(groups)} "
         f"(分割閾値: {fmt_gib(cfg.split_min_size_bytes)} 以上で連続録画と判定)")
+    result = merge_splits(groups, cfg.merged_dir, cfg.dest_base,
+                          cfg.failed_dir, cfg.dry_run, cfg.tz)
 
-    failed = merge_splits(groups, upload_dir, failed_dir, cfg.dry_run, cfg.tz)
-    organize_for_upload(groups, originals_dir, upload_dir, cfg.photo_exts,
-                        cfg.dry_run)
+    reset_upload_dir(cfg, upload_dir)
+    organize_for_upload(cfg, targets, result, upload_dir)
+
     print_upload_command(cfg, upload_dir)
     if sd_mounted:
         eject_sd(cfg)
 
-    if failed:
-        warn(f"結合失敗グループが {len(failed)} 件あります "
+    if result.failed:
+        warn(f"結合失敗グループが {len(result.failed)} 件あります "
              f"(upload/ には含めていません)")
-        for g, staged in failed:
+        for g, staged in result.failed:
             warn(f"  - {staged}  ({g[0].name} 〜 {g[-1].name}, {len(g)} ファイル)")
         warn("再実行や手動結合は failed_merges/ を確認してユーザ側で判断してください")
 
-    log(f"✓ 全工程完了: {dest_dir}")
+    log(f"✓ 全工程完了: {upload_dir}")
     return 0
 
 
