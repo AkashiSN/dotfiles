@@ -347,6 +347,9 @@ def iter_media(root: Path, exts: list[str]) -> Iterator[Path]:
     root 直下の予約ディレクトリと、あらゆる階層のドット始まりディレクトリは
     辿らない。後者は rsync の ``--partial-dir`` が転送先と同名の不完全ファイルを
     置くため、拾うと壊れた動画が upload/ に混入する。
+
+    ``._DJI_xxx.MP4`` のような AppleDouble も同じ理由で除く。拡張子は本物と
+    同じなので、除かないとメタデータの断片が動画として Immich へ上がる。
     """
     exts_lower = {e.lower() for e in exts}
     stack = [root]
@@ -358,9 +361,9 @@ def iter_media(root: Path, exts: list[str]) -> Iterator[Path]:
             warn(f"走査できません: {d} ({e})")
             continue
         for p in entries:
+            if p.name.startswith("."):
+                continue
             if p.is_dir():
-                if p.name.startswith("."):
-                    continue
                 if d == root and p.name in RESERVED_DIRS:
                     continue
                 stack.append(p)
@@ -528,6 +531,8 @@ def copy_from_sd(cfg: Config) -> None:
         "rsync", "-ah", "--progress", "--stats",
         "--ignore-existing", f"--partial-dir={PARTIAL_DIR}",
         *(["-n"] if cfg.dry_run else []),
+        # AppleDouble は本物と同じ拡張子を持つので、include より先に落とす
+        "--exclude=._*",
         "--include=*/",
         *[f"--include=*.{ext}" for ext in cfg.exts],
         "--exclude=*",
