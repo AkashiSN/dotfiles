@@ -557,7 +557,7 @@ def copy_from_sd(cfg: Config) -> None:
 
 
 # ============================================================
-# Step 2: 分割検出 + 結合
+# Step 2-3: 対象収集 / 分割検出 + 結合
 # ============================================================
 def filename_to_epoch(p: Path, tz: ZoneInfo) -> int | None:
     """DJI ファイル名 ``DJI_YYYYMMDDHHMMSS_...`` を epoch 秒に変換する。
@@ -865,7 +865,7 @@ def merge_splits(groups: list[list[Path]],
 
 
 # ============================================================
-# Step 3: upload/ 構築
+# Step 4: upload/ 構築
 # ============================================================
 def hardlink_or_copy(src: Path, dst: Path) -> None:
     if dst.exists():
@@ -940,7 +940,7 @@ def organize_for_upload(cfg: Config, targets: Targets, result: MergeResult,
 
 
 # ============================================================
-# Step 4: Immich アップロードコマンド表示
+# Step 5: Immich アップロードコマンド表示
 # ============================================================
 def print_upload_command(cfg: Config, upload_dir: Path) -> None:
     """immich-go コマンドを構築し、コピペ実行できる形で表示する。
@@ -949,7 +949,7 @@ def print_upload_command(cfg: Config, upload_dir: Path) -> None:
     API キーは表示コマンド中で常に "$IMMICH_API_KEY" 参照とし、
     端末スクロールバックに生のキーを残さない。
     """
-    log("=== Step 4: Immich アップロードコマンドを表示 ===")
+    log("=== Step 5: Immich アップロードコマンドを表示 ===")
 
     if cfg.immich_server:
         server_arg = shlex.quote(cfg.immich_server)
@@ -998,12 +998,12 @@ def print_upload_command(cfg: Config, upload_dir: Path) -> None:
 
 
 # ============================================================
-# Step 5: アンマウント
+# Step 6: アンマウント
 # ============================================================
 def eject_sd(cfg: Config) -> None:
     if not cfg.eject_after:
         return
-    log("=== Step 5: SD カードをアンマウント ===")
+    log("=== Step 6: SD カードをアンマウント ===")
     if cfg.dry_run:
         log("(dry-run) アンマウントしない")
         return
