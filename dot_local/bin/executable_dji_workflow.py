@@ -274,8 +274,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction,
                         default=False,
                         help="全工程ドライラン: rsync は -n、ffmpeg 結合・hardlink "
-                             "作成・eject を全てスキップし、表示 immich-go コマンドにも "
-                             "--dry-run を付与")
+                             "作成・upload/ 削除・eject を全てスキップし、表示 "
+                             "immich-go コマンドにも --dry-run を付与")
     parser.add_argument("--skip-copy", action="store_true",
                         help="SD があってもコピーをスキップして結合以降のみ実行")
     parser.add_argument("--eject", action=argparse.BooleanOptionalAction,
