@@ -26,11 +26,29 @@ import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORTFWD_PORT", "55999"))
-OPEN_CMD = os.environ.get("PORTFWD_OPEN_CMD", "open")
+# 未設定なら OS ごとの既定を使う（darwin=open / windows=os.startfile / それ以外=xdg-open）。
+OPEN_CMD = os.environ.get("PORTFWD_OPEN_CMD")
 SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
+
+
+def _default_log_path():
+    """Windows は pythonw.exe が stderr を捨てるため、既定のログファイルを持つ。
+    macOS/Linux はサービスマネージャがログを取るので既定は持たない。"""
+    override = os.environ.get("PORTFWD_LOG")
+    if override:
+        return Path(override)
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / "portfwd" / "portfwd.log"
+    return None
+
+
+LOG_PATH = _default_log_path()
 
 # SOCKS5 のネゴシエーションに使う timeout。確立後の中継はこれを外して blocking へ戻す
 # （間の空く通信を切らないため）。
@@ -45,7 +63,17 @@ SSH_G_TIMEOUT = 10.0
 
 
 def _log(msg):
-    print(f"portfwd: {msg}", file=sys.stderr, flush=True)
+    line = f"portfwd: {msg}"
+    print(line, file=sys.stderr, flush=True)
+    if LOG_PATH is None:
+        return
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        # ログに書けないことで daemon を止めない。
+        pass
 
 
 def _recv_exact(sock, n):
@@ -308,7 +336,18 @@ def _callback_endpoint(parsed):
 
 def _open_url(url):
     """ローカルのブラウザで URL を開く。"""
-    subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if OPEN_CMD:
+        subprocess.run([OPEN_CMD, url],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+    if sys.platform == "darwin":
+        subprocess.run(["open", url],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif os.name == "nt":
+        os.startfile(url)  # noqa: S606  Windows の既定ブラウザで開く
+    else:
+        subprocess.run(["xdg-open", url],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def handle_notification(payload: dict) -> str:
