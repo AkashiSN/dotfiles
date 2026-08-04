@@ -4,18 +4,29 @@
 # run_onchange: 下の daemon 本体のハッシュが変わると既存マシンでも再実行される
 # （全操作が冪等）。daemon 本体を含めるのは、本体だけを更新したときも走っている
 # プロセスを入れ替える必要があるから。
+# ユーザーに見せる文字列は ASCII にする。Windows PowerShell 5.1 は BOM 無しの
+# .ps1 を ANSI コードページとして読むため、日本語をそのまま出すと文字化けする。
 # daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
 $ErrorActionPreference = 'Stop'
 
 $TaskName = 'portfwd'
 $Script   = Join-Path $env:USERPROFILE '.local\bin\portfwd'
 
-Write-Host "`n==> portfwd daemon をタスクスケジューラに登録中" -ForegroundColor Cyan
+Write-Host "`n==> Registering portfwd daemon with Task Scheduler" -ForegroundColor Cyan
+
+# py ランチャの有無を先に確認する。無いまま呼ぶと PowerShell 自身が
+# CommandNotFoundException（terminating error）を投げ、$ErrorActionPreference = 'Stop'
+# によりその場で止まって下の案内メッセージに到達できないため。
+if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
+    Write-Error "Python launcher (py) not found. Install Python with: winget install Python.Python.3.13 --scope user"
+    exit 1
+}
 
 # pythonw.exe を py ランチャ経由で探す。コンソール窓を出さずに常駐させるために使う。
 $Pythonw = & py -3 -c "import os, sys; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null
 if (-not $Pythonw -or -not (Test-Path $Pythonw)) {
-    Write-Error "pythonw.exe が見つかりません。`nwinget install Python.Python.3.13 --scope user` で Python を入れてください。"
+    Write-Error "pythonw.exe not found. Install Python with: winget install Python.Python.3.13 --scope user"
+    exit 1
 }
 
 # タスクの実行主体。DOMAIN\user 形式で指定する（$env:USERNAME だけでは曖昧）。
@@ -35,12 +46,32 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 99 `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-# 走っているインスタンスを止めてから登録し直す。Register だけでは既存インスタンスが
-# 残り、MultipleInstances=IgnoreNew のため Start が無視されて旧コードのままになる。
-Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+# 既存タスクがあるときだけ停止する（-ErrorAction SilentlyContinue で本当の失敗
+# ―アクセス拒否や CIM エラーなど―まで飲み込まないよう、事前に存在確認する）。
+$ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($ExistingTask) {
+    Stop-ScheduledTask -TaskName $TaskName
+
+    # Stop-ScheduledTask は停止を要求するだけでプロセス終了を待たない。旧
+    # pythonw がポートを掴んだままだと、直後の Start で新インスタンスが listen
+    # に失敗して即終了してしまう（RestartInterval が 1 分のためその間 daemon が
+    # 落ちたままに見える）。State が Running でなくなるまで最大 10 秒待つ。
+    $WaitedSeconds = 0
+    while ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running' -and $WaitedSeconds -lt 10) {
+        Start-Sleep -Milliseconds 500
+        $WaitedSeconds += 0.5
+    }
+    if ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running') {
+        Write-Warning "portfwd task did not stop within 10 seconds; continuing anyway"
+    }
+}
+
+# Register だけでは既存インスタンスが残り、MultipleInstances=IgnoreNew のため
+# 直後の Start が無視されて旧コードのままになる。上の Stop（と待ち合わせ）が
+# あって初めて更新が確実に反映される。
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
     -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 
-Write-Host "portfwd: タスク登録完了 ($TaskName / $UserId)"
+Write-Host "portfwd: task registered ($TaskName / $UserId)"
 {{- end }}
