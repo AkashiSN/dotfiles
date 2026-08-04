@@ -1,10 +1,10 @@
 # herdr チートシート
 
 複数の AI コーディングエージェント（codex / claude 等）を束ねる端末マルチプレクサ
-[herdr](https://github.com/ogulcancelik/herdr) の起動・キーバインド・設定挙動のリファレンス。
+[herdr](https://github.com/herdrdev/herdr) の起動・キーバインド・設定挙動のリファレンス。
 単一の Rust バイナリで、tmux 級の永続セッション + エージェント状態検知 + socket API を提供する。
 
-- **導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `ogulcancelik/herdr`）
+- **導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `herdrdev/herdr`）
 - **設定ファイル**: `~/.config/herdr/config.toml`（chezmoi ソース = `dot_config/herdr/config.toml`）
 - **prefix キー**: `Ctrl-b`（herdr デフォルト。tmux の `Ctrl-a` とは別キー。以下 `<prefix>` と表記）
 - **テーマ**: Catppuccin（ghostty / nvim と統一）
