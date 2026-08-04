@@ -19,6 +19,8 @@ import re
 import socket
 import subprocess
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -28,9 +30,81 @@ SSH_DIR = Path(os.environ.get("PORTFWD_SSH_DIR", str(Path.home() / ".ssh")))
 OPEN_CMD = os.environ.get("PORTFWD_OPEN_CMD", "open")
 SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
 
+# SOCKS5 のネゴシエーションに使う timeout。確立後の中継はこれを外して blocking へ戻す
+# （間の空く通信を切らないため）。
+HANDSHAKE_TIMEOUT = 5.0
+
 
 def _log(msg):
     print(f"portfwd: {msg}", file=sys.stderr, flush=True)
+
+
+def _recv_exact(sock, n):
+    """n バイト受け取るまで読む。recv は要求より短く返しうるため必ずこれを使う。"""
+    buf = b""
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError(f"接続が {len(buf)}/{n} バイトで切れました")
+        buf += chunk
+    return buf
+
+
+def _socks_greet(sock):
+    """SOCKS5 の認証ネゴシエーション（認証なし）を行う。"""
+    sock.sendall(b"\x05\x01\x00")
+    reply = _recv_exact(sock, 2)
+    if reply != b"\x05\x00":
+        raise ConnectionError(f"SOCKS5 greeting が不正です ({reply.hex()})")
+
+
+def _socks_probe(socks_port):
+    """socks_port で SOCKS5 サービスが応答するかを確かめる。
+
+    保証するのは「その loopback ポートで SOCKS5 が応答中」までで、それが対象ホストの
+    ssh 接続のものであることまでは確かめない（別プロセスが同じポートを掴んでいても通る）。
+    setenv によるオプトイン検証とホストごとの固定ポートと組み合わせて使う。
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", socks_port), HANDSHAKE_TIMEOUT) as s:
+            s.settimeout(HANDSHAKE_TIMEOUT)
+            _socks_greet(s)
+        return True
+    except (OSError, ConnectionError):
+        return False
+
+
+def _socks_connect(socks_port, dst_port):
+    """SOCKS5 CONNECT でリモートの 127.0.0.1:dst_port へ繋ぎ、確立済みソケットを返す。
+
+    SOCKS プロキシは接続先を SSH サーバ側から解決するため、127.0.0.1 はリモートの
+    loopback を指す。これが ssh -L dst_port:127.0.0.1:dst_port と等価になる。
+    """
+    s = socket.create_connection(("127.0.0.1", socks_port), HANDSHAKE_TIMEOUT)
+    try:
+        s.settimeout(HANDSHAKE_TIMEOUT)
+        _socks_greet(s)
+        s.sendall(b"\x05\x01\x00\x01" + socket.inet_aton("127.0.0.1")
+                  + dst_port.to_bytes(2, "big"))
+        ver, rep, rsv, atyp = _recv_exact(s, 4)
+        if ver != 5 or rsv != 0:
+            raise ConnectionError(f"SOCKS5 応答が不正です (ver={ver} rsv={rsv})")
+        if rep != 0:
+            raise ConnectionError(f"SOCKS5 CONNECT を拒否されました (rep={rep})")
+        # BND.ADDR / BND.PORT を読み捨てる。
+        if atyp == 1:
+            _recv_exact(s, 4 + 2)
+        elif atyp == 3:
+            _recv_exact(s, _recv_exact(s, 1)[0] + 2)
+        elif atyp == 4:
+            _recv_exact(s, 16 + 2)
+        else:
+            raise ConnectionError(f"SOCKS5 応答の ATYP が不正です ({atyp})")
+        s.settimeout(None)
+        return s
+    except Exception:
+        s.close()
+        raise
 
 
 def _callback_endpoint(parsed):
