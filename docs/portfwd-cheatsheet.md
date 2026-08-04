@@ -33,6 +33,13 @@ local : portfwd daemon が受信
 | `portfwd serve` | 55999 で listen する常駐ループ（フォアグラウンド）。**サービスマネージャが起動する本体**なので手で叩くことはまず無い |
 | `portfwd status` | 稼働状況を表示（`GET /health` の応答で判定） |
 
+上表は macOS/Linux での書き方。Windows は `.local/bin/portfwd` に拡張子が無く、その
+ディレクトリも PATH に無いため、`portfwd status` ではなく次の形で呼ぶ:
+
+```powershell
+py -3 "$env:USERPROFILE\.local\bin\portfwd" status
+```
+
 `portfwd status` の表示:
 
 | 表示 | 意味 |
@@ -114,7 +121,7 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 タスクの再起動回数（`RestartCount 99`）は有限で、尽きると **次回ログオンまたは次回
 `chezmoi apply` まで daemon は停止したままになる**。次の 3 点で切り分ける。
 
-1. `portfwd status` — `not-portfwd` なら他プロセスが 55999 を掴んでいる
+1. `py -3 "$env:USERPROFILE\.local\bin\portfwd" status` — `not-portfwd` なら他プロセスが 55999 を掴んでいる
 2. `Get-ScheduledTask -TaskName portfwd | Get-ScheduledTaskInfo` の `State` と `LastTaskResult`
 3. `%LOCALAPPDATA%\portfwd\portfwd.log`
 
@@ -153,6 +160,10 @@ Host <alias>
   - この probe が保証するのは「そのポートで SOCKS5 が応答中」までで、**それが対象ホストの
     ssh 接続のものであることまでは証明しない**。SetEnv によるオプトインとホストごとの
     固定ポートと組み合わせて実用上十分、という位置づけ。
+  - オプトイン検証は「通知が主張する host が portfwd 対象として設定されている」ことは
+    確かめるが、**通知が実際にその host から届いたことまでは証明しない**。侵害された
+    オプトイン済みホストが `{"host": "<別のオプトイン済みホスト>"}` を送れば、daemon は
+    その別ホストのリモート loopback へ中継してしまう。
 - 同じ callback ポートに **別ホスト**の通知が来たら reject する。張り替えると先行フローの
   ブラウザ callback を後発ホストへ誤配送してしまうため、奪わない。
 - http/https 以外のスキームは開かない。

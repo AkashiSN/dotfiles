@@ -60,6 +60,10 @@ IDLE_TIMEOUT = 180.0
 ACCEPT_TIMEOUT = 1.0
 # ssh -G の待ち時間。Match exec を含む config では解決に時間がかかりうる。
 SSH_G_TIMEOUT = 10.0
+# Windows でのみ有効な値。daemon は pythonw.exe（コンソール無し）で動くため、素の
+# subprocess.run で ssh.exe を起動するとコンソールウィンドウが通知のたびに生成される。
+# 非 Windows には無い定数なので getattr で参照し、import 自体は失敗させない。
+_CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _log(msg):
@@ -170,6 +174,9 @@ class Relay:
         if sys.platform != "win32":
             self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
+            # IPv4 loopback のみで listen する。callback には localhost も許容しているため、
+            # ブラウザが localhost を ::1 に解決する環境では bind 先が無く弾かれうる
+            # （aws login / gh auth は 127.0.0.1 を返すため今のところ未発生）。
             self.listener.bind(("127.0.0.1", port))
             self.listener.listen(16)
         except OSError:
@@ -281,6 +288,7 @@ def _ssh_config(host):
         proc = subprocess.run(
             [SSH_CMD, "-G", host],
             capture_output=True, text=True, timeout=SSH_G_TIMEOUT,
+            creationflags=_CREATE_NO_WINDOW,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         _log(f"ssh -G {host}: {e}")
@@ -439,11 +447,23 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class _NotificationServer(HTTPServer):
+    """逆チャネル（POST 通知）を受ける HTTPServer。
+
+    HTTPServer は既定で allow_reuse_address = 1 だが、Windows の SO_REUSEADDR は
+    他プロセスが実際に listen 中のポートへの bind も許してしまう（Relay が
+    SO_REUSEADDR を設定しない理由と同じ）。Relay と挙動を揃えるため、Windows でのみ
+    無効にする。
+    """
+
+    allow_reuse_address = sys.platform != "win32"
+
+
 def cmd_serve():
     # launchd が本体として起動する。listen に失敗（既に誰かが掴んでいる等）したら
     # 非ゼロ終了し、launchd の ThrottleInterval に従って後で再試行させる。
     try:
-        httpd = HTTPServer(("127.0.0.1", PORT), Handler)
+        httpd = _NotificationServer(("127.0.0.1", PORT), Handler)
     except OSError as e:
         _log(f"listen 失敗 ({PORT}): {e}")
         sys.exit(1)

@@ -3,8 +3,8 @@
 #
 # $BROWSER に設定され、ツール（aws login / gh auth 等）がブラウザを開こうとした
 # ときに呼ばれる。URL を RemoteForward 経由でローカルの portfwd daemon
-# (127.0.0.1:PORTFWD_PORT) へ POST する。ローカル daemon が該当ポートを -L で
-# フォワードし、ローカルのブラウザを開く。
+# (127.0.0.1:PORTFWD_PORT) へ POST する。ローカル daemon は該当ポートを、ssh 接続の
+# DynamicForward(SOCKS5) 経由で中継したうえで、ローカルのブラウザを開く。
 #
 # 到達不能なら非ゼロ終了し、呼び出し側が従来動作へフォールバックできるようにする。
 set -eu
