@@ -38,9 +38,9 @@ local : portfwd daemon が受信
 | 表示 | 意味 |
 | --- | --- |
 | `running (port 55999, relays N)` | 稼働中。N は張っているリレーの数 |
-| `stopped` | ポートに繋がらない |
-| `not-portfwd` | ポートは開いているが portfwd 以外が応答している |
-| `timeout / unresponsive` | 応答が無い。通知処理中の `ssh -G` で待たされている可能性がある |
+| `stopped (port 55999)` | ポートに繋がらない |
+| `not-portfwd (port 55999)` | ポートは開いているが portfwd 以外が応答している |
+| `timeout / unresponsive (port 55999)` | 応答が無い。通知処理中の `ssh -G` で待たされている可能性がある |
 
 - daemon の寿命は **OS のサービスマネージャが管理する**（macOS は launchd、Windows は
   タスクスケジューラ）。ログイン時に起動し、落ちても再起動されるため、常時起動している。
@@ -85,9 +85,15 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 
 ### 展開
 
-`chezmoi apply` すると、Windows では `.ssh/`（config と `*.bat`）と
-`.local/bin/portfwd` だけが展開され、`run_onchange_after_56-portfwd-schtask.ps1` が
-タスクスケジューラへ登録する。シェル環境は WSL 側にあるため、それ以外は展開しない。
+`chezmoi apply` すると、Windows では `.ssh/` 内の必要ファイル（`config`・`*.bat`・
+鍵ファイル `1password_AkashiSN.pub` / `1password_su-nishi.pub` / `gpg.pub` /
+`allowed_signers`）と `.local/bin/portfwd` が展開され、
+`run_onchange_after_56-portfwd-schtask.ps1` がタスクスケジューラへ登録する。鍵ファイルは
+`private_config.tmpl` の `cloudsa` / `develop-server` が `IdentityFile
+~/.ssh/1password_AkashiSN.pub` を参照しているため必須で、`.chezmoiignore` は
+`env "SSH_CONNECTION"` のときだけこれらを除外する（ローカルの `chezmoi apply` では
+`SSH_CONNECTION` が未設定なので除外されない）。シェル環境は WSL 側にあるため、それ以外は
+展開しない。
 
 ### タスクの操作
 
