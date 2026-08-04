@@ -14,6 +14,7 @@ daemon の寿命は OS のサービスマネージャ（macOS は launchd、Wind
   serve   : 55999 で listen する常駐ループ（サービスマネージャが起動する本体）
   status  : 稼働状況を表示（GET /health の応答で判定）
 """
+import http.client
 import json
 import os
 import re
@@ -425,10 +426,12 @@ def cmd_status():
         else:
             print(f"portfwd: stopped (port {PORT})")
         return
-    except json.JSONDecodeError:
-        print(f"portfwd: not-portfwd (port {PORT} の応答が JSON ではありません)")
+    except (json.JSONDecodeError, http.client.IncompleteRead):
+        # 応答本文が JSON ではない、または読み取り途中で接続を閉じられた。
+        print(f"portfwd: not-portfwd (port {PORT} は別のサービスが応答しています)")
         return
-    if payload.get("service") != "portfwd":
+    # payload が dict でない（配列や文字列など）場合も not-portfwd として扱う。
+    if not isinstance(payload, dict) or payload.get("service") != "portfwd":
         print(f"portfwd: not-portfwd (port {PORT} は別のサービスが応答しています)")
         return
     print(f"portfwd: running (port {PORT}, relays {payload.get('relays', 0)})")
