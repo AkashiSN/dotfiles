@@ -128,7 +128,11 @@ class Relay:
         self.last_activity = time.monotonic()
         self._stop = threading.Event()
         self.listener = socket.socket()
-        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # macOS/Linux の SO_REUSEADDR は TIME_WAIT の再バインドのみ許可し、他プロセスが
+        # listen 中のポートへは bind を拒否する。Windows ではこの保証がなく、別のソケットが
+        # 実際に listen 中のポートへの bind も許してしまうため、ここで設定しない。
+        if sys.platform != "win32":
+            self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             self.listener.bind(("127.0.0.1", port))
             self.listener.listen(16)
@@ -151,7 +155,8 @@ class Relay:
                 conn, _ = self.listener.accept()
             except socket.timeout:
                 if time.monotonic() - self.last_activity > IDLE_TIMEOUT:
-                    _unregister_relay(self)
+                    if not _unregister_relay(self):
+                        continue
                     return
                 continue
             except OSError:
@@ -199,12 +204,18 @@ class Relay:
 
 def _unregister_relay(relay):
     """アイドルで畳んだ Relay を登録から外す。同じポートに新しい Relay が入っている
-    場合は消さない。"""
+    場合や、別スレッドが last_activity を更新した場合は削除しない。True を返したら畳み
+    成功、False を返したら畳まなかった（他スレッドが再利用中）。"""
     with _relays_lock:
-        if _relays.get(relay.port) is relay:
+        # identity と freshness の両方を確認してから削除。ensure_relay が last_activity を
+        # 更新した場合は、アイドル判定は古い状態のままだが、ロック内で再確認すれば
+        # 新しい last_activity を見る。
+        if _relays.get(relay.port) is relay and time.monotonic() - relay.last_activity > IDLE_TIMEOUT:
             del _relays[relay.port]
-    relay.close()
-    _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
+            relay.close()
+            _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
+            return True
+    return False
 
 
 def ensure_relay(host, port, socks_port):
