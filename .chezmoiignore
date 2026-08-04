@@ -8,11 +8,41 @@ docs
 {{- if ne .chezmoi.os "darwin" }}
 Library
 .config/ghostty
-.ssh/*.bat
 {{- end }}
 
 {{- if ne .chezmoi.os "windows" }}
+.ssh/*.bat
 Documents
+{{- end }}
+
+{{- if eq .chezmoi.os "windows" }}
+# Windows へ展開するのは portfwd に必要なものだけ（.ssh/ と .local/bin/portfwd）。
+# シェル環境は WSL 側にあるため、Unix 前提の設定は展開しない。
+.config
+.zshrc
+.zshenv
+.zlogout
+.bash_profile
+.envrc
+.Xmodmap
+.tmux.conf
+.aws
+.terraformrc
+.gitconfig
+.gitignore_global
+.claude
+.codex
+.env
+.local/bin/*
+!.local/bin/portfwd
+.ssh/*.sh
+.ssh/authorized_keys
+# PowerShell Profile は starship/ghq/peco/docker/wsl 前提なので、それらを入れない
+# この構成では展開しない。
+Documents
+# 既存のシェルスクリプト群。スクリプトの target 名は属性接頭辞が除去された
+# .chezmoiscripts/<name>.sh になるため、このパターンで除外する（run_*.sh では効かない）。
+.chezmoiscripts/*.sh
 {{- end }}
 
 {{- if env "SSH_CONNECTION" }}
