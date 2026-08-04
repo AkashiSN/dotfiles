@@ -64,15 +64,19 @@ SSH_G_TIMEOUT = 10.0
 
 def _log(msg):
     line = f"portfwd: {msg}"
-    print(line, file=sys.stderr, flush=True)
+    try:
+        print(line, file=sys.stderr, flush=True)
+    except (AttributeError, OSError, ValueError):
+        # stderr が None または書き込み不可でも daemon を止めない。
+        pass
     if LOG_PATH is None:
         return
     try:
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with LOG_PATH.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
-    except OSError:
-        # ログに書けないことで daemon を止めない。
+    except (AttributeError, OSError, ValueError):
+        # ログファイルに書けないことで daemon を止めない。
         pass
 
 
