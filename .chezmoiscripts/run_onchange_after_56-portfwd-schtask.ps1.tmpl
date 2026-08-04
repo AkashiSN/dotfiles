@@ -1,0 +1,46 @@
+{{ if eq .chezmoi.os "windows" -}}
+# portfwd daemon をタスクスケジューラのユーザータスクとして (再)登録する。
+# 管理者権限は不要（自分のアカウントのタスクを RunLevel Limited で作る）。
+# run_onchange: 下の daemon 本体のハッシュが変わると既存マシンでも再実行される
+# （全操作が冪等）。daemon 本体を含めるのは、本体だけを更新したときも走っている
+# プロセスを入れ替える必要があるから。
+# daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
+$ErrorActionPreference = 'Stop'
+
+$TaskName = 'portfwd'
+$Script   = Join-Path $env:USERPROFILE '.local\bin\portfwd'
+
+Write-Host "`n==> portfwd daemon をタスクスケジューラに登録中" -ForegroundColor Cyan
+
+# pythonw.exe を py ランチャ経由で探す。コンソール窓を出さずに常駐させるために使う。
+$Pythonw = & py -3 -c "import os, sys; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null
+if (-not $Pythonw -or -not (Test-Path $Pythonw)) {
+    Write-Error "pythonw.exe が見つかりません。`nwinget install Python.Python.3.13 --scope user` で Python を入れてください。"
+}
+
+# タスクの実行主体。DOMAIN\user 形式で指定する（$env:USERNAME だけでは曖昧）。
+$UserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
+$Action = New-ScheduledTaskAction -Execute $Pythonw -Argument ('"{0}" serve' -f $Script)
+$Trigger = New-ScheduledTaskTrigger -AtLogOn -User $UserId
+$Principal = New-ScheduledTaskPrincipal -UserId $UserId -LogonType Interactive -RunLevel Limited
+# RestartInterval は仕様上の最小が 1 分。RestartCount は有限なので、尽きた場合は
+# 次回ログオンまたは次回 chezmoi apply まで daemon は停止したままになる。
+$Settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -MultipleInstances IgnoreNew `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -RestartCount 99 `
+    -ExecutionTimeLimit ([TimeSpan]::Zero)
+
+# 走っているインスタンスを止めてから登録し直す。Register だけでは既存インスタンスが
+# 残り、MultipleInstances=IgnoreNew のため Start が無視されて旧コードのままになる。
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
+    -Principal $Principal -Settings $Settings -Force | Out-Null
+Start-ScheduledTask -TaskName $TaskName
+
+Write-Host "portfwd: タスク登録完了 ($TaskName / $UserId)"
+{{- end }}
