@@ -33,6 +33,11 @@ SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
 # SOCKS5 のネゴシエーションに使う timeout。確立後の中継はこれを外して blocking へ戻す
 # （間の空く通信を切らないため）。
 HANDSHAKE_TIMEOUT = 5.0
+# リレーの listener を畳むまでのアイドル時間。
+IDLE_TIMEOUT = 180.0
+# accept の待ち時間。listener.close() が別スレッドの blocking accept を解除することは
+# （特に Windows で）保証されないため、自前で抜けられるように timeout を張る。
+ACCEPT_TIMEOUT = 1.0
 
 
 def _log(msg):
@@ -105,6 +110,119 @@ def _socks_connect(socks_port, dst_port):
     except Exception:
         s.close()
         raise
+
+
+# callback ポート -> Relay。ロックで保護する。
+_relays = {}
+_relays_lock = threading.Lock()
+
+
+class Relay:
+    """ローカル 127.0.0.1:port で受けた接続を、SOCKS5 経由でリモートの
+    127.0.0.1:port へ中継する。ssh -L port:127.0.0.1:port の置き換え。"""
+
+    def __init__(self, host, port, socks_port):
+        self.host = host
+        self.port = port
+        self.socks_port = socks_port
+        self.last_activity = time.monotonic()
+        self._stop = threading.Event()
+        self.listener = socket.socket()
+        self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.listener.bind(("127.0.0.1", port))
+            self.listener.listen(16)
+        except OSError:
+            self.listener.close()
+            raise
+        self.listener.settimeout(ACCEPT_TIMEOUT)
+        threading.Thread(target=self._accept_loop, daemon=True).start()
+
+    def close(self):
+        self._stop.set()
+        try:
+            self.listener.close()
+        except OSError:
+            pass
+
+    def _accept_loop(self):
+        while not self._stop.is_set():
+            try:
+                conn, _ = self.listener.accept()
+            except socket.timeout:
+                if time.monotonic() - self.last_activity > IDLE_TIMEOUT:
+                    _unregister_relay(self)
+                    return
+                continue
+            except OSError:
+                return
+            self.last_activity = time.monotonic()
+            threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
+
+    def _handle(self, conn):
+        try:
+            upstream = _socks_connect(self.socks_port, self.port)
+        except (OSError, ConnectionError) as e:
+            # リレー確立後に起きるため通知には 200 を返済み。呼び出し側のフォールバックには
+            # 繋がらないので、ログに残してこの接続だけ閉じる。
+            _log(f"relay {self.port}: SOCKS CONNECT 失敗 ({e})")
+            conn.close()
+            return
+        pump = threading.Thread(target=self._pump, args=(upstream, conn), daemon=True)
+        pump.start()
+        self._pump(conn, upstream)
+        pump.join()
+        for sock in (conn, upstream):
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def _pump(self, src, dst):
+        try:
+            while True:
+                data = src.recv(65536)
+                if not data:
+                    break
+                dst.sendall(data)
+                self.last_activity = time.monotonic()
+        except OSError:
+            pass
+        finally:
+            # 片側が EOF に達したことを相手へ伝える。伝えないと、応答前に全入力を読み切る
+            # 相手（OAuth の callback サーバ等）が永久に待つ。
+            try:
+                dst.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
+
+
+def _unregister_relay(relay):
+    """アイドルで畳んだ Relay を登録から外す。同じポートに新しい Relay が入っている
+    場合は消さない。"""
+    with _relays_lock:
+        if _relays.get(relay.port) is relay:
+            del _relays[relay.port]
+    relay.close()
+    _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
+
+
+def ensure_relay(host, port, socks_port):
+    """port のリレーを用意する。成功なら None、失敗なら reject メッセージを返す。"""
+    with _relays_lock:
+        existing = _relays.get(port)
+        if existing is not None:
+            if existing.host != host:
+                # 張り替えると、先行フローのブラウザ callback を後発ホストへ誤配送して
+                # しまう。奪わずに reject し、呼び出し側を従来動作へフォールバックさせる。
+                return f"reject: ポート {port} は {existing.host} のリレーが使用中です"
+            existing.last_activity = time.monotonic()
+            return None
+        try:
+            _relays[port] = Relay(host, port, socks_port)
+        except OSError as e:
+            return f"reject: 127.0.0.1:{port} を listen できません ({e})"
+    return None
 
 
 def _callback_endpoint(parsed):
