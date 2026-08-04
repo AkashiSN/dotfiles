@@ -17,15 +17,21 @@ Write-Host "`n==> Registering portfwd daemon with Task Scheduler" -ForegroundCol
 # py ランチャの有無を先に確認する。無いまま呼ぶと PowerShell 自身が
 # CommandNotFoundException（terminating error）を投げ、$ErrorActionPreference = 'Stop'
 # によりその場で止まって下の案内メッセージに到達できないため。
+#
+# ここで Write-Error は使わない。$ErrorActionPreference = 'Stop' 下では
+# Write-Error 自身が script-terminating error に昇格し、その場でスクリプトが
+# 止まって直後の exit 1 に制御が渡らない（exit コードが chezmoi の
+# run_onchange 呼び出し経路で 0 になり得る問題が再発する）。[Console]::Error は
+# terminating しない単なる標準エラー出力なので、続く exit 1 が必ず実行される。
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
-    Write-Error "Python launcher (py) not found. Install Python with: winget install Python.Python.3.13 --scope user"
+    [Console]::Error.WriteLine("Python launcher (py) not found. Install Python with: winget install Python.Python.3.13 --scope user")
     exit 1
 }
 
 # pythonw.exe を py ランチャ経由で探す。コンソール窓を出さずに常駐させるために使う。
 $Pythonw = & py -3 -c "import os, sys; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null
 if (-not $Pythonw -or -not (Test-Path $Pythonw)) {
-    Write-Error "pythonw.exe not found. Install Python with: winget install Python.Python.3.13 --scope user"
+    [Console]::Error.WriteLine("pythonw.exe not found. Install Python with: winget install Python.Python.3.13 --scope user")
     exit 1
 }
 
