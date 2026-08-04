@@ -2,16 +2,17 @@
 """portfwd - SSH 先のブラウザ起動をローカルへ転送するローカル daemon.
 
 リモートの portfwd-open シムが RemoteForward 経由で 127.0.0.1:55999 へ
-{"host","url"} を POST する。daemon は url の callback ポートを ControlMaster へ
--L フォワードし、ローカルのブラウザを開く。
+{"host","url"} を POST する。daemon は url の callback ポートをローカルで listen し、
+その ssh 接続の DynamicForward(SOCKS5) を通してリモートの同じポートへ中継したうえで、
+ローカルのブラウザを開く。
 
-daemon の寿命は OS のサービスマネージャ（macOS は launchd）が管理する。
-launchd が RunAtLoad でログイン時に起動し、KeepAlive で落ちても再起動するため、
-このスクリプト自身はアイドル自己終了や多重起動制御を持たない（それらは廃止した）。
+daemon の寿命は OS のサービスマネージャ（macOS は launchd、Windows はタスクスケジューラ）
+が管理する。ログイン時に起動し、落ちても再起動されるため、このスクリプト自身は
+アイドル自己終了や多重起動制御を持たない。
 
 サブコマンド:
-  serve   : 55999 で listen する常駐ループ（launchd が起動する本体）
-  status  : 稼働状況を表示（127.0.0.1:55999 へ接続できるかで判定）
+  serve   : 55999 で listen する常駐ループ（サービスマネージャが起動する本体）
+  status  : 稼働状況を表示（GET /health の応答で判定）
 """
 import json
 import os
@@ -22,11 +23,9 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(os.environ.get("PORTFWD_PORT", "55999"))
-SSH_DIR = Path(os.environ.get("PORTFWD_SSH_DIR", str(Path.home() / ".ssh")))
 OPEN_CMD = os.environ.get("PORTFWD_OPEN_CMD", "open")
 SSH_CMD = os.environ.get("PORTFWD_SSH_CMD", "ssh")
 
@@ -38,6 +37,8 @@ IDLE_TIMEOUT = 180.0
 # accept の待ち時間。listener.close() が別スレッドの blocking accept を解除することは
 # （特に Windows で）保証されないため、自前で抜けられるように timeout を張る。
 ACCEPT_TIMEOUT = 1.0
+# ssh -G の待ち時間。Match exec を含む config では解決に時間がかかりうる。
+SSH_G_TIMEOUT = 10.0
 
 
 def _log(msg):
@@ -236,6 +237,50 @@ def ensure_relay(host, port, socks_port):
     return None
 
 
+def _ssh_config(host):
+    """ssh -G <host> の解決結果を {key: [value, ...]} で返す。失敗時は None。
+
+    ssh -G は接続せず設定を解決するだけだが、Match exec は評価される。
+    """
+    try:
+        proc = subprocess.run(
+            [SSH_CMD, "-G", host],
+            capture_output=True, text=True, timeout=SSH_G_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _log(f"ssh -G {host}: {e}")
+        return None
+    if proc.returncode != 0:
+        _log(f"ssh -G {host}: 終了コード {proc.returncode} ({proc.stderr.strip()})")
+        return None
+    conf = {}
+    for line in proc.stdout.splitlines():
+        key, _, value = line.partition(" ")
+        conf.setdefault(key.lower(), []).append(value)
+    return conf
+
+
+def _socks_port_of(conf):
+    """dynamicforward から SOCKS ポートを取り出す。(port, エラーメッセージ) を返す。
+
+    ssh -G の書式は bind address 無しなら "55888"、有りなら "[127.0.0.1]:55888"。
+    DynamicForward は複数指定できるため、一意に決まることを確かめる。
+    """
+    values = conf.get("dynamicforward", [])
+    if not values:
+        return None, "dynamicforward が設定されていません"
+    if len(values) > 1:
+        return None, f"dynamicforward が {len(values)} 個あり一意に決まりません"
+    bind, sep, port = values[0].rpartition(":")
+    if not sep:
+        return None, f"dynamicforward に bind address がありません ({values[0]})"
+    if not port.isdigit():
+        return None, f"dynamicforward の書式が不正です ({values[0]})"
+    if bind.strip("[]") != "127.0.0.1":
+        return None, f"dynamicforward が IPv4 loopback ではありません ({values[0]})"
+    return int(port), None
+
+
 def _callback_endpoint(parsed):
     """ブラウザ URL から、ローカルへ -L 転送すべき callback (host, port) を決める。
 
@@ -258,6 +303,11 @@ def _callback_endpoint(parsed):
     return None, None
 
 
+def _open_url(url):
+    """ローカルのブラウザで URL を開く。"""
+    subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def handle_notification(payload: dict) -> str:
     """1 通知を処理し、結果メッセージを返す。例外は投げず "ok:" / "reject:" / "error:"
     で始まる文字列で返す（do_POST が prefix で HTTP ステータスを決める）。"""
@@ -272,24 +322,34 @@ def handle_notification(payload: dict) -> str:
         # http/https のみ開く（file:// や javascript: などの踏み台化を防ぐ）。
         if parsed.scheme not in ("http", "https"):
             return f"reject: 非対応スキーム ({parsed.scheme or 'なし'})"
-        control = SSH_DIR / f"cm-{host}"
-        if not control.exists():
-            return f"reject: control socket がありません ({control})"
+
+        # ssh config 上で明示的にオプトインされたホストか確かめる。SetEnv で送っている
+        # LC_PORTFWD_HOST が通知の host と一致することが条件。callback の有無に関わらず必須。
+        conf = _ssh_config(host)
+        if conf is None:
+            return f"reject: ssh -G {host} が失敗しました"
+        if f"LC_PORTFWD_HOST={host}" not in conf.get("setenv", []):
+            return f"reject: {host} は portfwd 対象ではありません (SetEnv 不一致)"
+
         # localhost callback を伴う URL（OAuth の authorize URL 等）のときだけ、その callback
-        # ポートを -L で転送する。普通の URL（callback 無し）は転送せず、ローカルで開くだけ
-        # （任意ポート転送は callback がある時のみ＝踏み台化を防ぐ）。
+        # ポートをリレーする。普通の URL（callback 無し）は転送せず、ローカルで開くだけ。
         _, cb_port = _callback_endpoint(parsed)
-        fwd = None
+        if cb_port is not None and not (1 <= cb_port <= 65535):
+            return f"reject: callback ポートが範囲外です ({cb_port})"
         if cb_port:
-            fwd = f"{cb_port}:127.0.0.1:{cb_port}"
-            # -L を張る（既存なら ssh 側がエラー→握りつぶす）。
-            subprocess.run(
-                [SSH_CMD, "-O", "forward", "-L", fwd, "-S", str(control), host],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
+            socks_port, err = _socks_port_of(conf)
+            if err:
+                return f"reject: {host}: {err}"
+            if not _socks_probe(socks_port):
+                return f"reject: {host}: SOCKS プロキシ 127.0.0.1:{socks_port} が応答しません"
+            rejected = ensure_relay(host, cb_port, socks_port)
+            if rejected:
+                return rejected
+
         # ローカルブラウザで開く（authorize URL なら認可ページ、普通の URL ならそのページ）。
-        subprocess.run([OPEN_CMD, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return f"ok: {('-L ' + fwd + ' ') if fwd else ''}via {host}, opened {url}"
+        _open_url(url)
+        relayed = f"relay {cb_port} " if cb_port else ""
+        return f"ok: {relayed}via {host}, opened {url}"
     except Exception as e:
         return f"error: {e}"
 
