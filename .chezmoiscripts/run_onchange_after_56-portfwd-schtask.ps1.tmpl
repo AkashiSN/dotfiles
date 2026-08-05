@@ -1,11 +1,14 @@
 {{ if eq .chezmoi.os "windows" -}}
-# portfwd daemon をタスクスケジューラのユーザータスクとして (再)登録する。
-# 管理者権限は不要（自分のアカウントのタスクを RunLevel Limited で作る）。
-# run_onchange: 下の daemon 本体のハッシュが変わると既存マシンでも再実行される
-# （全操作が冪等）。daemon 本体を含めるのは、本体だけを更新したときも走っている
-# プロセスを入れ替える必要があるから。
-# ユーザーに見せる文字列は ASCII にする。Windows PowerShell 5.1 は BOM 無しの
-# .ps1 を ANSI コードページとして読むため、日本語をそのまま出すと文字化けする。
+# Registers the portfwd daemon as a Task Scheduler user task.
+# No administrator rights required: the task runs as the current user at RunLevel Limited.
+# run_onchange: the daemon hash below changes whenever the daemon source changes, which
+# re-runs this script on existing machines (every operation here is idempotent). The hash
+# covers the daemon itself because updating only the daemon still has to replace the
+# running process.
+#
+# This file is ASCII only, comments included. chezmoi writes the rendered script without a
+# BOM, and Windows PowerShell 5.1 reads a BOM-less .ps1 using the ANSI code page, which
+# corrupts non-ASCII bytes badly enough to break parsing.
 # daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
 $ErrorActionPreference = 'Stop'
 
@@ -14,35 +17,34 @@ $Script   = Join-Path $env:USERPROFILE '.local\bin\portfwd'
 
 Write-Host "`n==> Registering portfwd daemon with Task Scheduler" -ForegroundColor Cyan
 
-# py ランチャの有無を先に確認する。無いまま呼ぶと PowerShell 自身が
-# CommandNotFoundException（terminating error）を投げ、$ErrorActionPreference = 'Stop'
-# によりその場で止まって下の案内メッセージに到達できないため。
+# Check for the py launcher before invoking it. Calling a missing command raises
+# CommandNotFoundException, a terminating error under $ErrorActionPreference = 'Stop',
+# which would stop the script before it can print the guidance below.
 #
-# ここで Write-Error は使わない。$ErrorActionPreference = 'Stop' 下では
-# Write-Error 自身が script-terminating error に昇格し、その場でスクリプトが
-# 止まって直後の exit 1 に制御が渡らない（exit コードが chezmoi の
-# run_onchange 呼び出し経路で 0 になり得る問題が再発する）。[Console]::Error は
-# terminating しない単なる標準エラー出力なので、続く exit 1 が必ず実行される。
+# Write-Error is deliberately not used here. Under $ErrorActionPreference = 'Stop' it is
+# promoted to a script-terminating error, so the following exit 1 would never run and the
+# exit code could reach chezmoi as 0. [Console]::Error just writes to stderr without
+# terminating, so exit 1 always executes.
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     [Console]::Error.WriteLine("Python launcher (py) not found. Install Python with: winget install Python.Python.3.13 --scope user")
     exit 1
 }
 
-# pythonw.exe を py ランチャ経由で探す。コンソール窓を出さずに常駐させるために使う。
+# Locate pythonw.exe through the py launcher. pythonw runs the daemon without a console window.
 $Pythonw = & py -3 -c "import os, sys; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null
 if (-not $Pythonw -or -not (Test-Path $Pythonw)) {
     [Console]::Error.WriteLine("pythonw.exe not found. Install Python with: winget install Python.Python.3.13 --scope user")
     exit 1
 }
 
-# タスクの実行主体。DOMAIN\user 形式で指定する（$env:USERNAME だけでは曖昧）。
+# Principal for the task, in DOMAIN\user form ($env:USERNAME alone is ambiguous).
 $UserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 $Action = New-ScheduledTaskAction -Execute $Pythonw -Argument ('"{0}" serve' -f $Script)
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $UserId
 $Principal = New-ScheduledTaskPrincipal -UserId $UserId -LogonType Interactive -RunLevel Limited
-# RestartInterval は仕様上の最小が 1 分。RestartCount は有限なので、尽きた場合は
-# 次回ログオンまたは次回 chezmoi apply まで daemon は停止したままになる。
+# RestartInterval has a one minute minimum. RestartCount is finite, so once it is exhausted
+# the daemon stays down until the next logon or the next chezmoi apply.
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -52,16 +54,16 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 99 `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-# 既存タスクがあるときだけ停止する（-ErrorAction SilentlyContinue で本当の失敗
-# ―アクセス拒否や CIM エラーなど―まで飲み込まないよう、事前に存在確認する）。
+# Stop the task only when it already exists. Checking first keeps -ErrorAction
+# SilentlyContinue from also swallowing real failures such as access denied or CIM errors.
 $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($ExistingTask) {
     Stop-ScheduledTask -TaskName $TaskName
 
-    # Stop-ScheduledTask は停止を要求するだけでプロセス終了を待たない。旧
-    # pythonw がポートを掴んだままだと、直後の Start で新インスタンスが listen
-    # に失敗して即終了してしまう（RestartInterval が 1 分のためその間 daemon が
-    # 落ちたままに見える）。State が Running でなくなるまで最大 10 秒待つ。
+    # Stop-ScheduledTask only requests a stop; it does not wait for the process to exit. If
+    # the old pythonw still holds the port, the instance started below fails to listen and
+    # exits immediately, leaving the daemon down until the one minute restart interval.
+    # Wait up to 10 seconds for the task to leave the Running state.
     $WaitedSeconds = 0
     while ((Get-ScheduledTask -TaskName $TaskName).State -eq 'Running' -and $WaitedSeconds -lt 10) {
         Start-Sleep -Milliseconds 500
@@ -72,9 +74,9 @@ if ($ExistingTask) {
     }
 }
 
-# Register だけでは既存インスタンスが残り、MultipleInstances=IgnoreNew のため
-# 直後の Start が無視されて旧コードのままになる。上の Stop（と待ち合わせ）が
-# あって初めて更新が確実に反映される。
+# Register alone would leave a running instance in place, and MultipleInstances=IgnoreNew
+# would make the following Start a no-op, so the old code would keep running. The Stop above
+# (and the wait for it) is what makes an update take effect.
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
     -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName

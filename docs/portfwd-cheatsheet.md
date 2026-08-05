@@ -103,6 +103,11 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 
 ### 展開
 
+> `run_onchange_after_56-portfwd-schtask.ps1.tmpl` はコメントを含めて ASCII のみで書く。
+> chezmoi はレンダリング結果を BOM 無しで書き出し、Windows PowerShell 5.1 は BOM 無しの
+> `.ps1` を ANSI コードページ（日本語環境では CP932）として読むため、非 ASCII バイトが
+> 壊れてパースエラーになる。このリポジトリで唯一、日本語コメントを使わないファイル。
+
 `chezmoi apply` すると、Windows では `.ssh/` 内の必要ファイル（`config`・`*.bat`・
 鍵ファイル `1password_AkashiSN.pub` / `1password_su-nishi.pub` / `gpg.pub` /
 `allowed_signers`）と `.local/bin/portfwd` が展開され、
