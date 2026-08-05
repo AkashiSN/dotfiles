@@ -89,6 +89,17 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
   ```
 - OpenSSH は OS 同梱のもので足りる。ssh config は `Tag` / `Match tagged`（8.9+）を使わない
   形で生成されるため、同梱の 8.1 / 8.6 でも動く。
+- **1Password SSH Agent を有効にしておくこと。** Windows の ssh config は `IdentityAgent` を
+  出力しない。Microsoft OpenSSH は固定パイプ `\\.\pipe\openssh-ssh-agent` で待ち受け、
+  1Password の agent がそれを引き継ぐため、パスを指定する必要が無いからだ（macOS/Linux は
+  `~/.1password/agent.sock` を明示する）。裏を返すと、agent が有効でないと鍵ファイルと
+  `IdentitiesOnly yes` だけが展開されて秘密鍵を取得できず、ssh 自体が通らない。手順は
+  [1Password の公式ガイド](https://www.1password.dev/ssh/get-started)のとおり:
+  1. `services.msc` の **OpenSSH Authentication Agent** を「スタートアップの種類」＝無効にし、
+     実行中なら停止する（1Password が固定パイプを使えるようにするため）
+  2. 1Password の 設定 > 開発者 で **SSH エージェントを使用** を有効にする
+  3. 1Password を通知領域に常駐させておく（設定 > 一般）
+  4. `ssh -T git@github.com` で agent 経由の認証が通ることを確認する
 
 ### 展開
 
