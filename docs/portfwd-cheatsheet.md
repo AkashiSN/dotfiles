@@ -54,7 +54,9 @@ py -3 "$env:USERPROFILE\.local\bin\portfwd" status
   スクリプト自身にはアイドル自己終了も多重起動制御も無い。
 - listen に失敗（他プロセスが 55999 を掴んでいる等）すると `serve` は非ゼロ終了し、
   サービスマネージャが間隔を空けて再試行する。
-- リレーは通知ごとに張り、アイドル 180 秒で listener を閉じる。
+- リレーは通知ごとに張る。1 回も接続を捌いていない間はログイン・MFA 待ちのため 600 秒
+  （旧 `ssh -L` の `ControlPersist 10m` 相当）、接続を 1 回でも捌いた後はアイドル 180 秒で
+  listener を閉じる。
 - 環境変数: `PORTFWD_PORT`(既定 55999) で逆チャネルポート、`PORTFWD_OPEN_CMD` でブラウザ
   起動コマンド、`PORTFWD_LOG` でログファイル、`PORTFWD_SSH_CMD` で ssh コマンドを変更できる。
 - `chezmoi apply` で daemon が再起動した直後は、listen ソケットがまだ bind される前に

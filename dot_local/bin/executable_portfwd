@@ -53,8 +53,14 @@ LOG_PATH = _default_log_path()
 # SOCKS5 のネゴシエーションに使う timeout。確立後の中継はこれを外して blocking へ戻す
 # （間の空く通信を切らないため）。
 HANDSHAKE_TIMEOUT = 5.0
-# リレーの listener を畳むまでのアイドル時間。
+# リレーの listener を畳むまでのアイドル時間。少なくとも 1 回接続を捌いた後に適用する
+# （callback を受け終えた後の余韻）。
 IDLE_TIMEOUT = 180.0
+# まだ 1 回も接続を捌いていないリレーに与える猶予時間。通知の直後からブラウザが callback
+# を叩くまでの間は、ユーザーが認可ページでログイン・MFA を completing しているだけでソケット
+# 活動が無い。この間を IDLE_TIMEOUT で計ると実際のログインより先に畳んでしまうため、旧方式
+# （ssh -L + ControlPersist 10m）が転送を保持していた時間に合わせて長く取る。
+PENDING_TIMEOUT = 600.0
 # accept の待ち時間。listener.close() が別スレッドの blocking accept を解除することは
 # （特に Windows で）保証されないため、自前で抜けられるように timeout を張る。
 ACCEPT_TIMEOUT = 1.0
@@ -179,7 +185,12 @@ class Relay:
         self.host = host
         self.port = port
         self.socks_port = socks_port
-        self.last_activity = time.monotonic()
+        # last_activity / served は _lock 越しにしか読み書きしない。_pump は中継データの
+        # チャンクごとに last_activity を更新するため、_relays_lock のような広域ロックを
+        # ここで取ると全リレーの通信が直列化してしまう。Relay 専用の軽い lock に留める。
+        self._lock = threading.Lock()
+        self._last_activity = time.monotonic()
+        self._served = False
         self._stop = threading.Event()
         self.listener = socket.socket()
         # macOS/Linux の SO_REUSEADDR は TIME_WAIT の再バインドのみ許可し、他プロセスが
@@ -212,19 +223,40 @@ class Relay:
         except OSError:
             pass
 
+    def touch(self, served=False):
+        """last_activity を更新する。served=True なら「接続を 1 回でも捌いた」フラグも立てる
+        （is_expired がこのフラグで IDLE_TIMEOUT / PENDING_TIMEOUT のどちらを使うか決める）。"""
+        with self._lock:
+            self._last_activity = time.monotonic()
+            if served:
+                self._served = True
+
+    def is_expired(self):
+        """まだ 1 回も接続を捌いていなければ PENDING_TIMEOUT、捌いた後なら IDLE_TIMEOUT を
+        last_activity と比べて期限切れかを判定する。"""
+        with self._lock:
+            return self._is_expired_locked()
+
+    def _is_expired_locked(self):
+        """is_expired() の中身。_lock を握った状態でだけ呼ぶ内部用（_unregister_relay が
+        判定と削除の間に touch() を割り込ませないため、自前で _lock を握って直接使う）。"""
+        elapsed = time.monotonic() - self._last_activity
+        timeout = IDLE_TIMEOUT if self._served else PENDING_TIMEOUT
+        return elapsed > timeout
+
     def _accept_loop(self):
         while not self._stop.is_set():
             try:
                 conn, _ = self.listener.accept()
             except socket.timeout:
-                if time.monotonic() - self.last_activity > IDLE_TIMEOUT:
+                if self.is_expired():
                     if not _unregister_relay(self):
                         continue
                     return
                 continue
             except OSError:
                 return
-            self.last_activity = time.monotonic()
+            self.touch(served=True)
             threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
 
     def _handle(self, conn):
@@ -253,7 +285,7 @@ class Relay:
                 if not data:
                     break
                 dst.sendall(data)
-                self.last_activity = time.monotonic()
+                self.touch()
         except OSError:
             pass
         finally:
@@ -270,15 +302,20 @@ def _unregister_relay(relay):
     場合や、別スレッドが last_activity を更新した場合は削除しない。True を返したら畳み
     成功、False を返したら畳まなかった（他スレッドが再利用中）。"""
     with _relays_lock:
-        # identity と freshness の両方を確認してから削除。ensure_relay が last_activity を
-        # 更新した場合は、アイドル判定は古い状態のままだが、ロック内で再確認すれば
-        # 新しい last_activity を見る。
-        if _relays.get(relay.port) is relay and time.monotonic() - relay.last_activity > IDLE_TIMEOUT:
+        if _relays.get(relay.port) is not relay:
+            return False
+        # 判定 (_is_expired_locked) から _relays からの削除までを relay._lock を握った
+        # まま行う。ensure_relay や _pump の touch() も同じ _lock を取るため、判定と削除の
+        # 間に touch() が割り込むことはない（先に来た touch() は判定に反映され、後に来た
+        # touch() はここが終わるまでブロックされ、終わった時点では relay は既に登録から
+        # 外れているので実害が無い）。
+        with relay._lock:
+            if not relay._is_expired_locked():
+                return False
             del _relays[relay.port]
-            relay.close()
-            _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
-            return True
-    return False
+    relay.close()
+    _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
+    return True
 
 
 def ensure_relay(host, port, socks_port):
@@ -291,7 +328,7 @@ def ensure_relay(host, port, socks_port):
                 # しまう。奪わずに reject し、呼び出し側を従来動作へフォールバックさせる。
                 return f"reject: ポート {port} は {existing.host} のリレーが使用中です"
             existing.socks_port = socks_port
-            existing.last_activity = time.monotonic()
+            existing.touch()
             return None
         try:
             _relays[port] = Relay(host, port, socks_port)
