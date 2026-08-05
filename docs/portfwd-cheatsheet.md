@@ -222,6 +222,32 @@ reject/error の理由は daemon ログだけでなく、`portfwd-open` 実行�
 stderr にもそのまま出る（`curl` 使用時・`/dev/tcp` フォールバック時のいずれも）ため、
 リモートで直接メッセージを読めることが多い。
 
+### ssh セッションに `channel N: open failed: connect failed: Connection refused` が出る
+
+daemon ログに次のような `SOCKS CONNECT 失敗` の行が同時に残っていて、かつ**認証自体は
+成功している**なら、これは無害。
+
+```
+relay <port>: SOCKS CONNECT 失敗 (SOCKS プロキシが CONNECT 応答を送らず channel を
+閉じました (リモート側がそのポートへの接続を拒否したと考えられる; ssh 自身の stderr に
+channel N: open failed: connect failed: Connection refused と出ているはず))
+```
+
+リモートの OAuth callback サーバは認可コードを受け取った時点で終了するため、その後に
+ブラウザが送る追加の接続（keep-alive・favicon 取得・リトライ等）は listen 先が無く、
+OpenSSH はこの拒否を SOCKS5 のエラー応答ではなく channel のクローズで表現する。それが
+`channel N: open failed` として ssh セッションに出る一方、daemon 側は「応答ヘッダを
+読んでいる最中に接続が切れた」＝拒否として検出しログに残す。
+
+無害なケースと本当の失敗の見分け方:
+
+- **認証が最後まで完了しているか**（`aws login` / `gh auth` 等が成功で終わっているか）
+- 同じ daemon ログに **`ok: relay <port> via <host>` の行があるか**（無ければリレー自体が
+  張れておらず、これは別の問題）
+
+この 2 点が揃っていれば無害。`channel N: open failed` は ssh クライアント自身が出す
+メッセージで daemon 側からは制御できず、抑制する方法もない。
+
 ## 経緯
 
 - **2026-06**: 初版。ControlMaster ソケット経由の `ssh -O forward` で callback ポートを

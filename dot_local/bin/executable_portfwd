@@ -67,7 +67,8 @@ _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _log(msg):
-    line = f"portfwd: {msg}"
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    line = f"{ts} portfwd: {msg}"
     try:
         print(line, file=sys.stderr, flush=True)
     except (AttributeError, OSError, ValueError):
@@ -131,7 +132,20 @@ def _socks_connect(socks_port, dst_port):
         _socks_greet(s)
         s.sendall(b"\x05\x01\x00\x01" + socket.inet_aton("127.0.0.1")
                   + dst_port.to_bytes(2, "big"))
-        ver, rep, rsv, atyp = _recv_exact(s, 4)
+        try:
+            ver, rep, rsv, atyp = _recv_exact(s, 4)
+        except ConnectionError as e:
+            # OpenSSH の DynamicForward は接続先に拒否されても SOCKS5 のエラー応答を返さず、
+            # channel を閉じるだけで済ませる（ssh 自身は stderr に
+            # "channel N: open failed: connect failed: Connection refused" と出す）。
+            # そのため応答ヘッダを読んでいる最中の切断は、実質的に「リモート側がそのポートへの
+            # 接続を拒否した」ことを意味する。
+            raise ConnectionError(
+                "SOCKS プロキシが CONNECT 応答を送らず channel を閉じました "
+                "(リモート側がそのポートへの接続を拒否したと考えられる; "
+                "ssh 自身の stderr に channel N: open failed: connect failed: "
+                "Connection refused と出ているはず)"
+            ) from e
         if ver != 5 or rsv != 0:
             raise ConnectionError(f"SOCKS5 応答が不正です (ver={ver} rsv={rsv})")
         if rep != 0:
