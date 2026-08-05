@@ -94,6 +94,19 @@ path=(
 # 36-terraform-plugin-cache が行う。掃除は tf-cache-prune。
 export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache"
 
+# portfwd: LC_PORTFWD_HOST は通常 ssh の SetEnv で渡るが、herdr のようにサーバ起動時の
+# 環境をペインへ配る multiplexer 越しだと、その変数を引き継がないシェルが起動しうる。
+# 値はホストごとに固定なので、未設定のときは ~/.config/portfwd/host から復元する。
+# ssh -G の引数になるため daemon 側と同じ文字種のみ許可し、それ以外は無視する
+# （.zshenv は非対話シェルでも読まれるため警告は出さない）。
+if [ -z "${LC_PORTFWD_HOST:-}" ] && [ -r "$HOME/.config/portfwd/host" ]; then
+  read -r _portfwd_host < "$HOME/.config/portfwd/host"
+  if [[ "$_portfwd_host" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    export LC_PORTFWD_HOST="$_portfwd_host"
+  fi
+  unset _portfwd_host
+fi
+
 # portfwd: オプトインしたホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
 # LC_PORTFWD_HOST は ssh config の対象 Host ブロックの SetEnv でのみ渡るため、
 # ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。

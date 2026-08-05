@@ -205,6 +205,21 @@ Host <alias>
   `sshd -t` で検証してから `systemctl reload sshd`（`restart` ではなく `reload` を
   使うことで、reload 中も既存セッションを切らない）。**設定は新規接続にしか効かない**ため、
   開きっぱなしの ssh セッションは張り直す必要がある。
+- （任意）`~/.config/portfwd/host` — herdr のように長時間動くサーバプロセスが新しい
+  ペインへサーバ起動時点の環境を配る multiplexer では、サーバ起動時に
+  `LC_PORTFWD_HOST` が無かった場合そのペインに変数が届かない。`herdr server stop` で
+  サーバを再起動すればその時点では直るが、サーバがまた変数無しで起動する状況が
+  再発するたびに同じ問題が起きるため恒久対応にならない（herdr 自体には環境変数を
+  ペインへ引き継ぐ設定項目が無い）。値はホストごとに固定なので、このファイルに
+  1 行 `<alias>`（`SetEnv LC_PORTFWD_HOST=<alias>` と同じ、ssh config 側のホスト
+  エイリアス）を書いておくと、`dot_zshenv.tmpl` が `LC_PORTFWD_HOST` 未設定のときだけ
+  そこから復元する（詳細は同ファイルのコメント参照）。プレーンな ssh セッションでは
+  `SetEnv` で直接渡るため不要。作成手順:
+  ```sh
+  mkdir -p ~/.config/portfwd
+  echo <alias> > ~/.config/portfwd/host
+  ```
+  確認は multiplexer 上で新しいシェルを開いて `echo $LC_PORTFWD_HOST` を実行する。
 
 ## トラブルシューティング
 
