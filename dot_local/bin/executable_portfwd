@@ -173,6 +173,12 @@ class Relay:
         # 実際に listen 中のポートへの bind も許してしまうため、ここで設定しない。
         if sys.platform != "win32":
             self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        else:
+            # Windows は SO_REUSEADDR を設定しないだけでは、bind 後に別プロセスが同じ
+            # ポートを奪うことを防げない。SO_EXCLUSIVEADDRUSE で占有を強制する。
+            exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+            if exclusive is not None:
+                self.listener.setsockopt(socket.SOL_SOCKET, exclusive, 1)
         try:
             # IPv4 loopback のみで listen する。callback には localhost も許容しているため、
             # ブラウザが localhost を ::1 に解決する環境では bind 先が無く弾かれうる
@@ -270,6 +276,7 @@ def ensure_relay(host, port, socks_port):
                 # 張り替えると、先行フローのブラウザ callback を後発ホストへ誤配送して
                 # しまう。奪わずに reject し、呼び出し側を従来動作へフォールバックさせる。
                 return f"reject: ポート {port} は {existing.host} のリレーが使用中です"
+            existing.socks_port = socks_port
             existing.last_activity = time.monotonic()
             return None
         try:
@@ -338,10 +345,10 @@ def _callback_endpoint(parsed):
     redirect = parse_qs(parsed.query).get("redirect_uri", [None])[0]
     if redirect:
         r = urlparse(redirect)
-        if r.hostname in ("127.0.0.1", "localhost") and r.port:
+        if r.hostname in ("127.0.0.1", "localhost") and r.port is not None:
             return r.hostname, r.port
     # 2) URL 自体がローカルコールバックのとき。
-    if parsed.hostname in ("127.0.0.1", "localhost") and parsed.port:
+    if parsed.hostname in ("127.0.0.1", "localhost") and parsed.port is not None:
         return parsed.hostname, parsed.port
     return None, None
 
@@ -453,10 +460,19 @@ class _NotificationServer(HTTPServer):
     HTTPServer は既定で allow_reuse_address = 1 だが、Windows の SO_REUSEADDR は
     他プロセスが実際に listen 中のポートへの bind も許してしまう（Relay が
     SO_REUSEADDR を設定しない理由と同じ）。Relay と挙動を揃えるため、Windows でのみ
-    無効にする。
+    無効にする。さらに Windows では bind 前に SO_EXCLUSIVEADDRUSE を設定し、bind 後に
+    別プロセスがこのポートを奪うことも防ぐ（OAuth の callback を受ける Relay ほどでは
+    ないが、通知チャネル自体も同じ理由で保護する）。
     """
 
     allow_reuse_address = sys.platform != "win32"
+
+    def server_bind(self):
+        if sys.platform == "win32":
+            exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+            if exclusive is not None:
+                self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
 
 
 def cmd_serve():
@@ -489,8 +505,9 @@ def cmd_status():
         else:
             print(f"portfwd: stopped (port {PORT})")
         return
-    except (json.JSONDecodeError, http.client.IncompleteRead):
-        # 応答本文が JSON ではない、または読み取り途中で接続を閉じられた。
+    except (json.JSONDecodeError, http.client.IncompleteRead, UnicodeDecodeError):
+        # 応答本文が JSON ではない、UTF-8 でデコードできない、または読み取り途中で
+        # 接続を閉じられた。
         print(f"portfwd: not-portfwd (port {PORT} は別のサービスが応答しています)")
         return
     # payload が dict でない（配列や文字列など）場合も not-portfwd として扱う。

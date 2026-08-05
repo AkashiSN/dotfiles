@@ -5,7 +5,8 @@ Host *
     Compression         yes
     IdentitiesOnly      yes
 {{- if eq .chezmoi.os "windows" }}
-    IdentityAgent       \\.\pipe\openssh-ssh-agent
+    # Windows では Microsoft OpenSSH が固定パイプ \\.\pipe\openssh-ssh-agent で
+    # 待ち受け、1Password の agent がそれを乗っ取るため IdentityAgent の指定は不要。
 {{- else }}
     IdentityAgent       ~/.1password/agent.sock
 {{- end }}
