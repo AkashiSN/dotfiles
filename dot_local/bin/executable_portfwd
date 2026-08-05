@@ -344,7 +344,8 @@ def _ssh_config(host):
     """
     try:
         proc = subprocess.run(
-            [SSH_CMD, "-G", host],
+            # -- を挟み、host が先頭 - でもオプションとして解釈されないようにする。
+            [SSH_CMD, "-G", "--", host],
             capture_output=True, text=True, timeout=SSH_G_TIMEOUT,
             creationflags=_CREATE_NO_WINDOW,
         )
