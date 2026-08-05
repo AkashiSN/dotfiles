@@ -96,10 +96,24 @@ export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cac
 
 # portfwd: LC_PORTFWD_HOST は通常 ssh の SetEnv で渡るが、herdr のようにサーバ起動時の
 # 環境をペインへ配る multiplexer 越しだと、その変数を引き継がないシェルが起動しうる。
-# 値はホストごとに固定なので、未設定のときは ~/.config/portfwd/host から復元する。
-# ssh -G の引数になるため daemon 側と同じ文字種のみ許可し、それ以外は無視する
-# （.zshenv は非対話シェルでも読まれるため警告は出さない）。
-if [ -z "${LC_PORTFWD_HOST:-}" ] && [ -r "$HOME/.config/portfwd/host" ]; then
+# 値はホストごとに固定なので、変数があれば ~/.config/portfwd/host へ保存し、変数が
+# 無ければそこから復元する。普通の ssh セッションが一度あれば、その後は herdr の
+# ペインを含む全シェルで復元できる。ssh -G の引数になるため daemon 側と同じ文字種
+# のみ許可し、それ以外は保存も復元もしない（.zshenv は非対話シェルでも読まれるため
+# 警告は出さない）。書き込みに失敗しても（読み取り専用ホームなど）シェルは継続する。
+if [ -n "${LC_PORTFWD_HOST:-}" ]; then
+  if [[ "$LC_PORTFWD_HOST" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    _portfwd_host_file="$HOME/.config/portfwd/host"
+    _portfwd_current=""
+    [ -r "$_portfwd_host_file" ] && read -r _portfwd_current < "$_portfwd_host_file"
+    if [ "$_portfwd_current" != "$LC_PORTFWD_HOST" ]; then
+      {
+        mkdir -p "${_portfwd_host_file:h}" && print -r -- "$LC_PORTFWD_HOST" > "$_portfwd_host_file"
+      } 2>/dev/null
+    fi
+    unset _portfwd_host_file _portfwd_current
+  fi
+elif [ -r "$HOME/.config/portfwd/host" ]; then
   read -r _portfwd_host < "$HOME/.config/portfwd/host"
   if [[ "$_portfwd_host" =~ ^[A-Za-z0-9._-]+$ ]]; then
     export LC_PORTFWD_HOST="$_portfwd_host"
