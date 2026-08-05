@@ -6,16 +6,24 @@
 # (127.0.0.1:PORTFWD_PORT) へ POST する。ローカル daemon は該当ポートを、ssh 接続の
 # DynamicForward(SOCKS5) 経由で中継したうえで、ローカルのブラウザを開く。
 #
-# 到達不能なら非ゼロ終了し、呼び出し側が従来動作へフォールバックできるようにする。
+# 到達不能／拒否なら非ゼロ終了し、呼び出し側が従来動作へフォールバックできるようにする
+# （例: aws login は --remote フローへ）。
 set -eu
 
 PORT="${PORTFWD_PORT:-55999}"
-HOST="${LC_PORTFWD_HOST:-unknown}"
+HOST="${LC_PORTFWD_HOST:-}"
 URL="${1:-}"
 
 if [ -z "$URL" ]; then
     echo "portfwd-open: URL がありません" >&2
     exit 2
+fi
+
+if [ -z "$HOST" ]; then
+    echo "portfwd-open: LC_PORTFWD_HOST が空です。よくある原因はリモート sshd が" >&2
+    echo "  LC_* を AcceptEnv していないこと（/etc/ssh/sshd_config を確認: " >&2
+    echo "  'AcceptEnv LANG LC_*' が必要）。値は echo \$LC_PORTFWD_HOST で確認できる。" >&2
+    exit 1
 fi
 
 # JSON を組み立てる（host/url は英数記号のみ想定。最低限のエスケープ: " と \ ）。
@@ -24,11 +32,28 @@ BODY=$(printf '{"host":"%s","url":"%s"}' "$(json_escape "$HOST")" "$(json_escape
 LEN=$(printf '%s' "$BODY" | wc -c | tr -d ' ')
 
 # curl があれば curl、無ければ bash /dev/tcp で最小 HTTP POST。
+# daemon が reject/error したときの理由（レスポンスボディ）は stderr に出す。
 if command -v curl >/dev/null 2>&1; then
-    curl -fsS --max-time 5 -X POST \
-        -H 'Content-Type: application/json' \
-        --data "$BODY" \
-        "http://127.0.0.1:${PORT}/" >/dev/null
+    RESP_FILE=$(mktemp)
+    trap 'rm -f "$RESP_FILE"' EXIT
+    # -f は使わない（HTTP エラー時にボディを捨ててしまうため）。ステータスは
+    # -w で取り、自分で判定する。
+    if ! STATUS=$(curl -sS --max-time 5 -o "$RESP_FILE" -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' \
+            --data "$BODY" \
+            "http://127.0.0.1:${PORT}/"); then
+        echo "portfwd-open: 127.0.0.1:${PORT} への接続に失敗しました" >&2
+        [ -s "$RESP_FILE" ] && cat "$RESP_FILE" >&2
+        exit 1
+    fi
+    case "$STATUS" in
+        2??) ;;
+        *)
+            echo "portfwd-open: daemon が HTTP ${STATUS} を返しました" >&2
+            cat "$RESP_FILE" >&2
+            exit 1
+            ;;
+    esac
 else
     exec 3<>"/dev/tcp/127.0.0.1/${PORT}" || {
         echo "portfwd-open: 127.0.0.1:${PORT} へ接続できません" >&2
@@ -36,7 +61,17 @@ else
     }
     printf 'POST / HTTP/1.0\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s' \
         "$LEN" "$BODY" >&3
-    # レスポンスを読み捨て（接続確認）。
-    cat <&3 >/dev/null
+    RESP=$(cat <&3)
     exec 3>&-
+    # ステータス行とボディを分けて、reject/error の理由を stderr に出す。
+    STATUS=$(printf '%s\n' "$RESP" | head -n1 | awk '{print $2}')
+    RESP_BODY=$(printf '%s\n' "$RESP" | sed '1,/^\r*$/d')
+    case "$STATUS" in
+        2??) ;;
+        *)
+            echo "portfwd-open: daemon が HTTP ${STATUS:-?} を返しました" >&2
+            [ -n "$RESP_BODY" ] && printf '%s\n' "$RESP_BODY" >&2
+            exit 1
+            ;;
+    esac
 fi

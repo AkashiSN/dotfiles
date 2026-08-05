@@ -196,7 +196,31 @@ Host <alias>
 - 対象ホストの ssh 接続が `DynamicForward` の bind に成功していること。`ExitOnForwardFailure`
   は既定の `no` なので、bind に失敗しても ssh 自体は繋がる。daemon は毎回 probe するため、
   この場合は reject されてフォールバックする。
-- sshd が `LC_*` を `AcceptEnv`（多くは既定で受理）。
+- sshd が `LC_*` を `AcceptEnv`（多くは既定で受理）。リモートで確認:
+  `grep -ri acceptenv /etc/ssh/sshd_config /etc/ssh/sshd_config.d/`。
+  無ければ追加する — `Include` 行がある構成なら `/etc/ssh/sshd_config.d/*.conf` に、
+  無ければ `/etc/ssh/sshd_config` 本体に `AcceptEnv LANG LC_*` を追記し、
+  `sshd -t` で検証してから `systemctl reload sshd`（`restart` ではなく `reload` を
+  使うことで、reload 中も既存セッションを切らない）。**設定は新規接続にしか効かない**ため、
+  開きっぱなしの ssh セッションは張り直す必要がある。
+
+## トラブルシューティング
+
+### `portfwd-open` が 422 を返す／`LC_PORTFWD_HOST` が無いと報告する
+
+次の順で切り分ける。
+
+1. リモートで `echo $LC_PORTFWD_HOST` — 空なら sshd 側が変数を届けていない
+   （上記の `AcceptEnv` を確認）。
+2. ローカルで `ssh -G <host>` の `setenv` 行に `LC_PORTFWD_HOST=<alias>` があるか
+   （無ければ ssh config 側の `SetEnv` が対象ホストに効いていない）。
+3. ローカルの daemon ログ（`PORTFWD_LOG`。既定は macOS が
+   `~/Library/Logs/portfwd.log`、Windows が `%LOCALAPPDATA%\portfwd\portfwd.log`）で
+   reject/error の理由を確認する。
+
+reject/error の理由は daemon ログだけでなく、`portfwd-open` 実行時のリモート側
+stderr にもそのまま出る（`curl` 使用時・`/dev/tcp` フォールバック時のいずれも）ため、
+リモートで直接メッセージを読めることが多い。
 
 ## 経緯
 
