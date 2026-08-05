@@ -4,3 +4,10 @@
 # 通常ファイル=0666&^umask / 実行ファイル・ディレクトリ=0777&^umask で目標モードを計算する。
 # 固定しないと同じ内容でもモードだけ 666/777 に変わり chezmoi diff に差分が出る。
 umask = 0o022
+
+# .chezmoiscripts の .ps1 を実行するためのインタプリタ。
+# -NoProfile は PowerShell Profile の副作用を避けるため、
+# -ExecutionPolicy Bypass はプロセススコープなので管理者権限を必要としない。
+[interpreters.ps1]
+command = "powershell"
+args = ["-NoProfile", "-ExecutionPolicy", "Bypass"]

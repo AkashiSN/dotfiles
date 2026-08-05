@@ -20,5 +20,5 @@
 *gitconfig*       linguist-language=Git Config
 *gitignore_global linguist-language=Ignore List
 # ssh
-private_dot_ssh/*config  linguist-language=SSH Config
+private_dot_ssh/*config*  linguist-language=SSH Config
 private_dot_ssh/*signers linguist-language=SSH Config

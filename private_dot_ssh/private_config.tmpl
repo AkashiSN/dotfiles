@@ -4,7 +4,12 @@ Host *
     TCPKeepAlive        yes
     Compression         yes
     IdentitiesOnly      yes
+{{- if eq .chezmoi.os "windows" }}
+    # Windows では Microsoft OpenSSH が固定パイプ \\.\pipe\openssh-ssh-agent で
+    # 待ち受け、1Password の agent がそれを乗っ取るため IdentityAgent の指定は不要。
+{{- else }}
     IdentityAgent       ~/.1password/agent.sock
+{{- end }}
 
 # Suita
 Host gw-suita
@@ -49,8 +54,13 @@ Host develop-server
     HostName        develop-server
     User            ubuntu
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
-    Tag             portfwd
+    DynamicForward  127.0.0.1:55887
     SetEnv          LC_PORTFWD_HOST=develop-server
+{{- if eq .chezmoi.os "windows" }}
+    RemoteForward   127.0.0.1:55999 127.0.0.1:55999
+{{- else }}
+    Tag             portfwd
+{{- end }}
 
 Host truenas
     HostName        172.16.100.10
@@ -63,10 +73,15 @@ Host cloudsa
     User            ec2-user
     ForwardAgent    yes
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
-    ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
-    DynamicForward  55888
-    Tag             portfwd
+    DynamicForward  127.0.0.1:55888
     SetEnv          LC_PORTFWD_HOST=cloudsa
+{{- if eq .chezmoi.os "windows" }}
+    ProxyCommand    "{{ .chezmoi.homeDir | replace "\\" "/" }}/.ssh/ssm-proxy.bat" %h %p %r cdx-arise-pre-dev
+    RemoteForward   127.0.0.1:55999 127.0.0.1:55999
+{{- else }}
+    ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
+    Tag             portfwd
+{{- end }}
 
 # Service
 Host gitlab.com
@@ -88,18 +103,28 @@ Host gist.github.com
     HostName        github.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
 
-# portfwd: タグ付きホストでブラウザ自動フォワードを有効化（docs/portfwd-cheatsheet.md）
-# daemon は launchd が常駐管理するので、ここでは逆チャネル(RemoteForward)と、動的 -L を
-# 張るための ControlMaster だけを設定する（ensure 起動は不要）。
+{{- if ne .chezmoi.os "windows" }}
+# portfwd: タグ付きホストの逆チャネル（docs/portfwd-cheatsheet.md）。
+# 動的フォワードは daemon が DynamicForward(SOCKS5) 経由で張るため、ここでは
+# 逆チャネルだけを設定する。ControlMaster は ssh 接続を再利用するための設定。
 Match tagged portfwd
     ControlMaster    auto
     ControlPath      ~/.ssh/cm-%n
     ControlPersist   10m
     RemoteForward    127.0.0.1:55999 127.0.0.1:55999
+{{- end }}
 
 # Match
+{{- if eq .chezmoi.os "windows" }}
+Match host 172.16.0.* !Exec "ping -n 1 -w 1000 172.16.0.1"
+    ProxyJump gw-suita
+
+Match host 172.16.100.* !Exec "ping -n 1 -w 1000 172.16.100.1"
+    ProxyJump gw-tokyo
+{{- else }}
 Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"
     ProxyJump gw-suita
 
 Match host 172.16.100.* !Exec "ping -c1 -t1 172.16.100.1"
     ProxyJump gw-tokyo
+{{- end }}

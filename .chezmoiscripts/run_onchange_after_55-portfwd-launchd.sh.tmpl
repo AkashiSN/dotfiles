@@ -1,8 +1,11 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/sh
 # portfwd daemon を launchd LaunchAgent として (再)ロードする。
-# run_onchange: 下の plist ハッシュが変わると既存マシンでも再実行される（全操作が冪等）。
+# run_onchange: 下の plist / daemon 本体のハッシュが変わると既存マシンでも再実行される
+# （全操作が冪等）。daemon 本体を含めるのは、launchd が生きているプロセスを再起動しない
+# ため、本体だけを更新したときも bootout → bootstrap で入れ替える必要があるから。
 # plist hash: {{ include "Library/LaunchAgents/com.snishi.portfwd.plist.tmpl" | sha256sum }}
+# daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
 set -eu
 
 {{ template "shell-log" }}

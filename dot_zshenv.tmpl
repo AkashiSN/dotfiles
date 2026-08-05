@@ -94,8 +94,8 @@ path=(
 # 36-terraform-plugin-cache が行う。掃除は tf-cache-prune。
 export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache"
 
-# portfwd: タグ付きホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
-# LC_PORTFWD_HOST は ssh config の `Match tagged portfwd` 内 SetEnv でのみ渡るため、
+# portfwd: オプトインしたホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
+# LC_PORTFWD_HOST は ssh config の対象 Host ブロックの SetEnv でのみ渡るため、
 # ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。
 if [ -n "${LC_PORTFWD_HOST:-}" ] && [ -x "$HOME/.local/bin/portfwd-open" ]; then
   export BROWSER="$HOME/.local/bin/portfwd-open"
