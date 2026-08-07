@@ -18,6 +18,12 @@ set -eu
 
 {{ template "shell-log" }}
 
+# chezmoi apply の呼び出し元が .zshenv を読んでいるとは限らないため、他の provisioning
+# スクリプトと同様に aqua の PATH と AQUA_GLOBAL_CONFIG を明示する
+# (後者が無いと aqua-proxy がバージョンを解決できず "command is not found" になる)。
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+
 # herdr が未導入(aqua 20-install 前 等)ならスキップ。
 command -v herdr >/dev/null 2>&1 || exit 0
 

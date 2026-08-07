@@ -89,8 +89,8 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 | 変数 | 既定値 |
 | --- | --- |
 | `CLAUDE_CODE_BEDROCK_REGION` | `us-east-1` |
-| `CLAUDE_CODE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-4-8` |
-| `CLAUDE_CODE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-4-6` |
+| `CLAUDE_CODE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-5[1m]` |
+| `CLAUDE_CODE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-5[1m]` |
 | `CLAUDE_CODE_BEDROCK_HAIKU_MODEL` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 > 内部で `CLAUDE_CODE_USE_BEDROCK=1` と上記モデルを `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` に

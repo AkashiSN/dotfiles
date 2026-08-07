@@ -8,8 +8,10 @@ set -eu
 {{ template "shell-log" }}
 step "AI アシスタント CLI(claude/codex/kiro/ollama/agmsg/codegraph/graphify)をインストール中"
 
-# graphify は uv (aqua 管理) で入れるため aqua の bin も解決可能にする。
+# graphify は uv (aqua 管理) で入れるため、aqua の bin と設定も解決可能にする
+# (AQUA_GLOBAL_CONFIG が無いと aqua-proxy がバージョンを解決できない)。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
 
 # --- Claude Code (claude.ai/install.sh) ---
 # stable / latest / 固定バージョン(例: 2.1.179)。
