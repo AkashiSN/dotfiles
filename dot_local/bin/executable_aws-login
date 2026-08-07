@@ -20,15 +20,26 @@
 #
 # SSH 先での挙動:
 #   通常の `aws login` は localhost のコールバックサーバ前提で、SSH 先だとブラウザも
-#   開かず localhost に戻ってしまい完結しない。そこで 2 通りに分岐する:
-#   - portfwd 逆チャネルが使えるとき（タグ付きホストへの SSH。LC_PORTFWD_HOST がセット
-#     済み かつ 127.0.0.1:55999 の portfwd daemon に到達可能）は通常の `aws login` を使う。
-#     コールバック URL は $BROWSER=portfwd-open 経由でローカルへ転送され、ローカルの
-#     ブラウザが自動で開く（詳細は docs/portfwd-cheatsheet.md）。
-#   - 逆チャネルが無い SSH 先では従来どおり `aws login --remote` にフォールバックする。
-#     --remote は localhost コールバックを無効化し、URL 表示＋認証コード貼り付け方式に
-#     切り替える（公式のリモート用フロー）。
-#   どちらも URL/プロンプトは呼び出し元の出力抑制を貫通させるため制御端末（/dev/tty）に
+#   開かず localhost に戻ってしまい完結しない。そこで SSH セッションでは
+#   `aws login --remote` を使う。--remote は localhost コールバックを無効化し、
+#   URL 表示＋認証コード貼り付け方式に切り替える（公式のリモート用フロー）。
+#
+#   ただし「ローカルのブラウザを開けて localhost コールバックも戻ってくる」経路が
+#   あるときは --remote を付けず、通常のコールバック方式をそのまま使う。該当するのは 2 つ。
+#
+#   (a) portfwd 逆チャネル（docs/portfwd-cheatsheet.md）。オプトインしたホストへの SSH では
+#       LC_PORTFWD_HOST が渡り、.zshenv が $BROWSER を portfwd-open に向ける。
+#       127.0.0.1:55999 の daemon が /health に応答すれば、URL はローカル mac のブラウザで
+#       開き、コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
+#       到達できないとき（daemon 停止・逆チャネル未設定）は --remote へフォールバックする。
+#       $BROWSER の有無ではなく実際の到達性で判定するのはこのため。
+#   (b) VSCode Remote などのリモート開発環境。$BROWSER に「ローカルのブラウザを開く
+#       ヘルパー」を仕込み、さらに localhost のポートを自動フォワードするため、SSH 先でも
+#       通常のコールバック方式がそのまま成立する（ブラウザが自動で開き、コード貼り付けも
+#       不要）。判定は $BROWSER が空でないかどうかだけ。ただし $BROWSER が portfwd-open の
+#       ときは (a) の到達性判定が済んでいるので、ここには落ちてこない扱いにする。
+#
+#   どの分岐でも URL/プロンプトは呼び出し元の出力抑制を貫通させるため制御端末（/dev/tty）に
 #   直結する。
 #
 # 注意:
@@ -102,16 +113,33 @@ emit_creds_if_valid() {
     return 1
 }
 
-# portfwd 逆チャネルが使えるか判定する。
-#   - LC_PORTFWD_HOST がセット済み（タグ付きホストへの SSH セッション）かつ
-#     127.0.0.1:55999 に接続できれば、ローカルの portfwd daemon 経由で
-#     ブラウザを開ける。この場合 aws login --remote ではなく通常の
-#     aws login（localhost コールバック）を使う。
+# portfwd 逆チャネルが使えるか判定する（docs/portfwd-cheatsheet.md）。
+#   - LC_PORTFWD_HOST がセット済み（オプトインしたホストへの SSH セッション）かつ
+#     127.0.0.1:55999 の daemon が応答すれば、ローカルのブラウザを開ける。この場合
+#     aws login --remote ではなく通常の aws login（localhost コールバック）を使う。
+#   - 変数だけで判定しないのは、ssh config が SetEnv していても daemon が落ちていたり
+#     RemoteForward の bind に失敗していたりするため。到達性まで見て初めて安全に
+#     コールバック方式へ倒せる。
+#   - TCP connect ではなく GET /health まで確認する。RemoteForward の listen ソケットは
+#     **SSH 先の sshd が** 持つため、ローカルの daemon が死んでいても connect は成功して
+#     しまう（実際には応答が無く、portfwd-open が「Empty reply from server」で落ちる）。
+#     daemon が返す {"service":"portfwd",...} を見て初めて逆チャネルの生存を確認できる。
+#     /health は pid 等を含めず、リモートから読まれる前提で設計されている。
 portfwd_channel_available() {
     [ -n "${LC_PORTFWD_HOST:-}" ] || return 1
     local port="${PORTFWD_PORT:-55999}"
-    # bash /dev/tcp で接続確認（2 秒タイムアウト）。
-    timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${port}" 2>/dev/null
+    local url="http://127.0.0.1:${port}/health"
+    if command -v curl >/dev/null 2>&1; then
+        curl -sS --max-time 2 "$url" 2>/dev/null \
+            | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'
+    else
+        # curl が無い環境向けの最小 HTTP GET（portfwd-open と同じ手法）。
+        timeout 2 bash -c "
+            exec 3<>/dev/tcp/127.0.0.1/${port} || exit 1
+            printf 'GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3
+            cat <&3" 2>/dev/null \
+            | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'
+    fi
 }
 
 # 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。
@@ -133,21 +161,41 @@ fi
         exit 0
     fi
 
-    # ローカル / portfwd 逆チャネルあり SSH / 逆チャネル無し SSH で認証方式を切り替える
+    # ローカル / SSH で認証方式を切り替える
     # （各分岐の詳細はファイル冒頭「SSH 先での挙動」を参照）。
-    # portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（timeout の二重実行を避ける）。
+    # portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（到達性確認の二重実行を避ける）。
     portfwd_ok=""
     if portfwd_channel_available; then portfwd_ok=1; fi
 
-    if [[ -n $portfwd_ok ]] && { : >/dev/tty; } 2>/dev/null; then
-        # 逆チャネルあり＋制御端末あり。通常の aws login（localhost コールバック）を使い、
-        # $BROWSER=portfwd-open 経由でローカルブラウザが開く。
-        aws login </dev/tty >/dev/tty 2>&1
-    elif [[ -n $portfwd_ok ]]; then
-        # 逆チャネルありだが制御端末なし。出力は継承 fd のまま通常 aws login。
-        aws login
+    if [[ -n $portfwd_ok ]]; then
+        # portfwd 逆チャネルあり。$BROWSER=portfwd-open がローカルのブラウザを開き、
+        # localhost コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
+        if { : >/dev/tty; } 2>/dev/null; then
+            aws login </dev/tty >/dev/tty 2>&1
+        else
+            aws login
+        fi
+    elif [[ -n $BROWSER && $BROWSER != portfwd-open && $BROWSER != */portfwd-open ]]; then
+        # VSCode Remote 等、$BROWSER 経由でローカルのブラウザを開ける環境。
+        # ポートフォワードで localhost コールバックも戻るので --remote は付けない。
+        #
+        # portfwd-open だけは除外する。.zshenv は LC_PORTFWD_HOST があるだけで $BROWSER を
+        # portfwd-open に向けるので、逆チャネルが死んでいてもここへ落ちてくる。そのまま
+        # コールバック方式で進むと portfwd-open が非ゼロ終了して認証が完結しないため、
+        # 下の --remote へ流す。
+        #
+        # VSCode の $BROWSER ヘルパ（browser.sh → 同梱 node で server-cli.js を実行）は
+        # 内部で url.parse() を使っており、Node が DEP0169 の DeprecationWarning を
+        # stderr に出す。ログインには無害なノイズなので、ヘルパを起動するこの分岐に限って
+        # --no-deprecation で黙らせる（既存の $NODE_OPTIONS は保持する）。
+        node_opts="${NODE_OPTIONS:+$NODE_OPTIONS }--no-deprecation"
+        if { : >/dev/tty; } 2>/dev/null; then
+            NODE_OPTIONS="$node_opts" aws login </dev/tty >/dev/tty 2>&1
+        else
+            NODE_OPTIONS="$node_opts" aws login
+        fi
     elif [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
-        # SSH だが逆チャネル無し。従来どおり URL 表示＋コード貼り付け。
+        # SSH。URL 表示＋コード貼り付け方式で、制御端末へ直結する。
         aws login --remote </dev/tty >/dev/tty 2>&1
     elif [[ -n $SSH_CONNECTION ]]; then
         aws login --remote

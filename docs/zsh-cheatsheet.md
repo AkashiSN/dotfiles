@@ -67,7 +67,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
-portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
+portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。`$BROWSER` が既にセットされている場合（VSCode Remote 等が自前のヘルパを仕込んでいる場合）は上書きしない。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
 
 ### bedrock 起動で使う AWS プロファイル
 

@@ -24,7 +24,13 @@ local : portfwd daemon が受信
   `127.0.0.1:P` へ CONNECT するとリモートの loopback に繋がる。これが `-L P:127.0.0.1:P` と
   等価になる。
 - リモートの `$BROWSER` は `dot_zshenv.tmpl` が `LC_PORTFWD_HOST` セット時のみ
-  `~/.local/bin/portfwd-open` に向ける。
+  `~/.local/bin/portfwd-open` に向ける。ただし `$BROWSER` が既にセットされている場合
+  （VSCode Remote 等が自前のヘルパを仕込んでいる場合）は上書きしない。あちらは自前の
+  ポートフォワードで完結しており、奪うと逆に壊れるため。
+- `aws-login` は逆チャネルを使うかどうかを、変数の有無ではなく `GET /health` の応答で判定する
+  （`{"service":"portfwd",…}` が返るか）。`RemoteForward` の listen ソケットは SSH 先の sshd が
+  持つため、TCP connect だけではローカルの daemon が死んでいても成功してしまう。
+  詳細は [aws-cheatsheet.md](aws-cheatsheet.md) の「SSH 先でのログイン」を参照。
 
 ## ローカルの `portfwd` コマンド
 
@@ -287,3 +293,9 @@ OpenSSH はこの拒否を SOCKS5 のエラー応答ではなく channel のク�
   `portfwd status` の判定を TCP connect から `GET /health` へ変更した（ポートを他プロセスが
   掴んでいるときに running と誤表示していたため）。`ControlMaster` は非 Windows に残して
   いるが、これは ssh 接続を再利用するための設定であり portfwd はもう依存しない。
+- **2026-08（work 用 dotfiles からの取り込み）**: `aws-login` の逆チャネル判定も
+  TCP connect から `GET /health` へ揃えた。`RemoteForward` の listen ソケットは SSH 先の
+  sshd が持つため、ローカルの daemon が死んでいても connect は成功し、`portfwd-open` が
+  `Empty reply from server` で落ちるまで気付けなかった。あわせて `dot_zshenv.tmpl` が
+  既存の `$BROWSER` を上書きしないようにし、VSCode Remote 等の自前フォワードを壊さない
+  ようにした（`aws-login` 側にも `$BROWSER` 経由で完結する分岐を追加）。

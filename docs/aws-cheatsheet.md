@@ -107,10 +107,24 @@ aws-switch my-profile <role_arn> # assume role 付きで切り替え
   `aws-login` の出力を捨てていても見える（= `aws-switch` 経由でも SSH ログインできる）。
 - ローカル（非 SSH）では従来どおりブラウザが自動で開く。
 
-> SSH 先でも、対象ホストが portfwd（`Tag portfwd`）でオプトイン済みなら、`--remote` ではなく
-> 通常の `aws login`（localhost コールバック）が使われ、ローカルのブラウザが自動で開く。
-> 仕組みは [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。逆チャネルに届かない場合は
-> 従来どおり `aws login --remote`（URL＋コード貼り付け）にフォールバックする。
+ただし「ローカルのブラウザを開けて localhost コールバックも戻ってくる」経路があるときは
+`--remote` を付けず、通常のコールバック方式をそのまま使う。判定順は次のとおり。
+
+| 順 | 条件 | 使うコマンド |
+| --- | --- | --- |
+| 1 | portfwd 逆チャネルが**生きている**（`LC_PORTFWD_HOST` あり かつ `127.0.0.1:55999` の `GET /health` が `{"service":"portfwd",…}` を返す） | `aws login`（`$BROWSER=portfwd-open` がローカルのブラウザを開く） |
+| 2 | `$BROWSER` が空でなく `portfwd-open` 以外（VSCode Remote 等） | `aws login`（`$BROWSER` ヘルパ + 自動ポートフォワードで完結） |
+| 3 | それ以外の SSH セッション | `aws login --remote` |
+| 4 | 非 SSH | `aws login` |
+
+- 1 の判定に TCP connect ではなく `GET /health` を使うのは、`RemoteForward` の listen ソケットを
+  **SSH 先の sshd が**持つため。ローカルの daemon が死んでいても connect は成功してしまい、
+  実際には `portfwd-open` が `Empty reply from server` で落ちて認証が完結しない。
+  仕組みは [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
+- 2 で `portfwd-open` を除外するのは、`.zshenv` が `LC_PORTFWD_HOST` の存在だけで `$BROWSER` を
+  `portfwd-open` に向けるため。逆チャネルが死んでいる場合はここを素通りして 3 の `--remote` へ
+  落とす。あわせて、VSCode の `$BROWSER` ヘルパが出す Node の `DEP0169` 警告は
+  `NODE_OPTIONS=--no-deprecation` でこの分岐に限り抑止する。
 
 ### aws-logout
 

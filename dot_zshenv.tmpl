@@ -103,7 +103,7 @@ export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cac
 # 警告は出さない）。書き込みに失敗しても（読み取り専用ホームなど）シェルは継続する。
 if [ -n "${LC_PORTFWD_HOST:-}" ]; then
   if [[ "$LC_PORTFWD_HOST" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    _portfwd_host_file="$HOME/.config/portfwd/host"
+    _portfwd_host_file="${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host"
     _portfwd_current=""
     [ -r "$_portfwd_host_file" ] && read -r _portfwd_current < "$_portfwd_host_file"
     if [ "$_portfwd_current" != "$LC_PORTFWD_HOST" ]; then
@@ -113,8 +113,8 @@ if [ -n "${LC_PORTFWD_HOST:-}" ]; then
     fi
     unset _portfwd_host_file _portfwd_current
   fi
-elif [ -r "$HOME/.config/portfwd/host" ]; then
-  read -r _portfwd_host < "$HOME/.config/portfwd/host"
+elif [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host" ]; then
+  read -r _portfwd_host < "${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host"
   if [[ "$_portfwd_host" =~ ^[A-Za-z0-9._-]+$ ]]; then
     export LC_PORTFWD_HOST="$_portfwd_host"
   fi
@@ -124,6 +124,9 @@ fi
 # portfwd: オプトインしたホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
 # LC_PORTFWD_HOST は ssh config の対象 Host ブロックの SetEnv でのみ渡るため、
 # ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。
-if [ -n "${LC_PORTFWD_HOST:-}" ] && [ -x "$HOME/.local/bin/portfwd-open" ]; then
+#
+# VSCode Remote 等が既に BROWSER を仕込んでいる場合は上書きしない。あちらは自前の
+# ポートフォワードで完結しており、奪うと逆に壊れるため。
+if [ -z "${BROWSER:-}" ] && [ -n "${LC_PORTFWD_HOST:-}" ] && [ -x "$HOME/.local/bin/portfwd-open" ]; then
   export BROWSER="$HOME/.local/bin/portfwd-open"
 fi
