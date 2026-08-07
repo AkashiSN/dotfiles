@@ -49,3 +49,24 @@ Pull Request を自動生成するコマンドのリファレンス。
 - `gh` の alias `pr aicreate` はネスト alias。`config.yml` を chezmoi で宣言的管理しているため、
   実機で `gh alias set` / `gh config set` しても `chezmoi apply` でソースの内容に戻る。変更は
   `dot_config/gh/private_config.yml` を編集すること。
+
+---
+
+## PR 更新確認フック（`pr-refresh-check.sh`）
+
+`git push` した直後に、そのブランチの OPEN な PR のタイトル・説明が実態とずれていないかを
+Claude Code に確認させる PostToolUse フック。PR を作った後にコミットを積み増したまま
+説明が古いのを防ぐ。
+
+- 本体: `private_dot_claude/hooks/executable_pr-refresh-check.sh`
+  （`~/.claude/hooks/pr-refresh-check.sh` に展開）
+- 登録: `private_dot_claude/settings.json.tmpl` の `hooks.PostToolUse`（`matcher: "Bash"`）
+
+| 動作 | 内容 |
+| --- | --- |
+| 発火条件 | Bash ツールで実行されたコマンドが `git push` を含む（行頭、または `;` `&` `\|` `&&` `\|\|` の直後のみ。`echo git push` 等は無視） |
+| 何もしない条件 | `jq` / `gh` が無い、リポジトリ外、PR が無い、PR が OPEN でない |
+| 出力 | `hookSpecificOutput.additionalContext` に PR 番号・タイトル・URL と `origin/<base>..HEAD` のコミット一覧（最大 30 件）を入れ、ずれていれば `gh pr edit` で直すよう指示する |
+
+> hooks は全設定ソース（ユーザ / プロジェクト / policy）がマージされるため、同じ登録を
+> 複数の層に書くと二重に走る。このリポジトリでは `settings.json.tmpl` の 1 箇所だけで登録する。
