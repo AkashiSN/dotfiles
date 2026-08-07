@@ -1,6 +1,6 @@
 [core]
 	autocrlf = input
-	editor = vim
+	editor = nvim
 	excludesfile = ~/.gitignore_global
 	ignorecase = false
 
@@ -46,6 +46,10 @@
 
 [url "https://"]
 	insteadOf = git://
+
+# https:// で書かれた clone/remote を SSH 経由に寄せる
+[url "git@github.com:"]
+	insteadOf = https://github.com/
 
 [init]
 	defaultBranch = main
