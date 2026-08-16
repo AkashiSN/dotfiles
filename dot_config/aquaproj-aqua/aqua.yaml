@@ -7,16 +7,16 @@ checksum:
   require_checksum: true
 registries:
   - type: standard
-    ref: v4.547.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.548.0 # renovate: depName=aquaproj/aqua-registry
   - name: local
     type: local
     path: registry.yaml
 packages:
   # --- 言語ランタイム / バージョンマネージャ ---
   - name: golang/go@go1.26.6
-  - name: denoland/deno@v2.9.4
+  - name: denoland/deno@v2.9.5
   - name: Schniz/fnm@v1.39.0 # node version manager
-  - name: astral-sh/uv@0.12.1 # python
+  - name: astral-sh/uv@0.12.2 # python
   - name: rust-lang/rustup@1.29.0 # rust toolchain installer (cargo は rustup default stable で導入)
   - name: tofuutils/tenv@v4.15.1 # terraform / opentofu
   # --- git / リポジトリ ---
@@ -40,18 +40,18 @@ packages:
   - name: BurntSushi/ripgrep@15.2.0
   - name: sharkdp/fd@v10.4.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
-  - name: tree-sitter/tree-sitter@v0.26.11
+  - name: tree-sitter/tree-sitter@v0.26.12
   # python linter / formatter 兼 LSP。mason の pypi installer は python3-venv を要求するため aqua で入れる
-  - name: astral-sh/ruff@0.16.1
+  - name: astral-sh/ruff@0.16.2
   # --- secrets ---
   - name: 1password/cli@v2.31.1 # op
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入)
-  - name: aws/aws-cli@2.36.16
+  - name: aws/aws-cli@2.36.17
   - name: kubernetes/kubernetes/kubectl@v1.36.3
-  - name: helm/helm@v4.2.3 # kubernetes package manager
+  - name: helm/helm@v4.2.4 # kubernetes package manager
   # --- network / data utilities ---
-  - name: cloudflare/cloudflared@2026.7.3
+  - name: cloudflare/cloudflared@2026.8.0
   - name: jqlang/jq@jq-1.8.2
   - name: mikefarah/yq@v4.53.3
   # --- local registry (standard registry に無いもの) ---
