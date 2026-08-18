@@ -136,7 +136,7 @@ yazi 内で `.` を押せば一時的にトグルできる。
   - claude: `~/.claude/hooks/herdr-agent-state.sh`（フック本体・マシン固有パスなしのポータブル）
   - codex : `~/.codex/herdr-agent-state.sh` + `~/.codex/hooks.json` + `config.toml` に `hooks = true`
 - 例外は **claude の `~/.claude/settings.json` への `SessionStart` hook 追記**。これは chezmoi 管理ファイル
-  （`private_dot_claude/settings.json.tmpl`）と衝突するため、hook エントリを**ソース側に焼き込んでいる**
+  （`private_dot_claude/modify_settings.json.tmpl`）と衝突するため、hook エントリを**ソース側に焼き込んでいる**
   （パスは `{{ .chezmoi.homeDir }}` でテンプレート化）。ソースは herdr 出力と byte 一致（キー順そのまま・
   末尾改行なし）にしてあり、install は冪等に上書きするだけなのでドリフトしない。
 

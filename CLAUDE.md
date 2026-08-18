@@ -50,7 +50,7 @@
 | `dot_terraformrc.tmpl` / `dot_local/bin/executable_tf-cache-prune` / `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` | `docs/terraform-cheatsheet.md` |
 | `dot_local/bin/executable_uv-cache-prune` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` | `docs/uv-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `dot_local/bin/executable_codex-monitor.sh` | `docs/agmsg-cheatsheet.md` |
-| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph 関連） | `docs/codegraph-cheatsheet.md` |
+| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph 関連） | `docs/codegraph-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md`（graphify 関連） | `docs/graphify-cheatsheet.md` |
 
 新しいツールのキーバインド設定を追加したときは、`docs/` に新しいチートシートを作り、

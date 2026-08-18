@@ -1,0 +1,129 @@
+#!/bin/sh
+# chezmoi modify_ script for ~/.claude/settings.json
+#
+# Claude Code は設定を変えるたびにこのファイルを自分のキー順で丸ごと書き戻す。
+# 静的テンプレート（バイト単位で比較される）だと、キー順と末尾改行の違いだけで
+# `chezmoi diff` に毎回差分が出るため、modify_ スクリプトで **JSON の内容** を
+# 比較する。内容が一致していれば現物のバイト列をそのまま返すので差分は出ない。
+#
+# 所有権:
+#   - 下の MANAGED に書いたキーは chezmoi が権威。現物と内容が食い違えば apply で戻す。
+#   - MANAGED に無いキー（Claude Code が後から追加する設定など）は現物のまま引き継ぐ。
+#   - 配列（`permissions.allow` や `hooks` の各エントリ）は MANAGED 側で丸ごと
+#     置き換わる。GUI から足した許可を残したいときは MANAGED に書く。
+set -eu
+
+# jq は aqua 管理。chezmoi が素の PATH で走ることがあるので明示的に解決する。
+export PATH="{{ .chezmoi.homeDir }}/.local/share/aquaproj-aqua/bin:{{ .chezmoi.homeDir }}/.local/bin:$PATH"
+
+# --- chezmoi が所有する設定（ここを編集する） ---------------------------------
+MANAGED=$(cat <<'JSON'
+{
+  "agentPushNotifEnabled": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "autoUpdatesChannel": "latest",
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "example-skills@anthropic-agent-skills": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "superpowers-marketplace": {
+      "source": {
+        "repo": "obra/superpowers-marketplace",
+        "source": "github"
+      }
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/pr-refresh-check.sh'",
+            "statusMessage": "PR の更新要否を確認中",
+            "timeout": 20,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "codegraph prompt-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  },
+  "language": "Japanese",
+  "permissions": {
+    "allow": [
+      "mcp__codegraph__codegraph_explore",
+      "mcp__codegraph__codegraph_search",
+      "mcp__codegraph__codegraph_node",
+      "mcp__codegraph__codegraph_callers",
+      "mcp__codegraph__codegraph_callees",
+      "mcp__codegraph__codegraph_impact",
+      "mcp__codegraph__codegraph_files",
+      "mcp__codegraph__codegraph_status",
+      "mcp__codegraph__*"
+    ]
+  },
+  "theme": "dark",
+  "tui": "fullscreen"
+}
+JSON
+)
+# -----------------------------------------------------------------------------
+
+# 現物のバイト列を末尾改行ごと保持する（$(...) は末尾改行を落とすので番兵を付ける）。
+INPUT=$(cat; printf X)
+INPUT=${INPUT%X}
+
+# jq が無い環境では現物を触らない（未作成なら MANAGED をそのまま置く）。
+if ! command -v jq >/dev/null 2>&1; then
+	if [ -n "$INPUT" ]; then
+		printf '%s' "$INPUT"
+	else
+		printf '%s\n' "$MANAGED"
+	fi
+	exit 0
+fi
+
+# 未作成 / JSON として壊れている場合は MANAGED で作り直す。
+if [ -z "$INPUT" ] || ! printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1; then
+	printf '%s\n' "$MANAGED" | jq .
+	exit 0
+fi
+
+# 現物に MANAGED を上書きマージする（オブジェクトは再帰、配列は置き換え）。
+MERGED=$(printf '%s' "$INPUT" | jq --argjson managed "$MANAGED" '. * $managed')
+
+# キー順・空白を無視した内容が同じなら現物をそのまま返す = 整形差分では書き換えない。
+if [ "$(printf '%s' "$INPUT" | jq -Sc .)" = "$(printf '%s' "$MERGED" | jq -Sc .)" ]; then
+	printf '%s' "$INPUT"
+else
+	printf '%s\n' "$MERGED"
+fi

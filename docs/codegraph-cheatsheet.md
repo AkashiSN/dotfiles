@@ -28,8 +28,8 @@ LLM を呼ばずローカル解析だけで動く（31 言語）。
 | --- | --- | --- |
 | `~/.local/bin/codegraph` + `~/.codegraph/versions/` | `install.sh` / `codegraph upgrade` | 管理外（自己更新に任せる） |
 | `~/.claude.json` の `mcpServers.codegraph` | `codegraph install` | 管理外 |
-| `~/.claude/settings.json` の `permissions.allow`（`mcp__codegraph__*`） | `codegraph install`（`--no-permissions` で抑止可） | **管理下** — `private_dot_claude/settings.json.tmpl` に宣言済み |
-| `~/.claude/settings.json` の `UserPromptSubmit` フック | — | **管理下** — `settings.json.tmpl` で `codegraph prompt-hook` を宣言 |
+| `~/.claude/settings.json` の `permissions.allow`（`mcp__codegraph__*`） | `codegraph install`（`--no-permissions` で抑止可） | **管理下** — `private_dot_claude/modify_settings.json.tmpl` に宣言済み |
+| `~/.claude/settings.json` の `UserPromptSubmit` フック | — | **管理下** — `modify_settings.json.tmpl` で `codegraph prompt-hook` を宣言 |
 | `~/.claude/CLAUDE.md` の `<!-- CODEGRAPH_START -->` ブロック | `codegraph install` | **半管理** — `private_dot_claude/modify_CLAUDE.md` が現物から引き継ぐ |
 | `<repo>/.codegraph/` | `codegraph init` / daemon | `dot_gitignore_global` で除外 |
 
@@ -38,6 +38,17 @@ LLM を呼ばずローカル解析だけで動く（31 言語）。
 CODEGRAPH ブロックは**適用先の現物からマーカーごとそのまま引き継ぐ**。
 [graphify](graphify-cheatsheet.md) の登録セクションはマーカーを持たないため、あちらは
 逆に `USER_BLOCK` に宣言して chezmoi 側が所有している。
+
+`~/.claude/settings.json` も `modify_settings.json.tmpl`（同じく `modify_` スクリプト）で
+管理する。Claude Code は設定を変えるたびにこのファイルを自分のキー順で書き戻すので、
+静的テンプレートだとキー順と末尾改行の違いだけで `chezmoi diff` が毎回汚れる。スクリプトは
+JSON の**内容**（`jq -Sc` で正規化した値）を比較し、一致していれば現物のバイト列をそのまま
+返すため整形差分では書き換えない。所有権は次のとおり:
+
+- スクリプト内の `MANAGED` に宣言したキー … chezmoi が権威（食い違えば `apply` で戻す）
+- 宣言していないキー … 現物から引き継ぐ（Claude Code が後から足す設定は消えない）
+- 配列（`permissions.allow` や `hooks` の各エントリ） … `MANAGED` 側で丸ごと置き換わる
+- 現物が未作成 / JSON として壊れている場合 … `MANAGED` の内容で作り直す
 
 ## プロジェクトごとの索引（手動）
 
@@ -69,7 +80,7 @@ CODEGRAPH ブロックは**適用先の現物からマーカーごとそのま�
 | `codegraph_files` | `codegraph files` | インデックスから見たファイル構成 |
 | `codegraph_status` | `codegraph status` | インデックス状態 |
 
-`settings.json.tmpl` の `permissions.allow` で `mcp__codegraph__*` を許可済みなので、
+`modify_settings.json.tmpl` の `permissions.allow` で `mcp__codegraph__*` を許可済みなので、
 これらの呼び出しで確認プロンプトは出ない。
 
 ## CLI コマンド
@@ -153,5 +164,5 @@ MCP が使えない場面（別のエージェント、シェルから直接）�
 - インデックスが進まないときは `codegraph unlock <path>` で古いロックを消す。
   常駐 daemon を止めたいときは `codegraph daemon`。
 - `codegraph install` は `~/.claude/settings.json` の権限リストも書くが、そこは chezmoi が
-  宣言的に所有している。`settings.json.tmpl` から `mcp__codegraph__*` を消すと、
+  宣言的に所有している。`modify_settings.json.tmpl` から `mcp__codegraph__*` を消すと、
   install の書き込みと `chezmoi apply` の削除が交互に起きるので消さないこと。
