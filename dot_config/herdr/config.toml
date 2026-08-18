@@ -1,3 +1,4 @@
+onboarding = false
 # herdr configuration — chezmoi 管理 (dot_config/herdr/config.toml → ~/.config/herdr/config.toml)
 # 複数 AI コーディングエージェント(codex/claude 等)を束ねる端末マルチプレクサ herdr の設定。
 # 反映は `herdr server reload-config`(起動中サーバへ) または prefix+shift+r。
