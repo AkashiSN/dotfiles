@@ -34,6 +34,34 @@ GitHub の issue・PR・コメントなど**公開される場所**の本文に�
 ため、外部へ露出させてはならない。生成した本文にこれらの URL が紛れ込んでいないか
 投稿前に必ず確認する。
 
+## codex にレビューを依頼するときの手順（agmsg）
+
+codex へのレビュー依頼は agmsg 経由で行う。**依頼のたびに spawn し、終わったら
+必ず片付ける。** チーム名とエージェント名はプロジェクトごとに違うので、
+`whoami.sh` かそのプロジェクトのドキュメントで確認する（下の `<team>` はチーム、
+`<self>` は自分、`<reviewer>` は codex のレビュー役）。
+
+```bash
+S=~/.agents/skills/agmsg/scripts
+
+$S/spawn.sh codex <reviewer> --project "$(pwd)"   # 起動。ペインが開く
+$S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
+$S/send.sh <team> <self> <reviewer> "<依頼>"
+$S/despawn.sh <team> <self> <reviewer> --force    # 片付け → status=forced
+$S/delivery.sh status codex "$(pwd)"              # → no identities registered for this project
+```
+
+**`--force` を最初から付ける。素の graceful を先に打ってはいけない。** graceful な
+despawn は actas ロックだけを土台にしているが、codex は `actas-claim` を一度も
+走らせないのでロックが常に `free`。graceful は `status=ok note=no-live-lock` を
+返して**何も片付けない**うえ、離脱の直前に placement レコードを消す。そのため
+続けて `--force` を打っても `no placement record` で失敗し、**二度と force できなく
+なる**（順序は一方通行）。
+
+spawn は codex の readiness を待たないので、送る前に bridge の生存を確認する。
+起動しっぱなしにすると、codex CLI が終わっても bridge だけが生き残り、
+`<reviewer>` 宛に送ったメッセージを黙って飲み込む。
+
 # graphify
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
