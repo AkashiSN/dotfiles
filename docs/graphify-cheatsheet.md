@@ -32,6 +32,11 @@ CodeGraph は**配線図**（`foo()` を変えると誰が壊れるか）、grap
 - **バージョン追従／固定**はスクリプト中の `GRAPHIFY_VERSION` で切り替える。`latest` なら
   毎回 `uv tool install --upgrade` で最新へ、版を書けば（例 `0.9.13`）そこにピンする。
   値を書き換えると run_onchange で既存マシンでも再実行される。
+- **`.sql` の抽出には `tree-sitter-sql` が要る。** graphify の SQL 抽出器
+  （`graphify/extractors/sql.py`）は `tree_sitter_sql` を import するが、graphifyy 本体の
+  依存には入っていない。入れないと `.sql` は `tree_sitter_sql not installed` のエラーで
+  スキップされる（他言語の tree-sitter 文法は同梱されている）。そのため
+  `uv tool install --with tree-sitter-sql graphifyy` として同じ tool 環境へ同居させている。
 - `graphify install`（グローバル）が書き換える chezmoi 管理外のもの:
   - `~/.claude/skills/graphify/SKILL.md`（スキル本体。`/graphify` の実体）
   - `~/.claude/CLAUDE.md` の `# graphify` 登録セクション
@@ -120,7 +125,7 @@ CodeGraph は**配線図**（`foo()` を変えると誰が壊れるか）、grap
 
 | 対象 | LLM |
 | --- | --- |
-| コード（36 言語の tree-sitter 文法） | **使わない**。ローカル AST 解析で決定的 |
+| コード（36 言語の tree-sitter 文法）・SQL スキーマ | **使わない**。ローカル AST 解析で決定的 |
 | `graphify update`（増分更新） | **使わない**。変更ファイルの AST 再抽出のみ |
 | ドキュメント / PDF / 画像 | 使う（意味抽出） |
 | 動画・音声 | ローカルの faster-whisper で文字起こし（API 呼び出しなし） |
