@@ -87,6 +87,21 @@ Codex は本来 `turn`（ターンの合間にしか受信できない）しか�
   `~/.local/bin` より PATH 前段に置いている。
 - `~/.codex/config.toml` の `writable_roots` に `db` / `teams` に加え `run` が必要。
   `run_onchange_after_40-ai-assistants.sh.tmpl` の `--update` 再実行で追記される。
+- スキル同梱の `codex-monitor.sh` を PATH から直接叩けるよう、`~/.local/bin/codex-monitor.sh`
+  にラッパー（`dot_local/bin/executable_codex-monitor.sh`）を置いている。実体は自身の位置から
+  スキルディレクトリを求める際にリンクを解決しないため、シンボリックリンクではなく
+  絶対パスで exec するラッパーにしている。あわせて本体 codex の絶対パスを
+  `AGMSG_REAL_CODEX` に入れ、PATH 前段のシムを経由しないようにする。
+
+```
+# シムを介さず、明示的にブリッジ経由で Codex を起動する
+codex-monitor.sh                       # 現在のプロジェクトで codex resume
+codex-monitor.sh --codex-command codex # 新規セッションで起動
+codex-monitor.sh --help                # 引数は実体のものをそのまま受け付ける
+```
+
+monitor モードのプロジェクトなら `codex` を叩くだけでシムが同じ経路へ振り分けるので、
+このコマンドは動作確認やシムを飛ばして起動したいときに使う。
 
 **制限（beta）:** 有効化は「再起動＋初回メッセージ送信後」に反映／実行中セッションは
 未監視／プロジェクトあたり Codex identity は1つ。
