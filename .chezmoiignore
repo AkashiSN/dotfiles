@@ -13,6 +13,10 @@ Library
 {{- if ne .chezmoi.os "windows" }}
 .ssh/*.bat
 Documents
+# スクリプトの target 名は属性接頭辞が除去された .chezmoiscripts/<name> になる
+# （run_after_* と書いても一致しない）。中身は Windows 以外で空になるようテンプレートで
+# ガードしてあるが、毎回実行（run_）なので powershell を探しに行かせない。
+.chezmoiscripts/56-portfwd-schtask.ps1
 {{- end }}
 
 {{- if eq .chezmoi.os "windows" }}

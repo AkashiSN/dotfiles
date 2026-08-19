@@ -31,6 +31,15 @@ local : portfwd daemon が受信
   （`{"service":"portfwd",…}` が返るか）。`RemoteForward` の listen ソケットは SSH 先の sshd が
   持つため、TCP connect だけではローカルの daemon が死んでいても成功してしまう。
   詳細は [aws-cheatsheet.md](aws-cheatsheet.md) の「SSH 先でのログイン」を参照。
+- `/health` の待ち時間は `portfwd-open` の POST と同じ **5 秒**。ローカルの daemon は常駐サービスの
+  起動直後などに応答へ数秒かかることがあり、短いと生きている逆チャネルを取り逃して `--remote` へ
+  落ちる。判定に失敗したら `aws-login` が理由を `/dev/tty` へ出す（`aws-switch` は `aws-login` の
+  出力を捨てるため、stderr では見えない）。
+
+  ```sh
+  curl -sS --max-time 5 http://127.0.0.1:55999/health
+  # {"service": "portfwd", "relays": 0}
+  ```
 
 ## ローカルの `portfwd` コマンド
 
@@ -111,7 +120,7 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 
 ### 展開
 
-> `run_onchange_after_56-portfwd-schtask.ps1.tmpl` はコメントを含めて ASCII のみで書く。
+> `run_after_56-portfwd-schtask.ps1.tmpl` はコメントを含めて ASCII のみで書く。
 > chezmoi はレンダリング結果を BOM 無しで書き出し、Windows PowerShell 5.1 は BOM 無しの
 > `.ps1` を ANSI コードページ（日本語環境では CP932）として読むため、非 ASCII バイトが
 > 壊れてパースエラーになる。このリポジトリで唯一、日本語コメントを使わないファイル。
@@ -119,12 +128,23 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 `chezmoi apply` すると、Windows では `.ssh/` 内の必要ファイル（`config`・`*.bat`・
 鍵ファイル `1password_AkashiSN.pub` / `1password_su-nishi.pub` / `gpg.pub` /
 `allowed_signers`）と `.local/bin/portfwd` が展開され、
-`run_onchange_after_56-portfwd-schtask.ps1` がタスクスケジューラへ登録する。鍵ファイルは
+`run_after_56-portfwd-schtask.ps1` がタスクスケジューラへ登録する。鍵ファイルは
 `private_config.tmpl` の `cloudsa` / `develop-server` が `IdentityFile
 ~/.ssh/1password_AkashiSN.pub` を参照しているため必須で、`.chezmoiignore` は
 `env "SSH_CONNECTION"` のときだけこれらを除外する（ローカルの `chezmoi apply` では
 `SSH_CONNECTION` が未設定なので除外されない）。シェル環境は WSL 側にあるため、それ以外は
 展開しない。
+
+> **登録スクリプトは `run_onchange` ではなく `run_`（毎回実行）**。`run_onchange` は一度実行した
+> 記録が entryState に残るだけなので、その後で手動削除されたタスクは二度と復活しない。毎回走らせる
+> 代わりに、登録済みの内容（タスクの説明に埋めた daemon の SHA-256 + コマンドライン）と比較して
+> **差があるときだけ登録し直す** — `Register-ScheduledTask -Force` は走行中の daemon を止めるため、
+> 無条件に再登録すると中継中のポートフォワードが切れる。登録済みだが走っていないタスクは起動する
+> （`RestartCount` が尽きて止まった daemon が `chezmoi apply` で戻る）。**無効化されたタスクは
+> 利用者の判断なので触らない。**
+>
+> 非 Windows では中身が空になるが、毎回実行のため `.chezmoiignore` で
+> `.chezmoiscripts/56-portfwd-schtask.ps1` を除外している（target 名は属性接頭辞を除いた形）。
 
 ### タスクの操作
 
@@ -250,6 +270,33 @@ Host <alias>
 reject/error の理由は daemon ログだけでなく、`portfwd-open` 実行時のリモート側
 stderr にもそのまま出る（`curl` 使用時・`/dev/tcp` フォールバック時のいずれも）ため、
 リモートで直接メッセージを読めることが多い。
+
+### `aws login` が `--remote` に落ちる（ブラウザが開かない）
+
+逆チャネルの `/health` が通っていない。**`aws-login` が理由を端末へ出しているので、まずそれを読む**:
+
+```
+aws-login: portfwd 逆チャネルが使えません: <理由>。aws login --remote へフォールバックします。
+```
+
+| 出る理由 | 意味 | 対処 |
+| --- | --- | --- |
+| `LC_PORTFWD_HOST が空` | オプトインしていないセッション | ssh config の `SetEnv` と sshd の `AcceptEnv`（上の節） |
+| `へ接続できません` | 55999 が listen していない | ローカルの ssh config に `RemoteForward` が無い、または bind に失敗（`ExitOnForwardFailure` は既定 `no` なので、失敗しても ssh 自体は繋がる） |
+| `空応答です` | sshd は listen しているが転送先に誰もいない = **ローカルの daemon が落ちている** | 「[macOS: launchd の操作](#macos-launchd-の操作)」「[タスクの操作](#タスクの操作)」でログと状態を見る |
+| `5 秒以内に応答しません` | daemon が停止中／応答不能 | 同上 |
+| `応答が portfwd daemon のものではない` | 55999 を別のプロセスが握っている | ローカルで 55999 の使用者を確認（`portfwd status` が `not-portfwd` を返す） |
+
+手で確認するなら、SSH 先で:
+
+```sh
+ss -tln | grep 55999                                  # listen しているか（sshd 側）
+curl -sS --max-time 5 http://127.0.0.1:55999/health   # daemon が応答するか
+```
+
+**逆チャネルは「いまどれかのオプトインした ssh セッションが生きているか」だけに依存する。**
+herdr のサーバは ssh セッションより長生きするため、ペインの中にいても逆チャネルが無い時間帯が
+ありうる（逆に、いま繋いでいるのとは別の ssh セッションが 55999 を握っていてもよい）。
 
 ### ssh セッションに `channel N: open failed: connect failed: Connection refused` が出る
 

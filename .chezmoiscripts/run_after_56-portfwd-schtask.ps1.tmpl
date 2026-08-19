@@ -1,19 +1,24 @@
 {{ if eq .chezmoi.os "windows" -}}
 # Registers the portfwd daemon as a Task Scheduler user task.
 # No administrator rights required: the task runs as the current user at RunLevel Limited.
-# run_onchange: the daemon hash below changes whenever the daemon source changes, which
-# re-runs this script on existing machines (every operation here is idempotent). The hash
-# covers the daemon itself because updating only the daemon still has to replace the
-# running process.
+#
+# This runs on every apply, so a task that has been removed or has stopped comes back. What
+# is already registered is compared first, and only a difference re-registers: registering
+# tears the daemon down, which drops the relays it is carrying.
 #
 # This file is ASCII only, comments included. chezmoi writes the rendered script without a
 # BOM, and Windows PowerShell 5.1 reads a BOM-less .ps1 using the ANSI code page, which
 # corrupts non-ASCII bytes badly enough to break parsing.
-# daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
 $ErrorActionPreference = 'Stop'
 
 $TaskName = 'portfwd'
 $Script   = Join-Path $env:USERPROFILE '.local\bin\portfwd'
+$Argument = '"{0}" serve' -f $Script
+
+# Stored as the task description, and compared on the next run. The hash of the daemon
+# source is part of it because an update that touches only the daemon leaves the command
+# line identical, and the running process still has to be replaced.
+$Stamp = 'portfwd daemon, registered by 56-portfwd-schtask.ps1. daemon-sha256={{ include "dot_local/bin/executable_portfwd" | sha256sum }}'
 
 Write-Host "`n==> Registering portfwd daemon with Task Scheduler" -ForegroundColor Cyan
 
@@ -37,10 +42,41 @@ if (-not $Pythonw -or -not (Test-Path $Pythonw)) {
     exit 1
 }
 
+# Read once and used twice: for the comparison below, and for the stop before re-registering.
+# Checking for the task rather than letting a later call fail keeps -ErrorAction
+# SilentlyContinue from also swallowing real failures such as access denied or CIM errors.
+$ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+
+# A task that already carries this stamp and this command line is left alone, so an apply
+# that changes nothing costs the daemon nothing. Task Scheduler hands Execute back quoted
+# when the path contains a space, so it is compared unquoted.
+if ($ExistingTask -and $ExistingTask.Description -eq $Stamp) {
+    $Actions = @($ExistingTask.Actions)
+    if ($Actions.Count -eq 1 -and
+        ([string] $Actions[0].Execute).Trim('"') -eq $Pythonw -and
+        ([string] $Actions[0].Arguments) -eq $Argument) {
+
+        # Disabled is somebody's decision, not drift, so it stands. Anything else that is
+        # not running is started: that is what brings the daemon back after a crash whose
+        # restart count ran out.
+        if ($ExistingTask.State -eq 'Disabled') {
+            Write-Host "portfwd: the task is disabled, leaving it that way (enable it in Task Scheduler)"
+            exit 0
+        }
+        if ($ExistingTask.State -ne 'Running') {
+            Start-ScheduledTask -TaskName $TaskName
+            Write-Host "portfwd: task was registered but not running, started it"
+            exit 0
+        }
+        Write-Host "portfwd: task is registered and running"
+        exit 0
+    }
+}
+
 # Principal for the task, in DOMAIN\user form ($env:USERNAME alone is ambiguous).
 $UserId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
-$Action = New-ScheduledTaskAction -Execute $Pythonw -Argument ('"{0}" serve' -f $Script)
+$Action = New-ScheduledTaskAction -Execute $Pythonw -Argument $Argument
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $UserId
 $Principal = New-ScheduledTaskPrincipal -UserId $UserId -LogonType Interactive -RunLevel Limited
 # RestartInterval has a one minute minimum. RestartCount is finite, so once it is exhausted
@@ -54,9 +90,6 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 99 `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-# Stop the task only when it already exists. Checking first keeps -ErrorAction
-# SilentlyContinue from also swallowing real failures such as access denied or CIM errors.
-$ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($ExistingTask) {
     Stop-ScheduledTask -TaskName $TaskName
 
@@ -78,7 +111,7 @@ if ($ExistingTask) {
 # would make the following Start a no-op, so the old code would keep running. The Stop above
 # (and the wait for it) is what makes an update take effect.
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
-    -Principal $Principal -Settings $Settings -Force | Out-Null
+    -Principal $Principal -Settings $Settings -Description $Stamp -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 
 Write-Host "portfwd: task registered ($TaskName / $UserId)"

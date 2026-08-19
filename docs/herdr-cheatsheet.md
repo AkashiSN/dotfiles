@@ -109,12 +109,20 @@ yazi 内で `.` を押せば一時的にトグルできる。
 
 | 設定 | 値 | 目的 |
 | --- | --- | --- |
+| `onboarding`（トップレベル） | `false` | 初回ウィザードを出さない。聞かれるのは通知の出し方で、それは下の `[ui.toast] delivery` で決めているため |
 | `[theme] name` | `catppuccin` | 端末(ghostty)・nvim と配色を統一。ghostty は固定ダークなので `auto_switch` は未使用 |
 | `[ui.toast] delivery` | `system` | 背景エージェントの状態変化（要対応/完了）を macOS 通知センターへ。初回は OS の通知許可が必要 |
 | `[experimental] switch_ascii_input_source_in_prefix` | `true` | prefix モード中だけ ASCII 配列へ一時切替し、抜けたら元へ戻す（日本語 IME 有効のまま prefix を取りこぼさない。macOS 専用） |
 | `[experimental] reveal_hidden_cursor_for_cjk_ime` | `true` | claude/codex など自前カーソル描画の TUI でも IME 候補ウィンドウが追従する |
 | `[experimental] cjk_ime_agents` | `["claude","codex","kiro"]` | カーソル追従を実際に使うエージェントに限定 |
 | `[[keys.command]]` | `<prefix> d` = gitui / `<prefix> f` = yazi | 差分確認とファイル探索を popup で。nvim を開かずサッと見る用（詳細は上の「カスタムコマンド（popup）」） |
+
+> **`onboarding` をわざわざ書いている理由**: herdr はウィザードで選ばせたあと
+> `~/.config/herdr/config.toml` へ `onboarding = false` を**自分で書き戻す**。ソース側が
+> 未記述だと `chezmoi apply` がその行を消し、**キーが無い状態は「表示する」と同じ扱い**
+> （雛形の `Missing also shows onboarding`）なので、`chezmoi update` のたびに差分が出て
+> ウィザードも復活する。`.chezmoiignore` や `create_` で逃げると雛形の更新を配れなくなるため、
+> ソースに値を明示する。
 
 > 反映は `herdr server reload-config` または `<prefix> shift+r`。検証は `herdr config check`。
 > `~/.config/herdr/` 内の `session.json` / `*.log` / `release-notes.json` は**実行時の状態ファイル**で、

@@ -33,6 +33,8 @@
 #       開き、コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
 #       到達できないとき（daemon 停止・逆チャネル未設定）は --remote へフォールバックする。
 #       $BROWSER の有無ではなく実際の到達性で判定するのはこのため。
+#       フォールバックした理由は /dev/tty へ出す。aws-switch は aws-login の出力を捨てるため、
+#       stderr へ出すと「なぜブラウザが開かなかったのか」がどこにも残らない。
 #   (b) VSCode Remote などのリモート開発環境。$BROWSER に「ローカルのブラウザを開く
 #       ヘルパー」を仕込み、さらに localhost のポートを自動フォワードするため、SSH 先でも
 #       通常のコールバック方式がそのまま成立する（ブラウザが自動で開き、コード貼り付けも
@@ -125,21 +127,56 @@ emit_creds_if_valid() {
 #     しまう（実際には応答が無く、portfwd-open が「Empty reply from server」で落ちる）。
 #     daemon が返す {"service":"portfwd",...} を見て初めて逆チャネルの生存を確認できる。
 #     /health は pid 等を含めず、リモートから読まれる前提で設計されている。
+#   - タイムアウトは portfwd-open の POST と同じ 5 秒。ローカルの daemon は常駐サービスの
+#     起動直後などに応答へ 5 秒近くかけることがあり、短いと生きている逆チャネルを
+#     取り逃して --remote へ落ちる。
+PORTFWD_HEALTH_TIMEOUT=5
+
+# 逆チャネルを使わないと判断した理由を人へ伝える。aws-switch は aws-login の出力を
+# >/dev/null 2>&1 で捨てるため、stderr ではなく制御端末へ直結する（端末が無ければ捨てる。
+# credential_process として呼ばれた場合がこれにあたる）。
+portfwd_notice() {
+    if { : >/dev/tty; } 2>/dev/null; then
+        printf 'aws-login: %s\n' "$1" >/dev/tty
+    fi
+}
+
 portfwd_channel_available() {
-    [ -n "${LC_PORTFWD_HOST:-}" ] || return 1
+    if [ -z "${LC_PORTFWD_HOST:-}" ]; then
+        # 非 SSH（ローカル）では逆チャネルを使わないのが正常なので黙る。SSH セッションで
+        # 空なら、オプトインしていないか sshd が LC_* を AcceptEnv していない。
+        if [ -n "${SSH_CONNECTION:-}" ]; then
+            portfwd_notice "portfwd 逆チャネル: LC_PORTFWD_HOST が空。aws login --remote へフォールバックします。"
+        fi
+        return 1
+    fi
     local port="${PORTFWD_PORT:-55999}"
     local url="http://127.0.0.1:${port}/health"
+    local body why
+    local rc=0
     if command -v curl >/dev/null 2>&1; then
-        curl -sS --max-time 2 "$url" 2>/dev/null \
-            | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'
+        body=$(curl -sS --max-time "$PORTFWD_HEALTH_TIMEOUT" "$url" 2>/dev/null) || rc=$?
     else
         # curl が無い環境向けの最小 HTTP GET（portfwd-open と同じ手法）。
-        timeout 2 bash -c "
+        body=$(timeout "$PORTFWD_HEALTH_TIMEOUT" bash -c "
             exec 3<>/dev/tcp/127.0.0.1/${port} || exit 1
             printf 'GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3
-            cat <&3" 2>/dev/null \
-            | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'
+            cat <&3" 2>/dev/null) || rc=$?
     fi
+    if printf '%s' "$body" | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'; then
+        return 0
+    fi
+    # 逆チャネルは使えない。ここで理由を出さないと --remote へ落ちた事実だけが残り、
+    # 原因がどこにも残らない。切り分けは docs/portfwd-cheatsheet.md のトラブルシューティングと対応する。
+    case "$rc" in
+        7)      why="127.0.0.1:${port} へ接続できません。ローカルの ssh config に RemoteForward が無いか bind に失敗しています" ;;
+        52)     why="127.0.0.1:${port} が空応答です。listen はしているのでローカルの portfwd daemon が落ちています" ;;
+        28|124) why="127.0.0.1:${port} が ${PORTFWD_HEALTH_TIMEOUT} 秒以内に応答しません。ローカルの portfwd daemon が停止中か応答不能です" ;;
+        0)      why="127.0.0.1:${port} の応答が portfwd daemon のものではありません" ;;
+        *)      why="127.0.0.1:${port} の /health に失敗しました（終了コード ${rc}）" ;;
+    esac
+    portfwd_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
+    return 1
 }
 
 # 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。

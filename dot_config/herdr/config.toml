@@ -1,4 +1,3 @@
-onboarding = false
 # herdr configuration — chezmoi 管理 (dot_config/herdr/config.toml → ~/.config/herdr/config.toml)
 # 複数 AI コーディングエージェント(codex/claude 等)を束ねる端末マルチプレクサ herdr の設定。
 # 反映は `herdr server reload-config`(起動中サーバへ) または prefix+shift+r。
@@ -7,7 +6,9 @@ onboarding = false
 
 # Show first-run notification setup on startup.
 # Missing also shows onboarding; set false after you've chosen.
-# onboarding = true
+# ← 設定: 聞かれるのは通知の出し方で、それは下の [ui.toast] delivery で決めているため出さない。
+# キーが無い状態は「表示する」扱いなので、ソース側に値を明示しておく必要がある。
+onboarding = false  # ← 設定
 
 [theme]
 # Built-in themes: catppuccin, terminal, tokyo-night, dracula, nord,

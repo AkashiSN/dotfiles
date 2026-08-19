@@ -13,6 +13,9 @@ step "Rust toolchain(rustup)を準備中"
 export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
 export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
 export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+# aqua-proxy はバージョン解決に aqua.yaml を読む。zshenv を経由しない実行なので明示する
+# (未設定だと CWD から aqua.yaml を探して見つからず "command is not found" になる)。
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
 # aqua(rustup) と cargo プロキシ(CARGO_HOME/bin)を解決可能にする。
 export PATH="$AQUA_ROOT_DIR/bin:$CARGO_HOME/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 

@@ -121,6 +121,19 @@ aws-switch my-profile <role_arn> # assume role 付きで切り替え
   **SSH 先の sshd が**持つため。ローカルの daemon が死んでいても connect は成功してしまい、
   実際には `portfwd-open` が `Empty reply from server` で落ちて認証が完結しない。
   仕組みは [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
+- 1 の `/health` の待ち時間は `portfwd-open` の POST と同じ **5 秒**。ローカルの daemon は常駐
+  サービスの起動直後などに応答へ数秒かかることがあり、短いと生きている逆チャネルを取り逃して
+  `--remote` へ落ちる。
+- **フォールバックした理由は `/dev/tty` へ出る**ので、`aws-switch` 経由でも見える:
+
+  ```
+  aws-login: portfwd 逆チャネルが使えません: 127.0.0.1:55999 が空応答です。listen はして
+  いるのでローカルの portfwd daemon が落ちています。aws login --remote へフォールバックします。
+  ```
+
+  接続不可 / 空応答 / 無応答 / 別サービスの応答 を区別して出すので、
+  [portfwd-cheatsheet.md](portfwd-cheatsheet.md) の「`aws login` が `--remote` に落ちる」の
+  切り分けをやり直さずに済む（非 SSH のローカル実行では逆チャネルを使わないのが正常なので出さない）。
 - 2 で `portfwd-open` を除外するのは、`.zshenv` が `LC_PORTFWD_HOST` の存在だけで `$BROWSER` を
   `portfwd-open` に向けるため。逆チャネルが死んでいる場合はここを素通りして 3 の `--remote` へ
   落とす。あわせて、VSCode の `$BROWSER` ヘルパが出す Node の `DEP0169` 警告は
