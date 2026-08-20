@@ -33,7 +33,7 @@ packages:
   - name: direnv/direnv@v2.37.1
   - name: junegunn/fzf@v0.74.3
   - name: peco/peco@v0.6.0
-  - name: herdrdev/herdr@v0.8.0 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
+  - name: herdrdev/herdr@v0.8.2 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   - name: sxyazi/yazi@v26.8.15 # プレビュー付きファイラ (herdr の popup から起動)
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
   - name: neovim/neovim@v0.12.4
