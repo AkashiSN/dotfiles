@@ -47,16 +47,12 @@
 # 注意:
 #   - プロファイルごとに異なるキャッシュを持つため、
 #     ユーザー権限とAssume Role権限を別々に管理できる
-#   - USER_DIR（direnv）でロックファイルを分離し、共有ユーザー環境での競合を防止
 #
 # 依存:
 #   - flock: 多重ログイン防止に使用。aqua には無い。
 #            Linux は util-linux 同梱、macOS は Homebrew（brew install flock）で導入する。
 
 set -e
-
-# ロックファイル（.aws/.aws-login-*.lock）の置き場所。共有ユーザー環境では USER_DIR で分離する
-USER_DIR=${USER_DIR:-~}
 
 # プロファイル名は必須。空のまま進むと "-signin" という別プロファイルを掴んでしまい、
 # 呼び出し元の不具合が「意図しないプロファイルでのログイン」として表面化する。
@@ -241,7 +237,7 @@ fi
         unset DISPLAY
         aws login
     fi
-) 200>"${USER_DIR}/.aws/.aws-login-${1}.lock"
+) 200>"$HOME/.aws/.aws-login-${1}.lock"
 
 # ログイン直後（または上のロック内で別プロセスがログイン済みと判明した）creds を出力する。
 # 出力をこの 1 箇所に集約しているので、credential_process の stdout に JSON が二重に出ない。

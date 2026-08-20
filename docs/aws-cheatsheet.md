@@ -7,18 +7,22 @@ AWS CLI の `aws login`（新機能）と `credential_process` を使って AWS 
 > かつては MFA + STS（`get-session-token` / `assume-role`）方式だったが廃止。
 > 現在は `aws login` に一本化し、MFA はブラウザでのログイン時に処理される。
 
+> `.env` とロックファイルの置き場所は、かつて `USER_DIR`（未設定時 `~`）で切り替えていた。
+> 共有ユーザー環境で 1 つの `$HOME` を複数人が使う構成を想定した変数だったが、実際には
+> ユーザーごとに `$HOME` が分かれるため使い道が無く、廃止して `$HOME` 直書きに戻した。
+
 ## 前提となる仕組み（direnv + dotenv）
 
-これらのスクリプトは **現在のシェルに `export` しない**。代わりに `${USER_DIR}/.env`
-（`USER_DIR` 未設定時は `~`）の `export AWS_PROFILE=...` 行を書き換え、反映は direnv に任せる。
+これらのスクリプトは **現在のシェルに `export` しない**。代わりに `$HOME/.env` の
+`export AWS_PROFILE=...` 行を書き換え、反映は direnv に任せる。
 
 ```
 aws-switch <profile>
    │  └─ aws-login <profile> で `aws login` 認証
-   └─ ${USER_DIR}/.env の AWS_PROFILE 行を書き換え (export AWS_PROFILE=<profile>)
+   └─ $HOME/.env の AWS_PROFILE 行を書き換え (export AWS_PROFILE=<profile>)
         │
         ▼ 次のプロンプトで direnv が発火
-~/.envrc が `dotenv` で ${USER_DIR}/.env を読み込む
+~/.envrc が `dotenv` で $HOME/.env を読み込む
         │
         ▼
 シェル環境に AWS_PROFILE が入る → 以降の aws/SDK がそのプロファイルを使う
@@ -28,9 +32,9 @@ aws-switch <profile>
 
 - **実行直後の同じコマンド内では効かない。** `.env` を direnv が読み直す「次のプロンプト以降」で
   有効になる。スクリプト実行 → Enter で空プロンプトに戻る、で反映される。
-- `~/.envrc`（chezmoi: `dot_envrc`）の中身は `dotenv` の一行のみ。これが `${USER_DIR}/.env` を読む。
-- `USER_DIR` は共有ユーザー環境などで `.env` とロックファイルを分離するための変数。
-  ローカルでは未設定でよく、その場合 `~` が使われる。
+- `~/.envrc`（chezmoi: `dot_envrc`）の中身は `dotenv` の一行のみ。これが `$HOME/.env` を読む。
+- `.env` と `aws-login` のロックファイル（`~/.aws/.aws-login-<profile>.lock`）はどちらも
+  `$HOME` 直下。ユーザーごとに `$HOME` が分かれるので、置き場所を切り替える変数は持たない。
 - `.env` の書き換え対象は `AWS_PROFILE` 行だけ。`aws-switch` / `aws-logout` が消すのも
   `^(export )?AWS_PROFILE=` にマッチする行に限られるので、`CODEX_BEDROCK_AWS_PROFILE` の
   ように名前に `AWS` を含む別の変数を `.env` に置いても巻き込まれない。
@@ -50,19 +54,19 @@ touch ~/.env                  # 無ければ作成（aws-switch が追記する�
 
 | コマンド | 役割 |
 | --- | --- |
-| `aws-switch [profile] [role_arn]` | プロファイルを切り替える（必要なら assume role）。`.env` を書き換え |
+| `aws-switch [profile] [role_name]` | プロファイルを切り替える（必要なら assume role）。`.env` を書き換え |
 | `aws-login <profile>` | 認証本体。`credential_process` として AWS CLI から自動で呼ばれる |
 | `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行を削除 |
 
 ### aws-switch
 
 ```sh
-aws-switch                       # peco でプロファイルを選択（-signin は除外）
-aws-switch my-profile            # プロファイル指定で切り替え
-aws-switch my-profile <role_arn> # assume role 付きで切り替え
+aws-switch                        # peco でプロファイルを選択（-signin は除外）
+aws-switch my-profile             # プロファイル指定で切り替え
+aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN ではなくロール名）
 ```
 
-- ロール ARN の決定順: `第2引数` → プロファイルの `assume_role_arn` 属性 → どちらも無ければ
+- ロール名の決定順: `第2引数` → プロファイルの `assume_role_name` 属性 → どちらも無ければ
   IAM ユーザー権限のまま。
 - assume role 時はブラウザでの認証画面で **ユーザーではなく対象ロールを選ぶ** 必要がある
   （スクリプトが警告を表示する）。
@@ -159,13 +163,13 @@ aws-logout --all        # すべての -signin プロファイルを掃除
 | --- | --- | --- |
 | `credential_process` | **必須** | `aws-login <name>` を指定。これが無いと `aws login` 認証が走らない。`<name>` はプロファイル名と一致させる（`aws-login` が `<name>-signin` を組み立てる起点になる） |
 | `region` | 推奨 | 例: `ap-northeast-1`。未設定なら `aws-login` が東京を補完する |
-| `assume_role_arn` | 任意 | **AWS CLI 標準ではない独自属性**。設定すると `aws-switch` が自動で Assume Role Mode に入り、ブラウザで選ぶべきロール ARN を表示する |
+| `assume_role_name` | 任意 | **AWS CLI 標準ではない独自属性**。値は ARN ではなくロール名だけ。設定すると `aws-switch` が自動で Assume Role Mode に入り、ブラウザで選ぶべきロール名を表示する |
 
 ```ini
 [profile my-profile]
 region = ap-northeast-1
 credential_process = aws-login my-profile
-assume_role_arn = arn:aws:iam::123456789012:role/Admin   # 任意
+assume_role_name = Admin   # 任意。ARN ではなくロール名
 ```
 
 制約・注意:
@@ -174,11 +178,15 @@ assume_role_arn = arn:aws:iam::123456789012:role/Admin   # 任意
   `<name>-signin` セッションプロファイルのキーになるため、ズレるとセッションが混線する。
 - **ベースプロファイル名を `-signin` で終わらせない。** `-signin` はセッション用の予約サフィックスで、
   peco 候補からも除外される（`aws-switch` / `aws configure list-profiles | grep -v signin`）。
-- `assume_role_arn` を設定しても **このスクリプトが ARN を直接 assume するわけではない**。
-  分岐に関わらず実行されるのは同じ `aws-login <name>` で、ARN は「ブラウザでどのロールを選ぶか」の
+- `assume_role_name` を設定しても **このスクリプトが直接 assume するわけではない**。
+  分岐に関わらず実行されるのは同じ `aws-login <name>` で、ロール名は「ブラウザでどのロールを選ぶか」の
   リマインダーとして表示されるだけ。実際のロール選択は `aws login` のブラウザ認証側で行う。
-- `assume_role_arn` は標準キーではないため `aws` CLI からは無視される。手書きで `~/.aws/config` に
-  足すか、恒久管理したいなら `dot_aws/modify_config` の管理キーに追加する（下記）。
+- **ARN ではなくロール名を持つ**のは、ブラウザのロール選択画面がロール名で選ばせるため。
+  account id を含む ARN を書いても画面のどれを選ぶかは分からず、config に account id が残るだけ。
+  （以前は `assume_role_arn` に ARN を書く方式だった。`~/.aws/config` に古い属性名が残っていると
+  Assume Role Mode に入らないので、`assume_role_name` へ書き換える）
+- `assume_role_name` は標準キーではないため `aws` CLI からは無視される。手書きで `~/.aws/config`
+  に足す。
 
 ### セッションプロファイル `[profile <name>-signin]`（自動生成・触らない側）
 
