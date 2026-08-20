@@ -53,7 +53,7 @@ packages:
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.8.2
   - name: jqlang/jq@jq-1.8.2
-  - name: mikefarah/yq@v4.53.4
+  - name: mikefarah/yq@v4.53.6
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09 # media downloader
     registry: local
