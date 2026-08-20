@@ -31,7 +31,7 @@ packages:
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.26.0 # prompt
   - name: direnv/direnv@v2.37.1
-  - name: junegunn/fzf@v0.74.2
+  - name: junegunn/fzf@v0.74.3
   - name: peco/peco@v0.6.0
   - name: herdrdev/herdr@v0.8.0 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   - name: sxyazi/yazi@v26.8.15 # プレビュー付きファイラ (herdr の popup から起動)
