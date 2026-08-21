@@ -81,8 +81,16 @@ popup は Escape を含む全ての入力を中のアプリへ渡すため、her
 **yazi 内のキー（popup 内で押す）**: `Enter` は従来どおり popup の**内側**で `$EDITOR`(=nvim) を開く（サッと見る用）。
 一方 `e` はカーソル中のファイルを **herdr の新規タブ**で起動した nvim で開く（腰を据えて編集する用）。
 `e` は橋渡しスクリプト `~/.local/bin/herdr-edit` を呼び、herdr socket API（`tab create` → `pane run`）で
-新規タブに nvim を立てる。非ブロッキングなので yazi は開いたまま残り、`e` の後に `q` で yazi を閉じると
+新規タブに nvim を立てる。yazi 自体は開いたまま残るので、`e` の後に `q` で yazi を閉じると
 フォーカス済みの nvim タブが前面に出る（popup はモーダルなので新規タブは popup の裏に作られるため）。
+
+`shell` には **`--block` を付けている**。既定の非ブロッキング実行は `herdr-edit` の stderr を握り潰すため、
+失敗しても画面には `1 left` のタスクが残るだけで「`e` が無反応」に見えてしまう（理由を読むには `w` →
+`Enter` でタスクログを開く必要があり、`q` では unfinished task の警告になる）。`--block` なら端末を
+`herdr-edit` へ渡すのでエラー（herdr の生の応答つき）がその場に出て、`[Enter] で元の画面に戻ります…` で
+止まって読める。成功時は herdr へ 2 往復するだけなので体感は変わらない。なお `--block` した子プロセスの
+**stdout は yazi が「移動先の cwd」として解釈する**ので、`herdr-edit` は stdout に何も出さず、herdr の
+応答 JSON はコマンド置換で受け取っている。
 
 **yazi の設定**: `dot_config/yazi/yazi.toml`（→ `~/.config/yazi/yazi.toml`）で
 `[mgr] show_hidden = true` にしており、dotfiles を扱うため隠しファイルを最初から表示する。
@@ -205,3 +213,35 @@ pop、`\e[=0;1u` で現行フラグを 0 に戻す（素の端末で叩いても
 > 上記の ide 撤去（`11f40d3`）で一緒に消えた。端末状態のリークは多重化の実装（shpool→herdr）
 > とは独立した問題で、herdr でも SSH 異常切断で同じ化けが再発するため、ラップ対象を `ssh` に
 > 加えて `herdr` へ広げる形で復活させた。
+
+---
+
+## herdr を更新した後に CLI がエラーになる（protocol mismatch）
+
+aqua で herdr のバージョンを上げても、**すでに常駐しているサーバは古いバイナリのまま**動き続ける。
+CLI とサーバの socket プロトコルが食い違うと `herdr` のサブコマンドが軒並み失敗し、socket API に
+依存する機能（yazi の `e` = `herdr-edit` など）が動かなくなる:
+
+```
+$ herdr tab list
+{"id":"cli:tab:list","error":{"code":"protocol_mismatch","message":"client protocol 20 is newer than
+server protocol 17; restart the Herdr server before using this command. ..."}}
+```
+
+**確認**: CLI とサーバの版を突き合わせる。`ps` に出るパスが aqua の pkgs 実体なので、そこから版が読める。
+
+```bash
+herdr --version                                  # PATH 上の CLI（= aqua.yaml のピン）
+ps -eo pid,lstart,cmd | grep '[h]erdr.*server'   # 常駐サーバの起動時刻と実体パス
+```
+
+**対処**: サーバを止めて起動し直す。**再起動は全ペインのプロセスを終了させる**（動かしているエージェントも
+含む）ので、区切りのいいところで行う。
+
+```bash
+herdr server stop
+herdr   # 起動し直す
+```
+
+`herdr tab list` が JSON の結果を返せば復旧。`herdr server reload-config` / `<prefix> shift+r` は
+設定の再読み込みだけでバイナリは入れ替わらないため、この症状には効かない。

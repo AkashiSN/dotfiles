@@ -5,8 +5,14 @@
 [[mgr.prepend_keymap]]
 # カーソル中のファイル（%h）を herdr の新規タブの nvim で開く。
 # popup の内側ではなく herdr の独立タブに開くので、腰を据えて編集する用。
-# 非ブロッキングで yazi は開いたまま残るため、q で閉じるとフォーカス済みの nvim タブが前面に出る。
+# yazi は開いたまま残るため、q で閉じるとフォーカス済みの nvim タブが前面に出る。
 # PATH に ~/.local/bin が無い popup 環境でも動くよう $HOME 絶対パスで呼ぶ。
+#
+# --block を付ける理由: 既定の非ブロッキング実行は herdr-edit の stderr を握り潰し、
+# 失敗しても画面には `1 left` のタスクが残るだけで「無反応」に見える（原因は w →
+# Enter でタスクログを開かないと読めない）。--block なら端末を herdr-edit へ渡すので
+# エラーがその場に出て、終了コードも yazi のトーストで通知される。成功時は数十 ms で
+# 戻るため体感は変わらない。
 on   = "e"
-run  = 'shell "$HOME/.local/bin/herdr-edit %h"'
+run  = 'shell "$HOME/.local/bin/herdr-edit %h" --block'
 desc = "カーソル中のファイルを herdr の新規タブの nvim で開く"

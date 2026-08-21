@@ -11,27 +11,52 @@
 #   - 主に yazi の keymap（e キー）から呼ばれる。herdr popup 内の yazi で選んだファイルを、
 #     popup の内側ではなく herdr の独立タブの nvim で開くための橋渡し。
 #   - 引数が空なら何もしない。herdr に接続できないときはエラー終了する。
+#
+# 入出力の約束（yazi の `shell ... --block` から呼ばれる前提）:
+#   - **stdout には何も出さない。** yazi は --block した子プロセスの stdout を「移動先の cwd」
+#     として解釈する（外すと yazi が意図しないディレクトリへ移動する）。herdr の応答 JSON は
+#     すべてコマンド置換で受け取り、画面へは流さない。
+#   - 進捗・エラーは stderr に出す。stdin / stderr は --block 下でも TTY なので、エラー時は
+#     Enter 待ちで止めて読める時間を作る（止めないと yazi が即座に画面を描き直して消える）。
+#   - herdr の生の応答をそのまま添える。バージョン不一致（protocol_mismatch）のような
+#     「設定は正しいが環境が古い」失敗を、メッセージだけで切り分けられるようにするため。
 set -euo pipefail
+
+# エラーを stderr へ出し、TTY があれば読める時間を作ってから終了する
+die() {
+  printf 'herdr-edit: %s\n' "$*" >&2
+  if [ -t 0 ]; then
+    printf '\n[Enter] で元の画面に戻ります… ' >&2
+    read -r _ || true
+  fi
+  exit 1
+}
 
 # 開くファイルが無ければ何もしない（yazi でカーソルも選択も無いケース）
 [ "$#" -gt 0 ] || exit 0
 
-# herdr に届くか確認する（socket 応答が無い / herdr 不在なら中断）
-if ! command -v herdr >/dev/null 2>&1 || ! herdr tab list >/dev/null 2>&1; then
-  echo "herdr-edit: herdr セッションに接続できません" >&2
-  exit 1
+command -v herdr >/dev/null 2>&1 || die 'herdr コマンドが見つかりません'
+
+# herdr に届くか確認する。届かない理由（サーバ未起動 / protocol 不一致）をそのまま見せる
+if ! probe=$(herdr tab list 2>&1); then
+  die "herdr セッションに接続できません:
+${probe}"
 fi
 
 # 新規タブを作成し、その root_pane の pane_id を取り出す（出力中 最初の pane_id）
 dir=$(dirname -- "$1")
 label=$(basename -- "$1")
-pane_id=$(herdr tab create --focus --cwd "$dir" --label "$label" \
-  | grep -oE '"pane_id":"[^"]+"' | head -1 | cut -d'"' -f4)
-
-if [ -z "$pane_id" ]; then
-  echo "herdr-edit: 新規タブの pane_id を取得できませんでした" >&2
-  exit 1
+if ! created=$(herdr tab create --focus --cwd "$dir" --label "$label" 2>&1); then
+  die "新規タブを作成できませんでした:
+${created}"
 fi
 
+pane_id=$(printf '%s' "$created" | grep -oE '"pane_id":"[^"]+"' | head -1 | cut -d'"' -f4 || true)
+[ -n "$pane_id" ] || die "新規タブの pane_id を取得できませんでした:
+${created}"
+
 # 作成したタブのペインで nvim を起動する
-herdr pane run "$pane_id" nvim "$@"
+if ! ran=$(herdr pane run "$pane_id" nvim "$@" 2>&1); then
+  die "nvim を起動できませんでした:
+${ran}"
+fi
