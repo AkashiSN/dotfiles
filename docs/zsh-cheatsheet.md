@@ -9,7 +9,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_zshenv.tmpl` で設定。全シェル/スクリプトに適用）
 - Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
 - Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_zshenv.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
-- 構成: `dot_zshrc` はローダー。実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
+- 構成: `dot_zshrc` はローダー。実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
 
 > 表記: `C-]` = Ctrl+]、`S-...` = Shift。エイリアス/関数の一部は対応ツール（terraform/kubectl 等）が
 > インストールされている場合のみ有効。CLI は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で管理。
@@ -152,15 +152,20 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 
 > CLI ツール自体は **aqua**（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理。
 
-### SSH エージェント（`40-tools.zsh`）
+### SSH エージェント（`25-ssh-agent.zsh`）
 
 対話シェル起動時に SSH エージェントを用意する（`$SSH_CONNECTION` が無いローカルシェルが対象）。
+プラグインを clone する `30-plugins`（sheldon）より前に走らせるため、番号は `25`。
 
 | 条件 | 挙動 |
 | --- | --- |
 | `~/.1password/agent.sock` がある | 1Password の SSH エージェントを使う（`SSH_AUTH_SOCK` をそこへ向ける） |
 | 使える agent が既にある（forward された agent 等、`ssh-add -l` が成功） | そのまま利用（上書きしない） |
 | どちらも無い（開発サーバ等） | 通常の `ssh-agent` を常駐起動し既定鍵（`~/.ssh/id_ed25519` 等）を `ssh-add`。socket は `${XDG_RUNTIME_DIR:-$HOME}/.ssh-agent.env` に保存して以降のシェルで再利用（多重起動しない） |
+
+> **初回ログインで sheldon のプラグイン clone が `Auth(-16)` で落ちる時**もこれが原因。
+> `dot_gitconfig.tmpl` の `insteadOf` が https を SSH へ書き換えるため、agent が無いと
+> clone できない。`25-ssh-agent` が `30-plugins` より前に走ることで解決している。
 
 > **gitui の push が `bad credentials` で失敗する時**はこれが原因。gitui は libgit2 経由で
 > SSH 鍵を **agent 経由でしか使えず**、鍵ファイルを直読みしない。上記フォールバックで
