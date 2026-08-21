@@ -92,14 +92,15 @@ GRAPHIFY_VERSION="latest"
 # PreToolUse フックを書き込むのは `graphify install --project` の方で、
 # grep/Read への割り込みは codegraph prompt-hook と二重になるため入れていない。
 # グラフ本体と git フックはリポジトリごとに手動で入れる(`/graphify .` / `graphify hook install`)。
-# SQL 抽出器(graphify/extractors/sql.py)は tree_sitter_sql を import するが graphifyy の
-# 依存には入っていないため、--with で同じ tool 環境へ追加する(無いと .sql が
-# 「tree_sitter_sql not installed」でスキップされる)。
+# SQL / HCL のパーサーは graphifyy の必須依存ではなく extra なので、明示的に入れる
+# (無いと .sql / .tf は「tree_sitter_sql not installed」相当でスキップされる)。
+# terraform extra が tree-sitter-hcl を連れてくる。
+GRAPHIFY_EXTRAS="[sql,terraform]"
 if command -v uv >/dev/null 2>&1; then
 	if [ "$GRAPHIFY_VERSION" = "latest" ]; then
-		uv tool install --upgrade --with tree-sitter-sql graphifyy
+		uv tool install --upgrade "graphifyy$GRAPHIFY_EXTRAS"
 	else
-		uv tool install --with tree-sitter-sql "graphifyy==$GRAPHIFY_VERSION"
+		uv tool install "graphifyy$GRAPHIFY_EXTRAS==$GRAPHIFY_VERSION"
 	fi
 	graphify install
 fi

@@ -32,11 +32,12 @@ CodeGraph は**配線図**（`foo()` を変えると誰が壊れるか）、grap
 - **バージョン追従／固定**はスクリプト中の `GRAPHIFY_VERSION` で切り替える。`latest` なら
   毎回 `uv tool install --upgrade` で最新へ、版を書けば（例 `0.9.13`）そこにピンする。
   値を書き換えると run_onchange で既存マシンでも再実行される。
-- **`.sql` の抽出には `tree-sitter-sql` が要る。** graphify の SQL 抽出器
-  （`graphify/extractors/sql.py`）は `tree_sitter_sql` を import するが、graphifyy 本体の
-  依存には入っていない。入れないと `.sql` は `tree_sitter_sql not installed` のエラーで
-  スキップされる（他言語の tree-sitter 文法は同梱されている）。そのため
-  `uv tool install --with tree-sitter-sql graphifyy` として同じ tool 環境へ同居させている。
+- **`.sql` / `.tf` のパーサーは extra で入れる。** SQL 抽出器（`graphify/extractors/sql.py`）が
+  import する `tree_sitter_sql` と、HCL 用の `tree_sitter_hcl` は graphifyy 本体の依存では
+  なく extra（`sql` / `terraform`）。入れないと `.sql` / `.tf` は
+  `tree_sitter_sql not installed` 相当のエラーでスキップされる（他言語の tree-sitter 文法は
+  同梱されている）。そのため `uv tool install "graphifyy[sql,terraform]"` で導入する
+  （スクリプト中の `GRAPHIFY_EXTRAS`）。
 - `graphify install`（グローバル）が書き換える chezmoi 管理外のもの:
   - `~/.claude/skills/graphify/SKILL.md`（スキル本体。`/graphify` の実体）
   - `~/.claude/CLAUDE.md` の `# graphify` 登録セクション
