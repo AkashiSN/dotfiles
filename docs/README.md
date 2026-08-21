@@ -18,6 +18,7 @@
 | dji_workflow（DJI 取り込み → Immich） | [dji-cheatsheet.md](dji-cheatsheet.md) | `dot_local/bin/dji_workflow.py` |
 | agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |
 | CodeGraph（コード知識グラフ / MCP） | [codegraph-cheatsheet.md](codegraph-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md` |
+| Claude Code（compact 対策 / statusLine） | [claude-compact-cheatsheet.md](claude-compact-cheatsheet.md) | `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl` |
 | graphify（知識グラフ） | [graphify-cheatsheet.md](graphify-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md` |
 
 > これらは chezmoi のソースリポジトリ内のドキュメントで、ホームへは展開されない

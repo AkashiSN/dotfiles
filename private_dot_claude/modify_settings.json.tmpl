@@ -41,6 +41,17 @@ MANAGED=$(cat <<'JSON'
     }
   },
   "hooks": {
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/compact-recovery.sh'",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "hooks": [
@@ -72,6 +83,16 @@ MANAGED=$(cat <<'JSON'
           {
             "command": "codegraph prompt-hook",
             "type": "command"
+          },
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/userpromptsubmit-compact-recovery.sh'",
+            "timeout": 10,
+            "type": "command"
+          },
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/userpromptsubmit-compact-prep-reminder.sh'",
+            "timeout": 10,
+            "type": "command"
           }
         ]
       }
@@ -90,6 +111,10 @@ MANAGED=$(cat <<'JSON'
       "mcp__codegraph__codegraph_status",
       "mcp__codegraph__*"
     ]
+  },
+  "statusLine": {
+    "command": "{{ .chezmoi.homeDir }}/.claude/hooks/statusline.sh",
+    "type": "command"
   },
   "theme": "dark",
   "tui": "fullscreen"
