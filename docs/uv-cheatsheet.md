@@ -21,6 +21,25 @@ Python 製の CLI は `uv tool install` で入れる（venv が分離される�
 > uv 本体は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で管理。ツールを恒久的に追加する
 > ときは、手で `uv tool install` するだけでなくスクリプトのリストにも追記すること。
 
+## uv 管理の Python
+
+同じスクリプトの末尾で、**tomllib を持つ Python（3.11+）を 1 つ確保**する。
+
+```sh
+uv python find '>=3.11' >/dev/null 2>&1 || uv python install 3.13
+```
+
+macOS 同梱の `python3` は 3.9 で `tomllib` が無く、`codex-bedrock` が
+`~/.codex/config.toml` に Bedrock オーバレイを被せるときに TOML パーサを使えない
+（詳細は [zsh チートシート](zsh-cheatsheet.md#codex-bedrock-が一時-codex_home-を使う理由)）。
+条件を満たす処理系が既にあれば何もしないので、余計なダウンロードは起きない。
+
+| コマンド | 役割 |
+| --- | --- |
+| `uv python list` | 導入済み / ダウンロード可能な Python の一覧 |
+| `uv python find '>=3.11'` | 条件を満たす処理系のパスを返す（未導入ならダウンロードせず失敗） |
+| `uv python install <ver>` | 指定バージョンを導入 |
+
 ## キャッシュ
 
 uv はダウンロードした wheel / sdist・展開済みアーカイブ・ビルド済み環境を

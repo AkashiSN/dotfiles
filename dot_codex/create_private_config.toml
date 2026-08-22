@@ -4,7 +4,7 @@
 # ドリフトにならない。初期値だけを撒くのが目的。
 #
 # 既定はサブスク(OpenAI ログイン / auth.json)。model_provider を指定しないことで
-# codex 既定の openai provider になる。Bedrock は codex-bedrock / ide-bedrock が
+# codex 既定の openai provider になる。Bedrock は codex-bedrock が
 # `--profile bedrock`(~/.codex/bedrock.config.toml)で明示的に被せる。
 # サブスクのモデル id はカタログの canonical slug(プレフィックスなし)。`openai.` 付きは
 # Bedrock 側の provider 付き id なので、そちらは bedrock プロファイルにだけ書く。

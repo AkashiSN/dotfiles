@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# agmsg の codex エージェントを、Amazon Bedrock で動く状態で herdr のペインに立ち上げる。
+#
+# 素の `spawn.sh codex <name>` との違いは CODEX_HOME だけ。ただしそれを差し込む隙が
+# spawn.sh には無い:
+#   - spawn.sh の herdr パス(launch_in_herdr)は `herdr pane split` を --env 無しで呼ぶ
+#   - マニフェスト(drivers/types/codex/type.conf)の `cli=codex` は固定で差し替えられない
+#   - codex には --profile 相当の環境変数が無い(CODEX_HOME だけが env で効く)
+# そこで env 付きのペインを先に作り、spawn.sh には --terminal テンプレートで「そのペインで
+# boot script を走らせる」とだけ指示する。
+#
+# 使い方: codex-bedrock-spawn <name> [options]
+#   --team <team>        参加させるチーム(既定: プロジェクトの登録から解決)
+#   --project <path>     起動先プロジェクト(既定: $PWD)
+#   --direction right|down   ペインの分割方向(既定: right)
+#   その他の引数はそのまま spawn.sh へ渡す(--boot-prompt / --model / --fresh など)
+#
+# 片付けは素の agmsg と同じ: despawn.sh <team> <self> <name> --force
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+set -euo pipefail
+
+SKILL_DIR="$HOME/.agents/skills/agmsg"
+S="$SKILL_DIR/scripts"
+
+die() { printf 'codex-bedrock-spawn: %s\n' "$*" >&2; exit 1; }
+
+NAME=""
+TEAM=""
+PROJECT="$PWD"
+DIRECTION="right"
+PASS=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --team) TEAM="${2:-}"; shift 2 ;;
+    --project) PROJECT="${2:-}"; shift 2 ;;
+    --direction) DIRECTION="${2:-}"; shift 2 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    # 知らないフラグは spawn.sh へ素通し。値を取るフラグかは分からないので、次の引数が
+    # フラグでなければ値とみなして一緒に運ぶ。
+    -*)
+      PASS+=("$1")
+      if [ "$#" -gt 1 ]; then
+        case "$2" in
+          ""|-*) ;;
+          *) PASS+=("$2"); shift ;;
+        esac
+      fi
+      shift
+      ;;
+    *) [ -n "$NAME" ] && die "名前は 1 つだけ指定する(余分: $1)"; NAME="$1"; shift ;;
+  esac
+done
+
+[ -n "$NAME" ] || die "エージェント名を指定する。例: codex-bedrock-spawn reviewer"
+[ -d "$PROJECT" ] || die "プロジェクトが存在しない: $PROJECT"
+PROJECT="$(cd "$PROJECT" && pwd -P)"
+
+[ -n "${HERDR_PANE_ID:-}" ] || die "herdr のペインの中で実行する(HERDR_PANE_ID が無い)"
+command -v herdr >/dev/null 2>&1 || die "herdr が PATH に無い"
+[ -x "$S/spawn.sh" ] || die "agmsg が見つからない: $S/spawn.sh"
+
+# チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
+if [ -z "$TEAM" ]; then
+  TEAM="$("$S/whoami.sh" "$PROJECT" 2>/dev/null | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
+  case "$TEAM" in
+    "") die "チームを解決できない。--team で指定する" ;;
+    *,*) die "このプロジェクトは複数チームに属している($TEAM)。--team で指定する" ;;
+  esac
+fi
+
+# herdr の JSON から 1 つの文字列フィールドを取り出す。端末制御シーケンスが混ざるので落とす。
+herdr_field() {
+  python3 -c '
+import json, re, sys
+text = re.sub(r"\x1b\[[0-9;<=?]*[a-zA-Z]", "", sys.stdin.read()).strip()
+text = text[text.index("{"):text.rindex("}") + 1]
+value = json.loads(text)
+for key in sys.argv[1:]:
+    value = value[key]
+print(value)
+' "$@"
+}
+
+# 1) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。
+HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" \
+  || die "一時 home を用意できなかった"
+
+# 2) 別の CODEX_HOME で走っている app-server は畳む。残っているとペインの codex が
+#    それを再利用してしまい、設定が食い違う。
+(cd "$PROJECT" && codex-appserver-evict "$HOME_DIR")
+
+# 3) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
+resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --cwd "$PROJECT" \
+  --env "CODEX_HOME=$HOME_DIR" \
+  --env "AWS_PROFILE=${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}" 2>&1)" \
+  || die "herdr pane split に失敗した: $resp"
+PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" \
+  || die "herdr pane split の応答から pane_id を読めなかった: $resp"
+herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
+
+# 4) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
+#    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
+#    env 無しのペインを作り直してしまうため。
+if ! env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
+  "$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
+  --terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"}; then
+  herdr pane close "$PANE" >/dev/null 2>&1 || true
+  die "spawn.sh に失敗した"
+fi
+
+# 5) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
+#    これが無いと despawn --force が no placement record で失敗する。
+# shellcheck disable=SC1091
+. "$S/lib/actas-lock.sh"
+rec="$(agmsg_spawn_path "$TEAM" "$NAME")"
+mkdir -p "$(dirname "$rec")"
+[ -s "$rec" ] || printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" > "$rec"
+
+cat <<EOS
+spawned codex '$NAME' (team $TEAM) in herdr pane $PANE
+  CODEX_HOME  $HOME_DIR
+  AWS_PROFILE ${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}
+  片付け      $S/despawn.sh $TEAM <self> $NAME --force
+EOS

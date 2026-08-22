@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)のまま。
+#
+# Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は runtime コマンド専用で
+# `codex app-server` が受け取らず、agmsg monitor モードでは TUI が共有 app-server に
+# `--remote` で繋ぐため、モデル解決と認証は app-server 側の設定で決まるからだ(TUI の表示だけ
+# Bedrock provider になり、実際はサブスク側で走る)。代わりに CODEX_HOME をプロジェクトごとの
+# 一時 home へ向け、その `config.toml` を「素の config + bedrock オーバレイ」にする。
+# CODEX_HOME は子プロセスへ継承されるので app-server にも同じ設定が乗る。
+#
+# 使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)。その
+# credential_process = aws-login が認証を担うため追加ログインは不要。Bedrock は SigV4 認証で
+# auth.json を見ないので、一時 home に資格情報は置かない。
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+set -euo pipefail
+
+BASE_HOME="$HOME/.codex"
+OVERLAY="$BASE_HOME/bedrock.config.toml"
+# CODEX_HOME はフックの信頼キー(hooks.state)などに埋まる。codex はそのキーをシンボリック
+# リンク解決後の絶対パスで持つので、こちらも解決済みの形に揃えておく。揃っていないと
+# macOS の /var -> /private/var や TMPDIR 末尾の / のせいでキーが一致せず、コピーしてきた
+# 信頼が効かずに毎回フックの確認が出る。
+RUNTIME_ROOT="${TMPDIR:-/tmp}"
+RUNTIME_ROOT="${RUNTIME_ROOT%/}/codex-bedrock"
+mkdir -p "$RUNTIME_ROOT"
+RUNTIME_ROOT="$(cd "$RUNTIME_ROOT" && pwd -P)"
+PROJECT="$PWD"
+
+die() { printf 'codex-bedrock: %s\n' "$*" >&2; exit 1; }
+
+[ -f "$OVERLAY" ] || die "$OVERLAY がない(chezmoi apply 済みか確認する)"
+[ -f "$BASE_HOME/config.toml" ] || die "$BASE_HOME/config.toml がない"
+
+hash_of() {
+  if command -v shasum >/dev/null 2>&1; then printf '%s' "$1" | shasum | awk '{print $1}'
+  elif command -v sha1sum >/dev/null 2>&1; then printf '%s' "$1" | sha1sum | awk '{print $1}'
+  else printf '%s' "$1" | cksum | awk '{print $1}'
+  fi
+}
+
+# tomllib(Python 3.11+)を持つ処理系を探す。config.toml の合成に本物の TOML パーサを使うので、
+# これが無いと起動できない。
+toml_python() {
+  local c
+  for c in python3 python3.14 python3.13 python3.12 python3.11; do
+    command -v "$c" >/dev/null 2>&1 || continue
+    if "$c" -c 'import tomllib' >/dev/null 2>&1; then command -v "$c"; return 0; fi
+  done
+  if command -v uv >/dev/null 2>&1; then
+    c="$(uv python find '>=3.11' 2>/dev/null || true)"
+    if [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'import tomllib' >/dev/null 2>&1; then
+      printf '%s\n' "$c"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# 一時 home はプロジェクトごとに固定。同じプロジェクトで並行して起動した codex-bedrock が
+# 同じ home = 同じ app-server を共有できるようにするため(呼び出しごとに別 home にすると
+# 後発が先発の app-server を畳んでしまう)。
+HOME_DIR="$RUNTIME_ROOT/$(hash_of "$PROJECT")"
+
+PY="$(toml_python)" || die "tomllib を持つ Python (3.11+) が見つからない。\`uv python install 3.11\` で入れる"
+
+# 生きている codex が参照している CODEX_HOME の一覧。
+live_codex_homes() {
+  local pid
+  for pid in $(pgrep -x codex 2>/dev/null || true); do
+    ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | sed -n 's/^CODEX_HOME=//p' | head -1
+  done | sort -u
+}
+
+LIVE_HOMES="$(live_codex_homes)"
+is_live() { printf '%s\n' "$LIVE_HOMES" | grep -qxF "$1"; }
+
+# 誰も使っていない一時 home を掃除する。終了時ではなく起動時に回収するので、異常終了して
+# 残ったものも次回の起動で片付く。
+if [ -d "$RUNTIME_ROOT" ]; then
+  for d in "$RUNTIME_ROOT"/*; do
+    [ -d "$d" ] || continue
+    is_live "$d" || rm -rf "$d"
+  done
+fi
+
+# 同じプロジェクトの codex-bedrock が既に走っているならその home をそのまま使う。走っている
+# codex の下で config.toml を書き換えると、codex が書き戻す実行時状態を壊すため触らない。
+if ! is_live "$HOME_DIR"; then
+  rm -rf "$HOME_DIR"
+  mkdir -p "$HOME_DIR"
+
+  # config.toml: 素の config に bedrock オーバレイを被せる。TOML はトップレベルキーを最初の
+  # テーブルヘッダより前にしか書けないので、両者を「テーブル前」と「テーブル以降」に割って
+  # 組み直す。オーバレイで定義済みのトップレベルキーは素の config 側から落とす(重複キーは
+  # TOML のエラー)。
+  #
+  # 割る位置は tomllib に決めさせる。素の config は codex が書き換えるファイルで、複数行配列や
+  # 複数行文字列の中に `[` で始まる行が来ることがあり、行の見た目だけではテーブルヘッダと
+  # 区別できないため。読み込んで書き直すのではなく行を並べ替えるので、コメントと codex 自身が
+  # 書いた整形はそのまま残る。
+  "$PY" - "$BASE_HOME/config.toml" "$OVERLAY" "$BASE_HOME" "$HOME_DIR" > "$HOME_DIR/config.toml" <<'PY' \
+    || { rm -rf "$HOME_DIR"; die "config.toml の合成に失敗した"; }
+import sys
+import tomllib
+
+
+def read(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.readlines()
+
+
+def parses(lines):
+    """行列の先頭から lines までが TOML として閉じているか。"""
+    try:
+        return tomllib.loads("".join(lines))
+    except tomllib.TOMLDecodeError:
+        return None
+
+
+def head_len(lines):
+    """最初のテーブルヘッダの位置。
+
+    文の切れ目(そこまでがパースできる位置)で `[` から始まる行だけがテーブルヘッダ。
+    値の途中の行は先頭が `[` でも prefix がパースできないので除かれる。
+    """
+    for i, line in enumerate(lines):
+        if not line.lstrip().startswith("[") or parses(lines[:i]) is None:
+            continue
+        # 直前のコメント・空行はそのテーブルの説明なので、切り離さず一緒に送る。
+        while i > 0 and (lines[i - 1].strip() == "" or lines[i - 1].lstrip().startswith("#")):
+            if parses(lines[:i - 1]) is None:
+                break
+            i -= 1
+        return i
+    return len(lines)
+
+
+def statements(lines):
+    """トップレベル部を [開始行, 終了行, その文が定義したキー] へ割る。
+
+    直前のコメント・空行は次の文に含まれる(文ごと落としたときコメントだけ残さないため)。
+    """
+    spans, start, seen = [], 0, set()
+    for i in range(1, len(lines) + 1):
+        got = parses(lines[:i])
+        if got is None:
+            continue
+        new = set(got) - seen
+        if new:
+            spans.append((start, i, new))
+            start, seen = i, set(got)
+    if start < len(lines):
+        spans.append((start, len(lines), set()))
+    return spans
+
+
+def die(msg):
+    sys.exit("codex-bedrock: " + msg)
+
+
+base, overlay = read(sys.argv[1]), read(sys.argv[2])
+for path, lines in ((sys.argv[1], base), (sys.argv[2], overlay)):
+    if parses(lines) is None:
+        die("%s が TOML として壊れている" % path)
+
+base_cut, over_cut = head_len(base), head_len(overlay)
+over_keys = set(tomllib.loads("".join(overlay[:over_cut])))
+
+kept = []
+for lo, hi, keys in statements(base[:base_cut]):
+    if keys & over_keys:
+        continue
+    kept.extend(base[lo:hi])
+
+merged = (overlay[:over_cut] + ["\n"] + kept + ["\n"]
+          + base[base_cut:] + ["\n"] + overlay[over_cut:])
+
+# フックの信頼(hooks.state)はファイルの絶対パスをキーに持つ。グローバルの hooks.json は
+# 一時 home へコピーされてパスが変わるので、キーも一緒に付け替えて既に済んでいる信頼判断を
+# 引き継ぐ。中身が変わっていればハッシュが合わず、従来どおり codex が確認してくる。
+if len(sys.argv) > 4:
+    src, dst = sys.argv[3].rstrip("/"), sys.argv[4].rstrip("/")
+    old_key, new_key = '"%s/hooks.json:' % src, '"%s/hooks.json:' % dst
+    merged = [l.replace(old_key, new_key) if l.lstrip().startswith("[") else l
+              for l in merged]
+
+text = "".join(merged)
+if text and not text.endswith("\n"):
+    text += "\n"
+
+got = parses([text])
+if got is None:
+    die("合成した config.toml が TOML として壊れている(テーブルの重複などが無いか確認する)")
+
+
+def check(want, have, path):
+    """オーバレイの内容が合成結果にそのまま出ているか。"""
+    for key, value in want.items():
+        here = path + [key]
+        if key not in have:
+            die("オーバレイの %s が反映されていない" % ".".join(here))
+        if isinstance(value, dict):
+            check(value, have[key], here)
+        elif have[key] != value:
+            die("%s がオーバレイの値で上書きされていない (%r != %r)"
+                % (".".join(here), have[key], value))
+
+
+check(tomllib.loads("".join(overlay)), got, [])
+sys.stdout.write(text)
+PY
+
+  # グローバル指示とフックは素の home から持ち込む。MCP サーバやマーケットプレイスは
+  # config.toml 内で絶対パスを指しているので CODEX_HOME が変わってもそのまま解決する。
+  for f in AGENTS.md hooks.json; do
+    [ -f "$BASE_HOME/$f" ] && cp "$BASE_HOME/$f" "$HOME_DIR/$f"
+  done
+  [ -d "$BASE_HOME/skills" ] && cp -R "$BASE_HOME/skills" "$HOME_DIR/skills"
+
+  # agmsg の codex ドライバは rollout を $HOME/.codex/sessions に決め打ちで探す。実 home の
+  # sessions へ張っておかないと、Bedrock セッションのトランスクリプトを agmsg が見失う。
+  ln -s "$BASE_HOME/sessions" "$HOME_DIR/sessions"
+fi
+
+# 一時 home を用意するだけで codex は起動しない。CODEX_HOME を自分で渡して codex を
+# 起動したい呼び出し元(codex-bedrock-spawn)のための入り口。app-server の照合は
+# 呼び出し元がやるので、ここでは触らない。
+if [ "${1:-}" = "--print-home" ]; then
+  printf '%s\n' "$HOME_DIR"
+  exit 0
+fi
+
+export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+export CODEX_HOME="$HOME_DIR"
+
+codex-appserver-evict "$HOME_DIR" "$@"
+
+exec codex "$@"

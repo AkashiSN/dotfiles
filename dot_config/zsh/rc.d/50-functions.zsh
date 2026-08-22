@@ -123,14 +123,14 @@ function claude-bedrock () {
   ( _claude-bedrock-env && claude "$@" )
 }
 
-# codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)の
-# まま無変更。Bedrock 用設定は ~/.codex/bedrock.config.toml(bedrock プロファイル)へ分離し、
-# --profile でベース設定の上にレイヤする。使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE
-# (既定 cdx-pre-dev)で AWS_PROFILE に渡し、その credential_process = aws-login が認証を担う。
-# サブシェルで閉じ込めるので呼び出し元の対話シェルの AWS_PROFILE は汚さない。
-# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
-function codex-bedrock () {
-  ( export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}" && command codex --profile bedrock "$@" )
+# codex をラップし、起動直前に共有 app-server の CODEX_HOME を照合する。agmsg monitor モードの
+# app-server はプロジェクトパスだけでキーされ設定を見ないので、codex-bedrock(CODEX_HOME を
+# 一時 home へ向ける)が残した Bedrock 用 app-server を素の codex が黙って再利用してしまう。
+# codex-appserver-evict が食い違う app-server を畳み、codex に作り直させる。Bedrock 側の起動は
+# ~/.local/bin/codex-bedrock。詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+function codex () {
+  codex-appserver-evict "${CODEX_HOME:-$HOME/.codex}" "$@"
+  command codex "$@"
 }
 
 # 端末のマウストラッキング / フォーカス報告 / 括弧付き貼り付け / 隠れカーソル /

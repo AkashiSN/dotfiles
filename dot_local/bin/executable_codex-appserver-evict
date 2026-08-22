@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# agmsg monitor モードの共有 codex app-server が、これから起動する codex と違う
+# CODEX_HOME で走っていたら畳む。
+#
+# monitor モードでは codex TUI は `codex --remote ws://...` で共有 app-server に繋がり、
+# モデル解決と認証は app-server 側の設定で決まる。app-server は
+# `$SKILL_DIR/run/codex-app-server.<sha1(プロジェクトパス)>` でキーされ、再利用の判定に
+# 設定を見ていないので、同じプロジェクトでサブスク用と Bedrock 用を混ぜると先に起動した
+# 側の app-server を後から起動した側が黙って再利用する。起動直前にここで照合し、期待と
+# 違う app-server は落として作り直させる。
+#
+# 使い方: codex-appserver-evict <期待する CODEX_HOME> [codex に渡す引数...]
+# 引数が app-server を使わないサブコマンド(exec / login など)なら何もしない。
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+set -euo pipefail
+
+expected="${1:-}"
+[ -n "$expected" ] || exit 0
+shift || true
+
+# codex の第一引数がサブコマンドかどうかを見る。オプションは読み飛ばし、最初の非オプションを
+# 拾う(agmsg の shim と同じ判定)。プロンプト文字列などサブコマンド以外はすべて対話起動。
+first_non_option() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --cd|--cwd|-C) shift 2 || true ;;
+      --cd=*|--cwd=*) shift ;;
+      # 単体で完結し codex を起動しないフラグ。後続を探しに行かない。
+      --help|--version|-h|-V) printf '%s\n' "$1"; return 0 ;;
+      -*) shift ;;
+      *) printf '%s\n' "$1"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+case "$(first_non_option "$@" || true)" in
+  # 共有 app-server に繋がない経路。生きている app-server を巻き添えにしない。
+  exec|e|login|logout|mcp|mcp-server|app-server|completion|debug|apply|a|review|sandbox|\
+  update|doctor|plugin|cloud|agents|features|remote-control|app|help|version|\
+  migrate-rollouts|exec-server|--help|--version|-h|-V)
+    exit 0
+    ;;
+esac
+
+project="$PWD"
+
+# プロセスの CODEX_HOME を読む。未設定なら既定の ~/.codex。
+proc_codex_home() {
+  local home
+  home="$(ps eww -p "$1" 2>/dev/null | tr ' ' '\n' | sed -n 's/^CODEX_HOME=//p' | head -1)"
+  printf '%s\n' "${home:-$HOME/.codex}"
+}
+
+# このプロジェクトの app-server。agmsg の run ディレクトリ名には依存せず、codex 自身の
+# プロセス署名と cwd で特定する(agmsg は TUI の cwd で app-server を起動するため、
+# cwd がそのまま agmsg のキーと一致する)。
+for pid in $(pgrep -f 'codex app-server' 2>/dev/null || true); do
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+  [ "$cwd" = "$project" ] || continue
+  actual="$(proc_codex_home "$pid")"
+  [ "$actual" = "$expected" ] && continue
+  printf 'codex-appserver-evict: 既存の app-server (pid %s) は CODEX_HOME=%s で動いているため畳みます\n' \
+    "$pid" "$actual" >&2
+  kill "$pid" 2>/dev/null || true
+done
+
+exit 0

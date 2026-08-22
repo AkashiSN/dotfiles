@@ -34,12 +34,17 @@ GitHub の issue・PR・コメントなど**公開される場所**の本文に�
 ため、外部へ露出させてはならない。生成した本文にこれらの URL が紛れ込んでいないか
 投稿前に必ず確認する。
 
-## codex にレビューを依頼するときの手順（agmsg）
+## codex にレビューを依頼するときの手順（agmsg / herdr）
 
 codex へのレビュー依頼は agmsg 経由で行う。**依頼のたびに spawn し、終わったら
 必ず片付ける。** チーム名とエージェント名はプロジェクトごとに違うので、
-`whoami.sh` かそのプロジェクトのドキュメントで確認する（下の `<team>` はチーム、
-`<self>` は自分、`<reviewer>` は codex のレビュー役）。
+`whoami.sh <project>` かそのプロジェクトのドキュメントで確認する（下の `<team>` は
+チーム、`<self>` は自分、`<reviewer>` は codex のレビュー役）。
+
+端末は herdr。spawn は herdr のペインを分割してそこに codex を立てるので、
+**herdr のペインの中から実行する**（`HERDR_PANE_ID` が要る）。
+
+### サブスク（OpenAI ログイン）で起動する場合
 
 ```bash
 S=~/.agents/skills/agmsg/scripts
@@ -51,6 +56,29 @@ $S/despawn.sh <team> <self> <reviewer> --force    # 片付け → status=forced
 $S/delivery.sh status codex "$(pwd)"              # → no identities registered for this project
 ```
 
+### Amazon Bedrock で起動する場合
+
+`spawn.sh` を直接は使わない。`codex-bedrock-spawn`（内部で spawn.sh を呼ぶ）を使う。
+確認・送信・片付けはサブスクの場合と同じコマンド。
+
+```bash
+S=~/.agents/skills/agmsg/scripts
+
+codex-bedrock-spawn <reviewer>                    # 起動。Bedrock 用のペインが開く
+$S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
+$S/send.sh <team> <self> <reviewer> "<依頼>"
+$S/despawn.sh <team> <self> <reviewer> --force    # 片付けは共通 → status=forced
+```
+
+**素の `spawn.sh` では Bedrock にならない。** monitor モードでは codex TUI が共有
+app-server へ `--remote` で繋がり、モデル解決と認証は app-server 側の設定で決まる。
+`--profile` は app-server が受け取らず、`--profile` 相当の環境変数も無いので、
+`CODEX_HOME` を Bedrock 用の一時 home へ向けるしかない。`codex-bedrock-spawn` は
+その home を用意し、`herdr pane split --env` で流し込んでから spawn する
+（`spawn.sh` の herdr パスは `--env` を渡さないので、この差し込みは自前で要る）。
+
+### 共通の注意
+
 **`--force` を最初から付ける。素の graceful を先に打ってはいけない。** graceful な
 despawn は actas ロックだけを土台にしているが、codex は `actas-claim` を一度も
 走らせないのでロックが常に `free`。graceful は `status=ok note=no-live-lock` を
@@ -61,6 +89,12 @@ despawn は actas ロックだけを土台にしているが、codex は `actas-
 spawn は codex の readiness を待たないので、送る前に bridge の生存を確認する。
 起動しっぱなしにすると、codex CLI が終わっても bridge だけが生き残り、
 `<reviewer>` 宛に送ったメッセージを黙って飲み込む。
+
+app-server はプロジェクトパスだけでキーされ、設定を見ずに再利用される。同じ
+プロジェクトでサブスク版と Bedrock 版を混ぜると、先に起動した側の app-server を
+後から起動した側が黙って再利用する。`codex-bedrock-spawn` と zsh の `codex` 関数は
+起動前に `codex-appserver-evict` で食い違う app-server を畳むので、**種類を切り替える
+ときは開いていた側の codex セッションが切れる**。
 
 # graphify
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`

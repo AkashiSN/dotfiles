@@ -18,3 +18,7 @@ for tool in \
 do
 	uv tool install "$tool"
 done
+
+# tomllib を持つ Python を 1 つ確保する。codex-bedrock が config.toml の合成に使う（macOS 同梱の
+# python3 は 3.9 で tomllib が無い）。条件を満たすものが既にあれば何もしない。
+uv python find '>=3.11' >/dev/null 2>&1 || uv python install 3.13
