@@ -36,7 +36,7 @@ packages:
   - name: herdrdev/herdr@v0.8.2 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   - name: sxyazi/yazi@v26.8.15 # プレビュー付きファイラ (herdr の popup から起動)
   # --- editor: neovim + 検索バックエンド (fzf-lua) ---
-  - name: neovim/neovim@v0.12.4
+  - name: neovim/neovim@v0.12.5
   - name: BurntSushi/ripgrep@15.2.0
   - name: sharkdp/fd@v10.4.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
