@@ -48,7 +48,7 @@ packages:
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入)
   - name: aws/aws-cli@2.36.27
-  - name: kubernetes/kubernetes/kubectl@v1.36.3
+  - name: kubernetes/kubernetes/kubectl@v1.36.4
   - name: helm/helm@v4.2.4 # kubernetes package manager
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.8.2
