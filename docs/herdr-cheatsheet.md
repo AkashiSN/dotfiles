@@ -216,6 +216,45 @@ pop、`\e[=0;1u` で現行フラグを 0 に戻す（素の端末で叩いても
 
 ---
 
+## 再接続後に herdr が固まる（死んだ ControlMaster の再利用）
+
+SSH が無言で切れた後に再接続して `herdr` を起動すると、**左のスペース／エージェント／ターミナル
+領域は描画されるのに、シェルが出ず、キー入力も `<prefix> q` も一切効かない**ことがある。
+Ghostty を落として ssh からやり直すと、セッションを引き継いだまま正常に繋がる。
+
+原因は herdr 側ではなく **ssh 経路**にある。`develop-server` は `Tag portfwd` 経由で
+`ControlMaster auto` / `ControlPersist 10m` が効くため、無言のネットワーク断で死んだ master が
+残っていると、**次の `ssh` はその死んだ master へ多重化される**。セッションは開くので herdr は
+起動してハンドシェイクも成功するが、実データは死んだ TCP を通れない。最初の数 KB（＝UI の初期
+フレーム）だけ届いて以降が止まるため、「UI は出るが無反応」に見える。Ghostty を落とすと master
+ごと消えて次の ssh が新しい TCP を張り直すので直る。
+
+**サーバ側は無実**であることの確認（別セッションから。応答すればサーバもペインも生きている）:
+
+```bash
+herdr status && herdr tab list
+```
+
+**原因の切り分けと回避（ローカル側）**。2 つ目が繋がれば死んだ master の再利用で確定:
+
+```bash
+ssh -O check develop-server              # 古い master が残っているか
+ssh -o ControlPath=none develop-server   # 多重化を迂回して新規接続（回避策にもなる）
+ssh -O exit develop-server               # master を明示的に畳む（rm -f ~/.ssh/cm-develop-server でも可）
+```
+
+`~/.ssh/config` の `ServerAliveInterval 30` / `ServerAliveCountMax 3` は、この死んだ master が
+残る時間を 90 秒程度に抑えるための設定（`private_dot_ssh/private_config.tmpl`）。ただし
+`ControlPersist 10m` の間は master が残りうるので、落とした直後の再接続で再発することがある。
+
+`HERDR_LOG` でクライアント／サーバのログレベルを上げられる（既定は `herdr=info`）:
+
+```bash
+HERDR_LOG=herdr=debug herdr
+```
+
+---
+
 ## herdr を更新した後に CLI がエラーになる（protocol mismatch）
 
 aqua で herdr のバージョンを上げても、**すでに常駐しているサーバは古いバイナリのまま**動き続ける。
