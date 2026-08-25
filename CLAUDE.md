@@ -54,6 +54,7 @@
 | `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl`（statusLine・compact 系 hook） | `docs/claude-compact-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph 関連） | `docs/codegraph-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md`（graphify 関連） | `docs/graphify-cheatsheet.md` |
+| `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（agent-browser 関連） | `docs/agent-browser-cheatsheet.md` |
 
 新しいツールのキーバインド設定を追加したときは、`docs/` に新しいチートシートを作り、
 `docs/README.md` の一覧にも追記する。

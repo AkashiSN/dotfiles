@@ -1,0 +1,42 @@
+#!/bin/sh
+# Set up agent-browser (browser automation CLI for AI agents).
+# CLI 本体は aqua 管理(aqua.yaml)。ここでは aqua が扱えない 2 つを補う:
+#   1. ブラウザ本体 Chrome for Testing の取得 (~/.agent-browser/browsers)
+#   2. コーディングエージェント用スキルの導入 (~/.claude/skills/agent-browser)
+# aqua install(20) と Node 準備(30)、Claude Code 導入(40)の後に走らせる。
+# run_onchange: aqua.yaml のハッシュを埋めてあるので、CLI のバージョンを上げると
+# 既存マシンでも再実行され、スキルも CLI に合わせて入れ直される。
+# aqua.yaml hash: {{ include "dot_config/aquaproj-aqua/aqua.yaml" | sha256sum }}
+set -eu
+
+{{ template "shell-log" }}
+step "agent-browser (ブラウザ自動化 CLI) を準備中"
+
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+
+# aqua が本体を入れられなかった環境(未対応 OS/arch 等)では何もしない。
+command -v agent-browser >/dev/null 2>&1 || exit 0
+
+# --- ブラウザ本体 (Chrome for Testing) ---
+# 約 180MB を ~/.agent-browser/browsers へ取得する。導入済みなら再取得しない。
+{{ if eq .chezmoi.os "linux" -}}
+# Linux は Chrome の共有ライブラリが最小構成に無いため --with-deps を付ける
+# (ディストリのパッケージマネージャを sudo で呼ぶ。依存導入に失敗すると install も失敗する)。
+agent-browser install --with-deps
+{{- else -}}
+agent-browser install
+{{- end }}
+
+# --- Claude Code 用スキル ---
+# vercel-labs/skills の CLI(npx skills)で ~/.claude/skills/agent-browser へ入れる。
+# skills は Node を要求するので fnm の default を PATH に載せてから呼ぶ。
+# --copy: シンボリックリンクではなく実体を置く(リンク先ストアの有無に依存させない)。
+if command -v fnm >/dev/null 2>&1; then
+	eval "$(fnm env --shell bash)"
+	fnm use default >/dev/null 2>&1 || true
+fi
+if command -v npx >/dev/null 2>&1; then
+	npx -y skills@latest add vercel-labs/agent-browser \
+		--skill agent-browser --agent claude-code --global --copy --yes
+fi

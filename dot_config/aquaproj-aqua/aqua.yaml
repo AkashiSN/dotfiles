@@ -54,6 +54,10 @@ packages:
   - name: cloudflare/cloudflared@2026.8.2
   - name: jqlang/jq@jq-1.8.2
   - name: mikefarah/yq@v4.53.4
+  # --- AI エージェント補助 ---
+  # AI エージェント向けブラウザ自動化 CLI (Rust 製・CDP 直結。Node/Playwright 不要)。
+  # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。
+  - name: vercel-labs/agent-browser@v0.35.0
   # --- local registry (standard registry に無いもの) ---
   - name: yt-dlp/yt-dlp@2026.06.09 # media downloader
     registry: local

@@ -566,6 +566,31 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/vercel-labs/agent-browser/v0.35.0/agent-browser-darwin-arm64",
+      "checksum": "83EE82AA60BF60D21A4CE459BCB3AA7BC31C33A08F13F0DB01D9098552E2AE39",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/vercel-labs/agent-browser/v0.35.0/agent-browser-darwin-x64",
+      "checksum": "646BE75F7E5EB56A9ACDA067E0D51C4A43A5B3C3B51504F8775C62D0B4D3B25C",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/vercel-labs/agent-browser/v0.35.0/agent-browser-linux-arm64",
+      "checksum": "92CD7D0897837AC648B9A6AB1965C69C5920E0F54DF57E4295CDB1143B0541C8",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/vercel-labs/agent-browser/v0.35.0/agent-browser-linux-musl-x64",
+      "checksum": "285BA161354ABB8273D906FC9A718E91DB110902DB3A3A896D4423A080DAD7A2",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/vercel-labs/agent-browser/v0.35.0/agent-browser-win32-x64.exe",
+      "checksum": "C084D0AC606DC70FB9CA06CA0C468972E6AD96026B7E1D50A67FAFD0078ED196",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/wez/atomicparsley/20221229.172126.d813aa6/AtomicParsleyLinux.zip",
       "checksum": "D3E8625A06309BA318DB1E4BD9F2BFDE1D4492C398AD51ADB68060290D2C588C",
       "algorithm": "sha256"
