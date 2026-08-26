@@ -1,8 +1,8 @@
 Host *
     # 無言のネットワーク断（NAT タイムアウト・Wi-Fi 切替・スリープ）を 90 秒ほどで検知して
     # 接続を畳む。下の Match tagged portfwd で ControlMaster を使うホストでは、死んだ master が
-    # 残っていると次の ssh がそれへ多重化され、セッションは開くのにデータが流れず無反応になる
-    # （herdr が固まる原因になる。docs/herdr-cheatsheet.md）。短い間隔は NAT のマッピング維持も兼ねる。
+    # 残っていると次の ssh がそれへ多重化されてしまうため、早く畳めることが特に効く。
+    # 短い間隔は NAT のマッピング維持も兼ねる。
     ServerAliveInterval 30
     ServerAliveCountMax 3
     TCPKeepAlive        yes

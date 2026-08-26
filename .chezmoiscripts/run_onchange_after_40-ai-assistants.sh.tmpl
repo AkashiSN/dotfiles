@@ -35,6 +35,16 @@ KIRO_CHANNEL="stable"
 if ! command -v kiro-cli >/dev/null 2>&1 && [ ! -d "/Applications/Kiro CLI.app" ]; then
 	curl -fsSL https://cli.kiro.dev/install | bash -s -- --channel "$KIRO_CHANNEL"
 fi
+# シェル統合(rc ファイルへの pre/post ブロック注入)は使わない。この統合は
+# kiro-cli-term(figterm) という pty プロキシでシェルを包み直すもので、TUI の大量出力で
+# 内側 pty から読むのをやめることがある。そうなると内側 pty の出力キューが詰まって
+# 書き手の ssh が止まり、ControlMaster が mux socket への write() でブロックして
+# そのホスト宛の ssh が丸ごと固まる(docs/herdr-cheatsheet.md)。uninstall は
+# local-state の shell-integrations.enabled=false も立てるので、rc へ再注入されても
+# pre ブロックは何もしない。冪等なので毎回実行してよい。
+if command -v kiro-cli >/dev/null 2>&1; then
+	kiro-cli integrations uninstall -s dotfiles || true
+fi
 
 # --- Ollama (ollama.com) ---
 # ローカルで LLM を動かすランタイム(クラウド API ではなくオフライン実行)。

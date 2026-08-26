@@ -349,8 +349,12 @@ OpenSSH はこの拒否を SOCKS5 のエラー応答ではなく channel のク�
 - **2026-08**: `Host *` の keepalive を `ServerAliveInterval 1200` / `ServerAliveCountMax 12`
   から `30` / `3` へ短縮した。元の値は 20 分 × 12 回＝**4 時間**切断を検知せず、サーバ側も
   `ClientAliveInterval 0`（既定で無効）だったため、無言のネットワーク断で死んだ ssh 接続が
-  何時間も残っていた。`Match tagged portfwd` の `ControlMaster auto` は接続を再利用するので、
-  死んだ master が残っていると次の `ssh` がそれへ多重化され、セッションは開くのにデータが
-  流れず無反応になる（herdr が「UI は出るが何も効かない」状態で固まる原因。
-  `docs/herdr-cheatsheet.md` の該当節を参照）。20 分間隔は多くの NAT のタイムアウトより長く
-  接続維持の役にも立っていなかったため、短縮は NAT のマッピング維持も兼ねる。
+  何時間も残っていた。20 分間隔は多くの NAT のタイムアウトより長く接続維持の役にも立って
+  いなかったため、短縮は NAT のマッピング維持も兼ねる。
+  なおこの変更は当初「herdr が固まり以降の `ssh` が全部ハングする」現象の対策として入れたが、
+  **その診断は誤りだった**。実際の原因は死んだ master の再利用ではなく、Kiro CLI のシェル統合
+  （`kiro-cli-term` = figterm という pty プロキシ）が内側 pty を読まなくなり、その背圧で
+  ControlMaster が mux socket への `write()` でブロックしてイベントループから出られなくなる
+  デッドロックだった。TCP は生きたままなので keepalive では検知できない。詳細と切り分け手順は
+  `docs/herdr-cheatsheet.md` の「herdr が固まり、そのホスト宛の ssh が全部ハングする」節。
+  keepalive の短縮自体は本来の目的（死んだ接続の検知・NAT 維持）で有用なので残している。

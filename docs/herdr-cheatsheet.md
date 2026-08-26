@@ -216,36 +216,73 @@ pop、`\e[=0;1u` で現行フラグを 0 に戻す（素の端末で叩いても
 
 ---
 
-## 再接続後に herdr が固まる（死んだ ControlMaster の再利用）
+## herdr が固まり、そのホスト宛の ssh が全部ハングする（pty プロキシ起因の ControlMaster デッドロック）
 
-SSH が無言で切れた後に再接続して `herdr` を起動すると、**左のスペース／エージェント／ターミナル
-領域は描画されるのに、シェルが出ず、キー入力も `<prefix> q` も一切効かない**ことがある。
-Ghostty を落として ssh からやり直すと、セッションを引き継いだまま正常に繋がる。
+`herdr` を起動すると **UI の一部だけ描画されて、シェルも出ず、キー入力も `<prefix> q` も一切
+効かない**。さらにそのあと、別の端末から `ssh develop-server` も `ssh -O check` も `ssh -O exit`
+も**永久にハングする**。`ssh -o ControlPath=none develop-server` だけが繋がり、そのとき
+`bind [127.0.0.1]:55887: Address already in use` と `remote port forwarding failed for listen
+port 55999` が出る。Ghostty を落とすと直る。
 
-原因は herdr 側ではなく **ssh 経路**にある。`develop-server` は `Tag portfwd` 経由で
-`ControlMaster auto` / `ControlPersist 10m` が効くため、無言のネットワーク断で死んだ master が
-残っていると、**次の `ssh` はその死んだ master へ多重化される**。セッションは開くので herdr は
-起動してハンドシェイクも成功するが、実データは死んだ TCP を通れない。最初の数 KB（＝UI の初期
-フレーム）だけ届いて以降が止まるため、「UI は出るが無反応」に見える。Ghostty を落とすと master
-ごと消えて次の ssh が新しい TCP を張り直すので直る。
+原因は herdr でも ssh でもなく、**Ghostty とシェルの間に挟まっている pty プロキシ**にある。
+Kiro CLI のシェル統合は `kiro-cli-term`（Fig 由来の figterm）でシェルを内側の pty に包み直す。
+これが TUI の大量出力（herdr の初期再描画）で内側 pty から読むのをやめると、次の連鎖でホスト宛の
+ssh が丸ごとデッドロックする:
 
-**サーバ側は無実**であることの確認（別セッションから。応答すればサーバもペインも生きている）:
+1. `kiro-cli-term` が内側 pty のマスタ側を読まない → **内側 pty の出力キューが満杯**
+2. ssh クライアントが stdout に書けない → mux socket を読むのをやめる
+3. **ControlMaster が mux socket への `write()` でブロック**し、イベントループから出られなくなる
+4. master がネットワークを読まない（受信バッファが満杯のまま張り付く）／control socket も
+   accept しない
+5. 以降の `ssh` / `-O check` / `-O exit` は `~/.ssh/cm-<host>` に繋いだまま永久に待つ
+   （`-o ControlPath=none` だけが迂回できる。bind エラーは固まった master が
+   55887 / 55999 を握り続けているため）
+
+**TCP は生きている**ので `ServerAliveInterval` は効かない。ssh は keepalive を送る／評価する
+イベントループにそもそも入れていない。
+
+**切り分け**。サーバ側が無実であることは別セッションから確認する（応答すればサーバもペインも
+生きている）:
 
 ```bash
 herdr status && herdr tab list
 ```
 
-**原因の切り分けと回避（ローカル側）**。2 つ目が繋がれば死んだ master の再利用で確定:
+ローカル側は次で確定させる。master が `write` でブロックし、TCP の Recv-Q が受信バッファ上限
+（rhiwat）に張り付いていれば、この節の症状:
 
 ```bash
-ssh -O check develop-server              # 古い master が残っているか
-ssh -o ControlPath=none develop-server   # 多重化を迂回して新規接続（回避策にもなる）
-ssh -O exit develop-server               # master を明示的に畳む（rm -f ~/.ssh/cm-develop-server でも可）
+ps -o pid,stat,command -ax | grep '[c]m-'          # ssh: ~/.ssh/cm-<host> [mux] の pid
+sample <mux-pid> 1 -f /tmp/m.txt                   # 全サンプルが write(2) なら master はブロック中
+netstat -anv -p tcp | grep '\.22 '                 # Recv-Q が rhiwat に張り付いていれば読んでいない
+netstat -an -f unix | grep cm-<host>               # Recv-Q 12 の行＝未 accept のまま溜まった ssh
 ```
 
-`~/.ssh/config` の `ServerAliveInterval 30` / `ServerAliveCountMax 3` は、この死んだ master が
-残る時間を 90 秒程度に抑えるための設定（`private_dot_ssh/private_config.tmpl`）。ただし
-`ControlPersist 10m` の間は master が残りうるので、落とした直後の再接続で再発することがある。
+詰まっている pty は**そこへ 1 バイト書いてみる**のが決定的。ブロックすれば出力キューが満杯:
+
+```bash
+ps -o tty= -p <ssh-pid>                            # 例: ttys004
+( printf '\r' > /dev/ttys004 ) & sleep 2; kill -0 $! 2>/dev/null && echo BLOCKED
+```
+
+**復旧**は `kiro-cli-term` を落とす。連鎖が解けて master はその場で正常化し、リモートの herdr
+セッションもそのまま残る（そのタブのシェルは道連れになるのでタブは閉じる）:
+
+```bash
+ps -o pid,tty,command -ax | grep '[k]iro-cli-term'
+kill <kiro-cli-term-pid>
+ssh -O check develop-server                        # Master running (pid=...) が即返れば復旧
+```
+
+**恒久対策**として Kiro CLI のシェル統合を無効化してある
+（`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`）:
+
+```bash
+kiro-cli integrations uninstall -s dotfiles        # rc の pre/post ブロックを削除（冪等）
+kiro-cli _ local-state shell-integrations.enabled  # → false（再注入されても pre は何もしない）
+```
+
+インライン補完は失われるが、`kiro-cli chat` などは従来どおり使える。
 
 `HERDR_LOG` でクライアント／サーバのログレベルを上げられる（既定は `herdr=info`）:
 
