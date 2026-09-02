@@ -130,6 +130,7 @@ registry.terraform.io/hashicorp/aws
 
 | 症状 | 対処 |
 | --- | --- |
+| `terraform` が返ってこない（`terraform version` でも／Tab を押すと固まる） | `TENV_AUTO_INSTALL=true` なので、未導入バージョンを tenv が黙ってダウンロード中。**terraform は Tab 補完でも起動される**（`40-tools.zsh` の `complete -o nospace -C terraform`）ので補完のたびに待たされる。`tenv tf list` で手元の版を確認し、`tenv tf install <ver>` で先に入れておく |
 | `Invalid plugin cache directory` | キャッシュディレクトリが無い。`chezmoi apply` するか `mkdir -p "$TF_PLUGIN_CACHE_DIR"` |
 | `.terraform/providers` のリンク切れ | `tf-cache-prune` で消した後に起きる。該当プロジェクトで `terraform init` |
 | キャッシュが効いていない | `echo $TF_PLUGIN_CACHE_DIR` を確認。空なら `.zshenv` が読まれていない（新しいシェルを開く） |
