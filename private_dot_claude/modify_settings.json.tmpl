@@ -27,12 +27,18 @@ MANAGED=$(cat <<'JSON'
   "autoUpdatesChannel": "latest",
   "enabledPlugins": {
     "code-simplifier@claude-plugins-official": true,
-    "example-skills@anthropic-agent-skills": true,
     "gopls-lsp@claude-plugins-official": true,
+    "natural-japanese@natural-japanese": true,
     "superpowers@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true
   },
   "extraKnownMarketplaces": {
+    "natural-japanese": {
+      "source": {
+        "repo": "coji/natural-japanese",
+        "source": "github"
+      }
+    },
     "superpowers-marketplace": {
       "source": {
         "repo": "obra/superpowers-marketplace",
