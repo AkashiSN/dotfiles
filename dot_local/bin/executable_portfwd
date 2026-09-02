@@ -2,7 +2,9 @@
 """portfwd - SSH 先のブラウザ起動をローカルへ転送するローカル daemon.
 
 リモートの portfwd-open シムが RemoteForward 経由で 127.0.0.1:55999 へ
-{"host","url"} を POST する。daemon は url の callback ポートをローカルで listen し、
+{"host","url"} を POST する。SSH 先の listen 端は Unix domain socket
+(/run/user/<uid>/portfwd.sock) で、この daemon が受けるローカル側は TCP のまま。
+daemon は url の callback ポートをローカルで listen し、
 その ssh 接続の DynamicForward(SOCKS5) を通してリモートの同じポートへ中継したうえで、
 ローカルのブラウザを開く。
 

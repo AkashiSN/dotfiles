@@ -59,10 +59,12 @@ Host develop-server
     User            ubuntu
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
     DynamicForward  127.0.0.1:55887
+    # SetEnv はマッチする最初の 1 行しか効かない（2 行目以降は値ごとにマージされず丸ごと
+    # 捨てられる）。このホストへ他の SetEnv を足すときは同じ行にまとめる。
     SetEnv          LC_PORTFWD_HOST=develop-server
-{{- if eq .chezmoi.os "windows" }}
-    RemoteForward   127.0.0.1:55999 127.0.0.1:55999
-{{- else }}
+    # 逆チャネルの listen 端はサーバ上の自分の uid のパス（docs/portfwd-cheatsheet.md）。
+    RemoteForward   /run/user/1000/portfwd.sock 127.0.0.1:55999
+{{- if ne .chezmoi.os "windows" }}
     Tag             portfwd
 {{- end }}
 
@@ -78,10 +80,14 @@ Host cloudsa
     ForwardAgent    yes
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
     DynamicForward  127.0.0.1:55888
+    # SetEnv はマッチする最初の 1 行しか効かない（2 行目以降は値ごとにマージされず丸ごと
+    # 捨てられる）。このホストへ他の SetEnv を足すときは同じ行にまとめる。
     SetEnv          LC_PORTFWD_HOST=cloudsa
+    # 逆チャネルの listen 端はサーバ上の自分の uid のパス。複数人が使うサーバなので
+    # TCP ポートでは別人のトンネルへ相乗りしうる（docs/portfwd-cheatsheet.md）。
+    RemoteForward   /run/user/1002/portfwd.sock 127.0.0.1:55999
 {{- if eq .chezmoi.os "windows" }}
     ProxyCommand    "{{ .chezmoi.homeDir | replace "\\" "/" }}/.ssh/ssm-proxy.bat" %h %p %r cdx-arise-pre-dev
-    RemoteForward   127.0.0.1:55999 127.0.0.1:55999
 {{- else }}
     ProxyCommand    ~/.ssh/ssm-proxy.sh %h %p %r cdx-arise-pre-dev
     Tag             portfwd
@@ -108,14 +114,13 @@ Host gist.github.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
 
 {{- if ne .chezmoi.os "windows" }}
-# portfwd: タグ付きホストの逆チャネル（docs/portfwd-cheatsheet.md）。
-# 動的フォワードは daemon が DynamicForward(SOCKS5) 経由で張るため、ここでは
-# 逆チャネルだけを設定する。ControlMaster は ssh 接続を再利用するための設定。
+# portfwd: タグ付きホストの共通設定（docs/portfwd-cheatsheet.md）。
+# 逆チャネルの RemoteForward はサーバ上の uid をパスに含むためホストごとに書く。
+# ここに置けるのは接続を再利用するための ControlMaster だけ。
 Match tagged portfwd
     ControlMaster    auto
     ControlPath      ~/.ssh/cm-%n
     ControlPersist   10m
-    RemoteForward    127.0.0.1:55999 127.0.0.1:55999
 {{- end }}
 
 # Match

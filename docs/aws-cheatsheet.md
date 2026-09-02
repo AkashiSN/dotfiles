@@ -116,14 +116,14 @@ aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN で�
 
 | 順 | 条件 | 使うコマンド |
 | --- | --- | --- |
-| 1 | portfwd 逆チャネルが**生きている**（`LC_PORTFWD_HOST` あり かつ `127.0.0.1:55999` の `GET /health` が `{"service":"portfwd",…}` を返す） | `aws login`（`$BROWSER=portfwd-open` がローカルのブラウザを開く） |
+| 1 | portfwd 逆チャネルが**生きている**（`LC_PORTFWD_HOST` あり かつ 逆チャネルのソケット越しの `GET /health` が `{"service":"portfwd",…}` を返す） | `aws login`（`$BROWSER=portfwd-open` がローカルのブラウザを開く） |
 | 2 | `$BROWSER` が空でなく `portfwd-open` 以外（VSCode Remote 等） | `aws login`（`$BROWSER` ヘルパ + 自動ポートフォワードで完結） |
 | 3 | それ以外の SSH セッション | `aws login --remote` |
 | 4 | 非 SSH | `aws login` |
 
-- 1 の判定に TCP connect ではなく `GET /health` を使うのは、`RemoteForward` の listen ソケットを
+- 1 の判定に connect ではなく `GET /health` を使うのは、逆チャネルのソケットを
   **SSH 先の sshd が**持つため。ローカルの daemon が死んでいても connect は成功してしまい、
-  実際には `portfwd-open` が `Empty reply from server` で落ちて認証が完結しない。
+  実際には `portfwd-open` が空応答で落ちて認証が完結しない。
   仕組みは [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
 - 1 の `/health` の待ち時間は `portfwd-open` の POST と同じ **5 秒**。ローカルの daemon は常駐
   サービスの起動直後などに応答へ数秒かかることがあり、短いと生きている逆チャネルを取り逃して
@@ -131,7 +131,7 @@ aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN で�
 - **フォールバックした理由は `/dev/tty` へ出る**ので、`aws-switch` 経由でも見える:
 
   ```
-  aws-login: portfwd 逆チャネルが使えません: 127.0.0.1:55999 が空応答です。listen はして
+  aws-login: portfwd 逆チャネルが使えません: /run/user/1002/portfwd.sock が空応答です。listen はして
   いるのでローカルの portfwd daemon が落ちています。aws login --remote へフォールバックします。
   ```
 

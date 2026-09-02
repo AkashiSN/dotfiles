@@ -221,8 +221,9 @@ pop、`\e[=0;1u` で現行フラグを 0 に戻す（素の端末で叩いても
 `herdr` を起動すると **UI の一部だけ描画されて、シェルも出ず、キー入力も `<prefix> q` も一切
 効かない**。さらにそのあと、別の端末から `ssh develop-server` も `ssh -O check` も `ssh -O exit`
 も**永久にハングする**。`ssh -o ControlPath=none develop-server` だけが繋がり、そのとき
-`bind [127.0.0.1]:55887: Address already in use` と `remote port forwarding failed for listen
-port 55999` が出る。Ghostty を落とすと直る。
+`bind [127.0.0.1]:55887: Address already in use` と
+`remote port forwarding failed for listen path /run/user/<uid>/portfwd.sock` が出る
+（逆チャネルが TCP だった頃は `listen port 55999`）。Ghostty を落とすと直る。
 
 原因は herdr でも ssh でもなく、**Ghostty とシェルの間に挟まっている pty プロキシ**にある。
 Kiro CLI のシェル統合は `kiro-cli-term`（Fig 由来の figterm）でシェルを内側の pty に包み直す。
@@ -236,7 +237,7 @@ ssh が丸ごとデッドロックする:
    accept しない
 5. 以降の `ssh` / `-O check` / `-O exit` は `~/.ssh/cm-<host>` に繋いだまま永久に待つ
    （`-o ControlPath=none` だけが迂回できる。bind エラーは固まった master が
-   55887 / 55999 を握り続けているため）
+   55887 と逆チャネルのソケットを握り続けているため）
 
 **TCP は生きている**ので `ServerAliveInterval` は効かない。ssh は keepalive を送る／評価する
 イベントループにそもそも入れていない。

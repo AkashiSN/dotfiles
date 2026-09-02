@@ -29,8 +29,9 @@
 #
 #   (a) portfwd 逆チャネル（docs/portfwd-cheatsheet.md）。オプトインしたホストへの SSH では
 #       LC_PORTFWD_HOST が渡り、.zshenv が $BROWSER を portfwd-open に向ける。
-#       127.0.0.1:55999 の daemon が /health に応答すれば、URL はローカル mac のブラウザで
-#       開き、コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
+#       逆チャネルの Unix domain socket 越しに daemon が /health に応答すれば、URL は
+#       ローカル mac のブラウザで開き、コールバックは SOCKS5 リレー経由で SSH 先の
+#       loopback へ戻る。
 #       到達できないとき（daemon 停止・逆チャネル未設定）は --remote へフォールバックする。
 #       $BROWSER の有無ではなく実際の到達性で判定するのはこのため。
 #       フォールバックした理由は /dev/tty へ出す。aws-switch は aws-login の出力を捨てるため、
@@ -113,15 +114,16 @@ emit_creds_if_valid() {
 
 # portfwd 逆チャネルが使えるか判定する（docs/portfwd-cheatsheet.md）。
 #   - LC_PORTFWD_HOST がセット済み（オプトインしたホストへの SSH セッション）かつ
-#     127.0.0.1:55999 の daemon が応答すれば、ローカルのブラウザを開ける。この場合
-#     aws login --remote ではなく通常の aws login（localhost コールバック）を使う。
+#     逆チャネルの Unix domain socket 越しに daemon が応答すれば、ローカルのブラウザを
+#     開ける。この場合 aws login --remote ではなく通常の aws login（localhost
+#     コールバック）を使う。
 #   - 変数だけで判定しないのは、ssh config が SetEnv していても daemon が落ちていたり
 #     RemoteForward の bind に失敗していたりするため。到達性まで見て初めて安全に
 #     コールバック方式へ倒せる。
-#   - TCP connect ではなく GET /health まで確認する。RemoteForward の listen ソケットは
-#     **SSH 先の sshd が** 持つため、ローカルの daemon が死んでいても connect は成功して
-#     しまう（実際には応答が無く、portfwd-open が「Empty reply from server」で落ちる）。
-#     daemon が返す {"service":"portfwd",...} を見て初めて逆チャネルの生存を確認できる。
+#   - connect ではなく GET /health まで確認する。逆チャネルのソケットは **SSH 先の
+#     sshd が** 持つため、ローカルの daemon が死んでいても connect は成功してしまう
+#     （実際には応答が無く、portfwd-open が空応答で落ちる）。daemon が返す
+#     {"service":"portfwd",...} を見て初めて逆チャネルの生存を確認できる。
 #     /health は pid 等を含めず、リモートから読まれる前提で設計されている。
 #   - タイムアウトは portfwd-open の POST と同じ 5 秒。ローカルの daemon は常駐サービスの
 #     起動直後などに応答へ 5 秒近くかけることがあり、短いと生きている逆チャネルを
@@ -146,30 +148,31 @@ portfwd_channel_available() {
         fi
         return 1
     fi
-    local port="${PORTFWD_PORT:-55999}"
-    local url="http://127.0.0.1:${port}/health"
+    local sock="${PORTFWD_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/portfwd.sock}"
     local body why
     local rc=0
-    if command -v curl >/dev/null 2>&1; then
-        body=$(curl -sS --max-time "$PORTFWD_HEALTH_TIMEOUT" "$url" 2>/dev/null) || rc=$?
-    else
-        # curl が無い環境向けの最小 HTTP GET（portfwd-open と同じ手法）。
-        body=$(timeout "$PORTFWD_HEALTH_TIMEOUT" bash -c "
-            exec 3<>/dev/tcp/127.0.0.1/${port} || exit 1
-            printf 'GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3
-            cat <&3" 2>/dev/null) || rc=$?
+    if [ ! -S "$sock" ]; then
+        portfwd_notice "portfwd 逆チャネルが使えません: ${sock} がありません。ローカルの ssh config の RemoteForward がこのパスを指していないか、bind に失敗しています。aws login --remote へフォールバックします。"
+        return 1
     fi
+    # Unix domain socket へは curl でしか繋げない（bash の /dev/tcp は TCP 専用）。
+    if ! command -v curl >/dev/null 2>&1; then
+        portfwd_notice "portfwd 逆チャネルが使えません: curl がありません。aws login --remote へフォールバックします。"
+        return 1
+    fi
+    body=$(curl -sS --unix-socket "$sock" --max-time "$PORTFWD_HEALTH_TIMEOUT" \
+        http://localhost/health 2>/dev/null) || rc=$?
     if printf '%s' "$body" | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'; then
         return 0
     fi
     # 逆チャネルは使えない。ここで理由を出さないと --remote へ落ちた事実だけが残り、
     # 原因がどこにも残らない。切り分けは docs/portfwd-cheatsheet.md のトラブルシューティングと対応する。
     case "$rc" in
-        7)      why="127.0.0.1:${port} へ接続できません。ローカルの ssh config に RemoteForward が無いか bind に失敗しています" ;;
-        52)     why="127.0.0.1:${port} が空応答です。listen はしているのでローカルの portfwd daemon が落ちています" ;;
-        28|124) why="127.0.0.1:${port} が ${PORTFWD_HEALTH_TIMEOUT} 秒以内に応答しません。ローカルの portfwd daemon が停止中か応答不能です" ;;
-        0)      why="127.0.0.1:${port} の応答が portfwd daemon のものではありません" ;;
-        *)      why="127.0.0.1:${port} の /health に失敗しました（終了コード ${rc}）" ;;
+        7)      why="${sock} へ接続できません。sshd は listen していますが転送先が閉じています" ;;
+        52|56)  why="${sock} が空応答です。listen はしているのでローカルの portfwd daemon が落ちています" ;;
+        28)     why="${sock} が ${PORTFWD_HEALTH_TIMEOUT} 秒以内に応答しません。ローカルの portfwd daemon が停止中か応答不能です" ;;
+        0)      why="${sock} の応答が portfwd daemon のものではありません" ;;
+        *)      why="${sock} の /health に失敗しました（終了コード ${rc}）" ;;
     esac
     portfwd_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
     return 1
