@@ -1,0 +1,47 @@
+#!/bin/bash
+# claude-bedrock-wrapper <claude 実行ファイル> [args...] - 渡された claude を
+# Amazon Bedrock (グローバル推論プロファイル) 用の env つきで exec する。
+#
+# なぜ関数ではなく実体スクリプトなのか:
+#   VS Code 拡張 (anthropic.claude-code) の claudeCode.claudeProcessWrapper は
+#   「実行ファイルのパス」しか受け取らない。拡張はシェルを介さず
+#     <wrapper> <拡張が同梱する claude> <claude への引数...>
+#   の形で spawn するため、zsh 関数や alias では解決できない。逆に「第 1 引数として
+#   渡された claude を exec する」ことが拡張との契約なので、ここでは PATH 上の claude を
+#   勝手に選ばず "$@" をそのまま exec する (拡張が動作確認しているのは同梱版であり、
+#   別バージョンを混ぜない)。
+#
+# VS Code から Bedrock で動かしたいときだけ、設定に次を足す (既定では入れていない。
+# 手元の VS Code は claude.ai のサブスクリプションで使うため):
+#   "claudeCode.claudeProcessWrapper": "/Users/<user>/.local/bin/claude-bedrock-wrapper"
+#
+# 使う AWS プロファイルは CLAUDE_CODE_BEDROCK_AWS_PROFILE (既定 cdx-pre-dev)。対話中に
+# aws-switch で選んでいる AWS_PROFILE は上書きするので影響されない。認証はそのプロファイルの
+# credential_process = aws-login が担う (追加ログイン不要)。
+#
+# 関連: claude-bedrock / docs/zsh-cheatsheet.md
+set -euo pipefail
+
+die() {
+  echo "claude-bedrock-wrapper: $1" >&2
+  exit 1
+}
+
+[ $# -gt 0 ] || die "使い方: claude-bedrock-wrapper <claude 実行ファイル> [args...]"
+
+# 対話シェルを経由せず起動される (VS Code 拡張ホスト) ため PATH は自前で通す。
+# プロファイルの credential_process = aws-login も ~/.local/bin にある。
+export PATH="$HOME/.local/bin:${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$PATH"
+
+export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+export CLAUDE_CODE_USE_BEDROCK=1
+export CLAUDE_CODE_USE_MANTLE=1
+export CLAUDE_CODE_ENABLE_AUTO_MODE=1
+# グローバル推論プロファイルでも SigV4 署名には具体リージョンが要る (ルーティングは自動)。
+export AWS_REGION="${CLAUDE_CODE_BEDROCK_REGION:-us-east-1}"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-5[1m]}"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_CODE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+export ANTHROPIC_MODEL="$ANTHROPIC_DEFAULT_OPUS_MODEL"
+
+exec "$@"

@@ -61,12 +61,31 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
 | `claude [args]` | `claude` をラップし、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。セッション名プレフィックスは claude 既定でホスト名）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。ローカルや非対話シェルでは実バイナリのまま無変更 |
-| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動。env をその呼び出しに限って渡すので通常の `claude` は claude.ai のまま。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` を常に上書きするので、対話中に `aws-switch` で選んでいるプロファイルには影響されない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。`claude`（関数）経由なので SSH 素起動なら Remote Control も乗る |
+| `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動（`~/.local/bin/claude-bedrock`）。env はその呼び出しにだけ乗るので通常の `claude` は claude.ai のまま。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` を常に上書きするので、対話中に `aws-switch` で選んでいるプロファイルには影響されない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。SSH 接続先の引数なし起動には `claude`（関数）と同じ規則で `--remote-control` を足す |
 | `codex [args]` | `codex` をラップし、起動直前に `codex-appserver-evict` で共有 app-server の `CODEX_HOME` を照合する。食い違う app-server（＝ Bedrock 用に残ったもの）を畳んで作り直させ、素の codex が黙って Bedrock で走るのを防ぐ。app-server に繋がない呼び出し（`exec` / `login` / `--version` など）では何もしない |
 | `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`~/.local/bin/codex-bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。`CODEX_HOME` をプロジェクトごとの一時 home へ向け、その `config.toml` を「素の config ＋ `~/.codex/bedrock.config.toml`」にする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` に渡し、その `credential_process = aws-login` が認証を担う。リージョン/モデルを変えるときは `dot_codex/private_bedrock.config.toml` を編集 |
 | `codex-bedrock-spawn <name> [opts]` | agmsg の codex エージェントを Bedrock で動く状態で herdr のペインに立ち上げる（`~/.local/bin/codex-bedrock-spawn`）。内部で `spawn.sh` を呼ぶ。`--team` / `--project` / `--direction` 以外の引数は spawn.sh へ素通し（`--boot-prompt` など）。片付けは素の agmsg と同じ `despawn.sh <team> <self> <name> --force` |
 | `term-reset` | 端末のマウス報告 / フォーカス報告 / 括弧付き貼り付け / Kitty keyboard protocol（`\e[<u` で pop、`\e[=0;1u` でフラグ 0）を無効化して端末状態を復旧。SSH 異常切断でリモートの nvim 等が有効化した端末モードが居残り、キー入力で `15;1:3u` 等・マウスで `0;129;39M` 等が漏れたときに叩く（素の端末でも無害）。詳細は [herdr チートシート](herdr-cheatsheet.md#ssh-異常切断後の端末化けterm-reset) |
 | `herdr [args]` / `ssh [args]` | ローカルシェルでのみ実バイナリをラップし、戻り際に必ず `term-reset` する（`herdr --remote` / `ssh` 先の異常切断による端末化けを自動復旧）。herdr は内部で自前の ssh を exec するため `herdr` 自体もラップ対象。リモートシェル（`$SSH_CONNECTION` あり）ではラップしない |
+
+**`claude-bedrock` は関数ではなくスクリプト**（`~/.local/bin/claude-bedrock`）。env の組み立てと
+AWS プロファイルの解決は `~/.local/bin/claude-bedrock-wrapper`（`<claude 実行ファイル> [args...]`
+を受け取って exec する）に一本化してあり、`claude-bedrock` はそこへ PATH 上の `claude` を渡すだけ。
+分けてあるのは、VS Code 拡張の `claudeCode.claudeProcessWrapper` が**シェルを経由せず実行ファイルの
+パス**を spawn するため（zsh 関数や alias では届かない）。
+
+> **VS Code は既定では Bedrock にしていない**（手元の VS Code は claude.ai のサブスクリプションで
+> 使うため）。拡張から Bedrock で動かしたいときだけ、`Library/Application Support/Code/User/settings.json`
+> に次を足す。拡張はシェルを経由しないので、zsh の `claude` 関数（Remote Control 付与）も通らない。
+>
+> ```json
+> "claudeCode.claudeProcessWrapper": "/Users/<user>/.local/bin/claude-bedrock-wrapper"
+> ```
+>
+> なお `claudeProcessWrapper` が効くのは**拡張自身が spawn するプロセス**だけで、エディタ右上の
+> Claude Code アイコン（`claude-vscode.terminal.open`）は統合ターミナルへリテラル `claude` を流す
+> 別実装のため、この設定を見ない。アイコンから Bedrock で起動したいときは、ターミナルで
+> `claude-bedrock` を打つ。
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
@@ -76,7 +95,8 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 
 `claude-bedrock` / `codex-bedrock` はそれぞれ専用の環境変数で `AWS_PROFILE` を決める（未設定なら
 既定値）。対話中に `aws-switch` で選んでいるプロファイルは無視され、bedrock 用は常にこの専用
-プロファイルに固定される（両者ともサブシェルに閉じ込めるので対話シェルの `AWS_PROFILE` は不変）。
+プロファイルに固定される（`claude-bedrock` は自分のプロセス内、`codex-bedrock` はサブシェルに
+閉じ込めるので、どちらも対話シェルの `AWS_PROFILE` は不変）。
 
 | 変数 | 既定値 | 対象 |
 | --- | --- | --- |

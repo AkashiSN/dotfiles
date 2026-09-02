@@ -81,26 +81,11 @@ function agmsg-bridge-reap () {
   return 0
 }
 
-# claude.ai 障害時などに Claude Code を Amazon Bedrock(グローバル推論プロファイル)へ
-# 切り替えるための共通 env を「現在のシェル」へ export する内部ヘルパー。claude-bedrock /
-# ide-bedrock から サブシェル内で呼ぶので、呼び出し元の対話シェルは汚さない(per-invocation)。
-# 使う AWS プロファイルは CLAUDE_CODE_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)で AWS_PROFILE を
-# 常に上書きするので、対話中に aws-switch で選んでいるプロファイルには影響されない。認証は
-# aws-login(credential_process)が担うため追加ログイン不要(トークン期限切れも自動更新)。
-# Bedrock 側で対象モデルのアクセス権を有効化しておくこと。リージョン/モデルは
-# CLAUDE_CODE_BEDROCK_* で上書き可能。AWS_REGION はグローバルプロファイルでも SigV4 署名用に
-# 具体リージョンが必要(ルーティングはグローバルプロファイルが自動で行う)。
-function _claude-bedrock-env () {
-  export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
-  export CLAUDE_CODE_USE_BEDROCK=1
-  export CLAUDE_CODE_USE_MANTLE=1
-  export CLAUDE_CODE_ENABLE_AUTO_MODE=1
-  export AWS_REGION="${CLAUDE_CODE_BEDROCK_REGION:-us-east-1}"
-  export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-5[1m]}"
-  export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
-  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_CODE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
-  export ANTHROPIC_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL}"
-}
+# claude.ai 障害時などに Claude Code を Amazon Bedrock(グローバル推論プロファイル)で
+# 起動するのは ~/.local/bin/claude-bedrock(スクリプト)の役目。ここに関数を置かないのは、
+# VS Code 拡張の claudeProcessWrapper がシェルを経由せず実行ファイルのパスを spawn する
+# ため、関数では届かないから(env の定義は claude-bedrock-wrapper に一本化)。
+# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
 
 # claude を Remote Control 付きで起動できるようラップする。SSH 接続先で「引数なしの素の起動」の
 # ときだけ --remote-control を付け、claude.ai / モバイル等のリモートからそのインタラクティブ
@@ -113,14 +98,6 @@ function claude () {
     return
   fi
   command claude "$@"
-}
-
-# Claude Code 単体を Bedrock で起動する。通常の `claude` は claude.ai のまま無変更。
-# サブシェルで env を閉じ込めるので、呼び出し後のシェルには設定が残らない。claude(関数)経由で
-# 呼ぶので、SSH 接続先で引数なし起動なら Remote Control も乗る。
-# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
-function claude-bedrock () {
-  ( _claude-bedrock-env && claude "$@" )
 }
 
 # codex をラップし、起動直前に共有 app-server の CODEX_HOME を照合する。agmsg monitor モードの

@@ -1,0 +1,26 @@
+#!/bin/bash
+# claude-bedrock [args...] - Claude Code を Amazon Bedrock (グローバル推論プロファイル) で
+# 起動する。素の `claude` は claude.ai のまま無変更 (この呼び出しにだけ env が乗る)。
+#
+# env の中身と AWS プロファイルの解決は claude-bedrock-wrapper に一本化してある
+# (VS Code 拡張の claudeProcessWrapper と共有するため)。ここは PATH 上の claude を
+# 渡すだけ。zsh 関数ではなくスクリプトなのは、非対話シェルや他ツールからも同じ経路で
+# 起動できるようにするため。
+#
+# SSH 接続先での引数なし起動には --remote-control を足す。zsh の claude 関数と同じ規則で、
+# claude.ai / モバイルからそのインタラクティブセッションを操作できるようにする
+# (このスクリプトは関数を経由しないので、ここで同じ判定を持つ)。
+#
+# 関連: claude-bedrock-wrapper / docs/zsh-cheatsheet.md
+set -euo pipefail
+
+CLAUDE=$(command -v claude) || {
+  echo "claude-bedrock: PATH に claude が見つかりません" >&2
+  exit 1
+}
+
+if [ -n "${SSH_CONNECTION:-}" ] && [ $# -eq 0 ]; then
+  set -- --remote-control
+fi
+
+exec "$HOME/.local/bin/claude-bedrock-wrapper" "$CLAUDE" "$@"
