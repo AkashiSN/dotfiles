@@ -11,13 +11,15 @@
 | Ghostty | [ghostty-cheatsheet.md](ghostty-cheatsheet.md) | `dot_config/ghostty/config` |
 | zsh | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` |
 | AI Git / PR | [ai-git-cheatsheet.md](ai-git-cheatsheet.md) | `dot_local/bin/git-aicommit` / `gh-pr-aicreate` / `private_dot_claude/hooks/pr-refresh-check.sh` |
-| Terraform（provider キャッシュ） | [terraform-cheatsheet.md](terraform-cheatsheet.md) | `dot_terraformrc.tmpl` / `dot_local/bin/tf-cache-prune` |
-| uv（Python ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |
+| Terraform（provider キャッシュ / tflint） | [terraform-cheatsheet.md](terraform-cheatsheet.md) | `dot_terraformrc.tmpl` / `dot_local/bin/tf-cache-prune` / `dot_config/aquaproj-aqua/aqua.yaml` |
+| uv（既定の Python / ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `dot_config/uv/dot_python-version` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |
+| シェルスクリプト lint / format | [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） |
 | AWS プロファイル切替 | [aws-cheatsheet.md](aws-cheatsheet.md) | `dot_local/bin/aws-switch` / `aws-login` / `aws-logout` / `dot_aws/modify_config` |
 | portfwd（SSH ブラウザ自動FW） | [portfwd-cheatsheet.md](portfwd-cheatsheet.md) | `dot_local/bin/portfwd` / `portfwd-open` / `private_dot_ssh/private_config.tmpl` |
 | dji_workflow（DJI 取り込み → Immich） | [dji-cheatsheet.md](dji-cheatsheet.md) | `dot_local/bin/dji_workflow.py` |
 | agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |
 | CodeGraph（コード知識グラフ / MCP） | [codegraph-cheatsheet.md](codegraph-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md` |
+| Claude Code（plugin） | [claude-plugins-cheatsheet.md](claude-plugins-cheatsheet.md) | `private_dot_claude/modify_settings.json.tmpl` |
 | Claude Code（compact 対策 / statusLine） | [claude-compact-cheatsheet.md](claude-compact-cheatsheet.md) | `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl` |
 | graphify（知識グラフ） | [graphify-cheatsheet.md](graphify-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md` |
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
