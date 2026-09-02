@@ -1,10 +1,11 @@
 # Terraform チートシート
 
-`tenv` によるバージョン管理と、provider のダウンロードキャッシュについて。
+`tenv` によるバージョン管理、provider のダウンロードキャッシュ、`tflint` による lint について。
 
 対象ファイル: `dot_terraformrc.tmpl` / `dot_zshenv.tmpl` /
 `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` /
-`dot_local/bin/executable_tf-cache-prune` / `dot_config/zsh/rc.d/40-tools.zsh`
+`dot_local/bin/executable_tf-cache-prune` / `dot_config/zsh/rc.d/40-tools.zsh` /
+`dot_config/aquaproj-aqua/aqua.yaml`
 
 ## provider キャッシュ
 
@@ -92,6 +93,31 @@ registry.terraform.io/hashicorp/aws
 | `tenv` | Terraform / OpenTofu のバージョン管理（aqua 管理パッケージ） |
 | `TENV_AUTO_INSTALL=true` | 必要なバージョンを自動インストール（`40-tools.zsh`） |
 | `TENV_VALIDATION=sha` | ダウンロードを SHA で検証（`40-tools.zsh`） |
+
+## lint（tflint）
+
+`terraform validate` は構文と型しか見ない。使っていない変数・非推奨の書き方・命名規約
+といった「動くが直したい」ものは `tflint`（aqua 管理パッケージ）で拾う。
+
+| コマンド | 役割 |
+| --- | --- |
+| `tflint` | カレントディレクトリを検査 |
+| `tflint --chdir=DIR` | 別ディレクトリを検査 |
+| `tflint --recursive` | サブディレクトリまで再帰的に検査 |
+| `tflint --init` | `.tflint.hcl` で宣言した plugin を導入（`~/.tflint.d/plugins`） |
+| `tflint --fix` | 自動修正できる issue を直す |
+| `tflint -f compact` | 1 issue 1 行で出力（他に `json` / `checkstyle` / `junit` / `sarif`） |
+| `tflint --langserver` | language server として起動 |
+
+ポイント:
+
+- **同梱されているのは terraform ruleset だけ。** aws / google / azurerm など provider 固有の
+  ルール（存在しないインスタンスタイプの検出など）は plugin で、プロジェクトの `.tflint.hcl` に
+  宣言して `tflint --init` で入れる。plugin の実体はユーザのホーム配下（`~/.tflint.d/plugins`）に
+  入るので、このリポジトリでは配らない。
+- issue が残ると終了コードが非ゼロになる。重大なものだけで落としたいときは
+  `--minimum-failure-severity=error`、落としたくないときは `--force`。
+- バージョンは `dot_config/aquaproj-aqua/aqua.yaml` でピンしている。
 
 ## エイリアス・補完
 

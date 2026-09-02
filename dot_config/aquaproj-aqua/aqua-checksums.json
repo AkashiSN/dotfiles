@@ -306,6 +306,31 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/koalaman/shellcheck/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz",
+      "checksum": "56AFFDD8DE5527894DCA6DC3D7E0A99A873B0F004D7AABC30AE407D3F48B0A79",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/koalaman/shellcheck/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz",
+      "checksum": "3C89DB4EDCAB7CF1C27BFF178882E0F6F27F7AFDF54E859FA041FCA10FEBE4C6",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/koalaman/shellcheck/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz",
+      "checksum": "12B331C1D2DB6B9EB13CFCA64306B1B157A86EB69DB83023E261EAA7E7C14588",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/koalaman/shellcheck/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+      "checksum": "8C3BE12B05D5C177A04C29E3C78CE89AC86F1595681CAB149B65B97C4E227198",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/koalaman/shellcheck/v0.11.0/shellcheck-v0.11.0.zip",
+      "checksum": "8A4E35AB0B331C85D73567B12F2A444DF187F483E5079CEFFA6BDA1FAA2E740E",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/mikefarah/yq/v4.53.4/yq_darwin_amd64",
       "checksum": "151870EEDBA842F76927F078E4DAAE15E57CA7BB80AB57CD74F1BBDC326587D7BE9CC6B4C6CB9FDDDFEE4BFC6AB10510D4B0640F7F20A23317DA2FBEBEAAB112",
       "algorithm": "sha512"
@@ -329,6 +354,31 @@
       "id": "github_release/github.com/mikefarah/yq/v4.53.4/yq_windows_amd64.exe",
       "checksum": "F1943EB6EDDA96E3C88BA9F05F59A59D1C89F34D96F66623CAB88CC02242FAB93359837EF1FD384753F37A43601F7F6CEBD4D0E3686AE38BE72D8F4CE723A2ED",
       "algorithm": "sha512"
+    },
+    {
+      "id": "github_release/github.com/mvdan/sh/v3.14.0/shfmt_v3.14.0_darwin_amd64",
+      "checksum": "74255A8087D74A79F5C1307DB807E7EFA8F062C429E3A05C075550392E0DCFA1",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/mvdan/sh/v3.14.0/shfmt_v3.14.0_darwin_arm64",
+      "checksum": "4710BA8074A74334069719D5B82F8CB97532E5623BFE43EF7CDB3442101B9CB2",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/mvdan/sh/v3.14.0/shfmt_v3.14.0_linux_amd64",
+      "checksum": "FE42021C7272EF2D67EA36CBC3031683C625D0BADEC733EF3A57B567246A0B66",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/mvdan/sh/v3.14.0/shfmt_v3.14.0_linux_arm64",
+      "checksum": "8029959A945B5C6F2BC92CE53FCA5CF0384C811CC0884B25B196A093A005657A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/mvdan/sh/v3.14.0/shfmt_v3.14.0_windows_amd64.exe",
+      "checksum": "6738A3E155FBFEC3BEDC70962F9CD1610197587A43B5D7100F405239D8E11375",
+      "algorithm": "sha256"
     },
     {
       "id": "github_release/github.com/neovim/neovim/v0.12.4/nvim-linux-arm64.tar.gz",
@@ -503,6 +553,31 @@
     {
       "id": "github_release/github.com/sxyazi/yazi/v26.8.15/yazi-x86_64-unknown-linux-musl.zip",
       "checksum": "A6702034790AFCDBB546B73B288C9B184A751FA3F2F17F0AD4D26FC302FB8D45",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/terraform-linters/tflint/v0.64.0/tflint_darwin_amd64.zip",
+      "checksum": "0F3A9FD17526014646A2DFC3F9122F7B4161ABE3D6B0F0F03F9014483DDF4D19",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/terraform-linters/tflint/v0.64.0/tflint_darwin_arm64.zip",
+      "checksum": "2496E9CB3D24992D553B45E7C87A0FDC9449CA975233876247A9BFEDA857E6C0",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/terraform-linters/tflint/v0.64.0/tflint_linux_amd64.zip",
+      "checksum": "CCA9D13E2E1D7A2C627AF60FF899A3C9B74212899416AEB96EC764D2EF954537",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/terraform-linters/tflint/v0.64.0/tflint_linux_arm64.zip",
+      "checksum": "560DA89AACF59389D4EB029730DD5B109B7288096C32F2726A0D9E783A5EA8EB",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/terraform-linters/tflint/v0.64.0/tflint_windows_amd64.zip",
+      "checksum": "FB42FB859D844B156A8EA9D3363078C4D8B85CA78782E60876B08C9B8E59F303",
       "algorithm": "sha256"
     },
     {

@@ -209,6 +209,10 @@ LSP がアタッチされたバッファでのみ有効（バッファローカ�
 > `spawn: python3 failed with exit code 1` で必ず失敗した。Python 非依存の単一バイナリを
 > aqua（`astral-sh/ruff`）で入れる方式に変更し、2026-07-13 に mason から外した。
 
+> `bashls` は **PATH 上に `shellcheck` があれば自動でそれを使い**、シェルスクリプトの診断を
+> 出す。`shellcheck` は aqua 管理（`koalaman/shellcheck`）なので設定は要らない。抑制の書き方や
+> `shfmt` は [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md)。
+
 ---
 
 ## 補完（blink.cmp）
