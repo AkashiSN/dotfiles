@@ -88,6 +88,17 @@ path=(
   ${path}
 )
 
+# ~/.local/bin - chezmoi が配る自作スクリプト、uv tool のバイナリ、uv が --default で置く
+# python/python3。rc.d(10-path.zsh)ではなくここに置くのは、非対話シェル(ssh の一発実行・
+# スクリプト・他ツールからの起動)でも同じ python3 を引かせるため。/usr/bin より前に来るので、
+# python3 は macOS 同梱の 3.9 ではなく uv が入れた版になる。LOCAL_PREFIX を使う他の環境変数
+# (MANPATH など)は対話シェル限定でよいので 10-path.zsh のまま。
+export LOCAL_PREFIX="$HOME/.local"
+path=(
+  $LOCAL_PREFIX/bin(N-/)
+  ${path}
+)
+
 # terraform - provider をユーザー共通のキャッシュへ置き、プロジェクトごとの再ダウンロードを避ける。
 # 同じパスを ~/.terraformrc の plugin_cache_dir にも書いてあり(zsh を経由しない実行でも効かせるため)、
 # 両方ある場合はこの環境変数が優先される。ディレクトリ作成は run_onchange の

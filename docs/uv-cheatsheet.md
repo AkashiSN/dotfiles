@@ -2,7 +2,8 @@
 
 Python パッケージ / CLI ツール管理（**uv**、aqua 管理パッケージ）と、そのキャッシュの掃除。
 
-対象ファイル: `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` /
+対象ファイル: `dot_config/uv/dot_python-version` /
+`.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` /
 `dot_local/bin/executable_uv-cache-prune`
 
 ## uv 管理の CLI ツール
@@ -23,22 +24,49 @@ Python 製の CLI は `uv tool install` で入れる（venv が分離される�
 
 ## uv 管理の Python
 
-同じスクリプトの末尾で、**tomllib を持つ Python（3.11+）を 1 つ確保**する。
+### 既定のバージョン
+
+`~/.config/uv/.python-version`（ソースは `dot_config/uv/dot_python-version`）に **3.13** を
+書いてある。uv はカレントディレクトリから上へ `.python-version` を探し、見つからなければ
+このグローバル pin を使うので、`uv venv` / `uv run` / `uv tool install` などが既定で 3.13 を選ぶ。
+宣言が無いと uv は導入済み / ダウンロード可能なものから勝手に選ぶため、新しい版を入れた
+時点で解決先が黙って動く。
+
+### PATH 上の python / python3
+
+グローバル pin は uv 自身の解決にしか効かず、それだけでは PATH 上の `python3` は macOS 同梱の
+3.9 のまま（`python` に至ってはどこにも無い）。そこで
+`run_onchange_after_35-uv-tools.sh.tmpl` が `--default` 付きでインストールし、
+`~/.local/bin` に `python` / `python3` / `python3.13` の symlink を置く。
 
 ```sh
-uv python find '>=3.11' >/dev/null 2>&1 || uv python install 3.13
+uv python install 3.13 --default --preview-features python-install-default
 ```
 
-macOS 同梱の `python3` は 3.9 で `tomllib` が無く、`codex-bedrock` が
-`~/.codex/config.toml` に Bedrock オーバレイを被せるときに TOML パーサを使えない
-（詳細は [zsh チートシート](zsh-cheatsheet.md#codex-bedrock-が一時-codex_home-を使う理由)）。
-条件を満たす処理系が既にあれば何もしないので、余計なダウンロードは起きない。
+`~/.local/bin` は `.zshenv`（`dot_zshenv.tmpl`）で `/usr/bin` より前に入る。**対話シェルだけの
+`rc.d` ではなく `.zshenv` に置いてあるのは、ssh の一発実行・スクリプト・他ツールからの起動でも
+同じ `python3` を引かせるため。** `/usr/bin/python3` は消さないので、shebang に絶対パスを
+書いているものは影響を受けない。`#!/usr/bin/env python3` のスクリプトは uv の版で動く。
+
+版の宣言は `dot_config/uv/dot_python-version` の 1 か所だけ。スクリプトへはテンプレート展開で
+埋め込むので、pin を書き換えるとスクリプトの中身も変わって `run_onchange` が再実行される。
+`--default` は uv でまだ experimental なため preview feature を明示している。
+
+> 既定を変えるときは `uv python pin --global <ver>` を手で叩かず、
+> `dot_config/uv/dot_python-version` を書き換えて `chezmoi apply` する（同じファイルを chezmoi が
+> 管理しているので手で叩いても戻る）。`uv python find -v` に
+> `Using Python request ... from version file at .../.config/uv/.python-version` が出れば効いている。
+
+3.11+ を要求するものとして、`codex-bedrock` が `~/.codex/config.toml` に Bedrock オーバレイを
+被せるとき `tomllib` を使う（詳細は
+[zsh チートシート](zsh-cheatsheet.md#codex-bedrock-が一時-codex_home-を使う理由)）。
 
 | コマンド | 役割 |
 | --- | --- |
-| `uv python list` | 導入済み / ダウンロード可能な Python の一覧 |
-| `uv python find '>=3.11'` | 条件を満たす処理系のパスを返す（未導入ならダウンロードせず失敗） |
-| `uv python install <ver>` | 指定バージョンを導入 |
+| `uv python find` | いま解決される Python のパスを表示 |
+| `uv python list` | 導入済み / ダウンロード可能なバージョンの一覧 |
+| `uv python pin <ver>` | **そのプロジェクトだけ**変える（カレントに `.python-version` を作る） |
+| `uv python install <ver>` | バージョンを先に入れておく |
 
 ## キャッシュ
 

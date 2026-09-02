@@ -1,10 +1,10 @@
 #!/bin/sh
-# Install uv-managed CLI tools (Python アプリ). uv 本体は aqua 管理なので
-# aqua install (20) の後に走らせる。リストを書き換えると再実行される。
+# Install the default Python and uv-managed CLI tools (Python アプリ). uv 本体は aqua 管理
+# なので aqua install (20) の後に走らせる。リストや Python の版を書き換えると再実行される。
 set -eu
 
 {{ template "shell-log" }}
-step "uv 管理ツール(Python CLI)をインストール中"
+step "uv 管理の Python と CLI ツールをインストール中"
 
 # uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
@@ -12,13 +12,20 @@ export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
 
 uv --version >/dev/null 2>&1 || exit 0
 
+# 既定の Python を導入し、python / python3 / python3.N を ~/.local/bin へ置く(--default)。
+# ~/.local/bin は .zshenv で /usr/bin より前に入るので、対話・非対話とも python3 はこれになる
+# (macOS 同梱の 3.9 には tomllib が無いため、codex-bedrock は 3.11+ を自前で探している)。
+# 版の宣言は dot_config/uv/dot_python-version 1 か所だけにして、
+# ここへは展開時に埋め込む(書き換えるとこのスクリプトの中身も変わり run_onchange が再実行される)。
+# --default は experimental なため、preview feature を明示して警告を抑える。
+uv python install {{ include "dot_config/uv/dot_python-version" | trim }} --default \
+	--preview-features python-install-default
+
 # uv tool install は冪等（既に入っていれば "already installed" で何もしない）。
+# ツールを足す場所なので、いまは 1 つでもループのままにする。
+# shellcheck disable=SC2043
 for tool in \
 	ansible
 do
 	uv tool install "$tool"
 done
-
-# tomllib を持つ Python を 1 つ確保する。codex-bedrock が config.toml の合成に使う（macOS 同梱の
-# python3 は 3.9 で tomllib が無い）。条件を満たすものが既にあれば何もしない。
-uv python find '>=3.11' >/dev/null 2>&1 || uv python install 3.13

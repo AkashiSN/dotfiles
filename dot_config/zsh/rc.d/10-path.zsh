@@ -1,6 +1,6 @@
 # 10-path.zsh — PATH / FPATH / MANPATH 等。compinit(30) より前に fpath を確定させる。
 
-export LOCAL_PREFIX=$HOME/.local
+# LOCAL_PREFIX と PATH への $LOCAL_PREFIX/bin 追加は .zshenv 側(非対話シェルにも要るため)。
 export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
 export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
 export LD_LIBRARY_PATH=$LOCAL_PREFIX/lib:$LD_LIBRARY_PATH
@@ -8,7 +8,6 @@ export LIBRARY_PATH=$LOCAL_PREFIX/lib:$LIBRARY_PATH
 export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
 export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
 export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
-export PATH=$LOCAL_PREFIX/bin:$PATH
 export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
 mkdir -p ${LOCAL_PREFIX}/{share,lib,include,bin,share/zsh/site-functions}
