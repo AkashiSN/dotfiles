@@ -76,9 +76,9 @@ Host truenas
 # AWS
 Host cloudsa
     HostName        i-0125c81b19f9acbac
-    User            ec2-user
+    User            su-nishi
     ForwardAgent    yes
-    IdentityFile    ~/.ssh/1password_AkashiSN.pub
+    IdentityFile    ~/.ssh/1password_su-nishi.pub
     DynamicForward  127.0.0.1:55888
     # SetEnv はマッチする最初の 1 行しか効かない（2 行目以降は値ごとにマージされず丸ごと
     # 捨てられる）。このホストへ他の SetEnv を足すときは同じ行にまとめる。
@@ -112,6 +112,13 @@ Host github.com-su-nishi
 Host gist.github.com
     HostName        github.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+
+# 社内 GitHub Enterprise。外から直接は引けないので cloudsa を踏み台にする
+# （work 用 dotfiles cloudsa-dotfiles の置き場）。
+Host github.kddi.com
+    HostName        github.kddi.com
+    IdentityFile    ~/.ssh/1password_su-nishi.pub
+    ProxyJump       cloudsa
 
 {{- if ne .chezmoi.os "windows" }}
 # portfwd: タグ付きホストの共通設定（docs/portfwd-cheatsheet.md）。
