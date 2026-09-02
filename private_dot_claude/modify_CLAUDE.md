@@ -96,6 +96,31 @@ app-server はプロジェクトパスだけでキーされ、設定を見ずに
 起動前に `codex-appserver-evict` で食い違う app-server を畳むので、**種類を切り替える
 ときは開いていた側の codex セッションが切れる**。
 
+## リポジトリを変更する前に、他の作業と混ざらないか確認する
+
+新しく変更を加え始めるときは、**最初の編集の前に**作業ツリーの状態を見る。
+
+```sh
+git status --porcelain   # 自分が始めたのではない未コミット変更はないか
+git worktree list        # 既に別の作業ツリーが動いていないか
+```
+
+自分のセッションが作ったのではない未コミット変更があるなら、他のセッションかユーザが
+そのリポジトリで作業している。そのまま編集すると変更が混ざり、どちらの成果か分からなく
+なってコミット単位も切り分けられなくなる。
+
+- **相手の変更と無関係**なら、worktree を作って分離する（`EnterWorktree` があれば
+  それを使う。無ければ `git worktree add`）。
+- **相手の変更と強く相関する**なら（相手にも認識してほしい内容、同じファイルの続き、
+  相手の変更を前提にする変更）、**既存の変更の上に加えてよいかユーザへ問い合わせてから**
+  実施する。勝手に分離すると、相手が知るべき変更が別の場所へ隔離されてしまう。
+
+判断がつかないときは分離側に倒す。worktree は後から統合できるが、混ざった変更は
+切り分けられない。
+
+例外: 既に worktree の中にいるとき、未コミット変更がこのセッション自身のものだけの
+とき、ユーザが「ここで作業して」と明示したときは、そのまま進めてよい。
+
 # graphify
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
