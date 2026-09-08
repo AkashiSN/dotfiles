@@ -5,7 +5,7 @@
 #   1. 対象プロファイルで aws-login を実行し、`aws login` による認証（credential_process）を済ませる
 #   2. $HOME/.env の `export AWS_PROFILE=...` 行を書き換え、以降のシェルで
 #      そのプロファイルが既定になるようにする
-#   ※ スクリプト名に "mfa" とあった頃の MFA/STS 方式は廃止済み。MFA は `aws login` 側で扱う。
+#   ※ MFA は `aws login` 側で扱う。このスクリプトは STS を直接呼ばない。
 #
 # 使用方法:
 #   aws-switch [profile_name] [assume_role_name]

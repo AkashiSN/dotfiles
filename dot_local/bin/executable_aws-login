@@ -18,7 +18,7 @@
 #   3. STS が到達不能（ネットワーク断等）の一時エラーなら、ログインせずキャッシュで続行
 #   4. flockで排他制御し、複数プロセスの同時ログインを防止
 #   - get-caller-identity は IAM 権限不要なので、失敗＝トークンが無効/期限切れ を意味する。
-#     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、従来の「設定があれば OK」動作へ戻せる。
+#     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、「設定があれば OK」で通すこともできる。
 #
 # SSH 先での挙動:
 #   通常の `aws login` は localhost のコールバックサーバ前提で、SSH 先だとブラウザも
@@ -157,7 +157,7 @@ fi
 # 戻り値:
 #   0 : 有効。creds を stdout に出力済み
 #   2 : STS が到達不能（ネットワーク断等）で検証できず。期限内の可能性が高いのでキャッシュ
-#       creds を出力済み（ログインはしない＝従来の方針どおり）
+#       creds を出力済み（ログインはしない）
 #   1 : 未ログイン or 認証切れ。creds 未出力（呼び出し側はログインへ進む）
 emit_creds_if_valid() {
     local creds sts_err

@@ -60,8 +60,8 @@ HANDSHAKE_TIMEOUT = 5.0
 IDLE_TIMEOUT = 180.0
 # まだ 1 回も接続を捌いていないリレーに与える猶予時間。通知の直後からブラウザが callback
 # を叩くまでの間は、ユーザーが認可ページでログイン・MFA を completing しているだけでソケット
-# 活動が無い。この間を IDLE_TIMEOUT で計ると実際のログインより先に畳んでしまうため、旧方式
-# （ssh -L + ControlPersist 10m）が転送を保持していた時間に合わせて長く取る。
+# 活動が無い。この間を IDLE_TIMEOUT で計ると実際のログインより先に畳んでしまうため、認可を
+# 終えるまでの猶予として長く取る。
 PENDING_TIMEOUT = 600.0
 # ページ URL（URL 自体が localhost:port。mo の markdown ビューア等）のリレーは、通信が
 # 途絶えても畳まない。ブラウザのタブを閉じて昼休みに入っても、戻ってきたら同じ URL がその
