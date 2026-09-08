@@ -14,6 +14,55 @@
 
 ---
 
+## 用語と構造（space / tab / pane）
+
+**session > workspace(space) > tab > pane** の 4 段の入れ子。キーバインドはこの段のどれを
+操作するかで分かれているので、ここを押さえるとヘルプが読める。
+
+```
+session                         herdr サーバ。デタッチしても中身は動き続ける
+└─ workspace ( = space )        1 リポジトリ / 1 プロジェクト。cwd と git ブランチを持つ
+   └─ tab                       その中の作業の切り口
+      └─ pane                   端末 1 つ。ここでエージェントが動く
+```
+
+実際に動いている構造で書くとこうなる（`herdr workspace list` / `tab list` / `pane list` の結果）。
+
+```
+session
+├─ w2P  dotfiles                      ← space（サイドバーの "spaces" に出る）
+│  └─ w2P:t1  タブ 1
+│     └─ w2P:p1  zsh
+└─ w2Q  myapp                         ← space
+   ├─ w2Q:t1  タブ 1
+   │  └─ w2Q:p1  claude               ← agent として "agents" にも出る
+   └─ w2Q:t2  タブ 2
+      └─ w2Q:p2  zsh
+```
+
+| 概念 | サイドバー | 中身 | 作る | 移動する | ID の形 |
+| --- | --- | --- | --- | --- | --- |
+| **session** | — | herdr サーバそのもの | `herdr` | `<prefix> q` でデタッチ | — |
+| **workspace** (= space) | `spaces` 節 | cwd + git ブランチ。タブを束ねる | `<prefix> shift+n` | `<prefix> w` ピッカー / `<prefix> g` navigate | `w2Q` |
+| **tab** | space の下 | ペインのレイアウト 1 つ | `<prefix> c` | `<prefix> 1..9` / `<prefix> p` / `<prefix> n` | `w2Q:t1` |
+| **pane** | — | 端末 1 つ | `<prefix> v` / `<prefix> -` | `<prefix> h/j/k/l` | `w2Q:p1` |
+| **agent** | `agents` 節 | pane で検出された AI CLI | pane で `claude` 等を起動 | `<prefix> g` | （pane に付く） |
+
+> **pane の番号は tab ではなく space 単位**。`w2Q:t2` の中の pane が `w2Q:p2` になっている
+> とおり、`p` の採番は space 全体で通し。ID を見れば「どの space の何番か」が分かる。
+
+**自分が今どこにいるかは環境変数で分かる。** 各 pane には herdr が以下を入れている。
+
+```sh
+echo "$HERDR_WORKSPACE_ID / $HERDR_TAB_ID / $HERDR_PANE_ID"   # 例: w2Q / w2Q:t1 / w2Q:p1
+```
+
+> **用語の揺れに注意**: 設定ファイルとヘルプは `workspace`、サイドバーの見出しと
+> `agent_panel_sort` は `space` と呼ぶ（`"workspaces"` は `"spaces"` の別名として受理される）。
+> **同じものを指している。**
+
+---
+
 ## 起動・セッション
 
 | コマンド | 動作 |
@@ -36,31 +85,115 @@
 
 ---
 
+## 入力モード（どのキーが、いつ効くのか）
+
+herdr のキーは**そのときのモードでしか効かない**。ヘルプに並ぶキーが「今」押せるとは限らないので、
+まずモードを押さえる。
+
+```mermaid
+flowchart LR
+  term["端末モード<br/>キーはペイン内のプログラムへ素通り"]
+  pfx["prefix モード<br/>次の 1 キーで自動的に端末モードへ戻る"]
+  nav["navigate<br/>抜ける: Esc / Enter"]
+  rsz["リサイズ<br/>抜ける: Esc"]
+  cpy["コピー<br/>抜ける: q / Esc"]
+  pop["popup<br/>抜ける: 中のコマンドが終了"]
+  term -- "Ctrl-b" --> pfx
+  pfx -- "g" --> nav
+  pfx -- "r" --> rsz
+  pfx -- "[" --> cpy
+  pfx -- "d / f / m / shift+m" --> pop
+```
+
+> この図は**モード間の行き来**だけを示す。各モードの中で効くキーは下の表を見ること。
+> mermaid は GitHub の web 表示と `mo` では描画されるが、**`glow` では生のコードブロックとして
+> 出る**（[Markdown プレビュー](markdown-preview-cheatsheet.md)）。
+
+| モード | 入り方 | 抜け方 | そこで効くキー |
+| --- | --- | --- | --- |
+| **端末モード**（通常） | 既定の状態 | — | キーはペイン内のプログラムへ素通り。herdr が横取りするのは直接コード（`ctrl+alt+h` 等）だけ |
+| **prefix モード** | `Ctrl-b` | 次の 1 キーで自動的に抜ける | 下の一覧。`<prefix> ?` のヘルプもここ |
+| **navigate（goto）** | `<prefix> g` | `Esc` / `Enter` | `↑`/`↓` で space、`h`/`j`/`k`/`l` でペイン（`←`/`→` は常に左右ペイン）。`[keys]` の `navigate_*` が**このモード中だけ** `focus_pane_*` より優先される |
+| **リサイズ** | `<prefix> r` | `Esc` | `h`/`l` で幅、`j`/`k` で高さ |
+| **コピー** | `<prefix> [` | `q` / `Esc` | `h/j/k/l`・`w/b/e`・`{`/`}`・`PageUp/Down`・`Ctrl-b`/`Ctrl-f`・`Ctrl-u`/`Ctrl-d` で移動。`/` `?` で検索し `n` `N` で送る。`v`/`Space` で選択、`y`/`Enter` でコピー |
+| **popup** | `<prefix> d` / `f` / `m` / `shift+m` | 中のコマンドの終了（`q`。`m` はファイルを選び終わった時点） | **全ての入力が中のアプリへ行く**。herdr のキーは一切効かない |
+
+> コピーモードは**ペインを止めない**（出力は流れ続ける）。マウスのドラッグ選択なら
+> コピーモードに入らずにコピーできる。
+
+---
+
+## ヘルプ（`<prefix> ?`）の見方
+
+**herdr の全アクションの一覧**で、このリポジトリの設定に限った表ではない。グループは
+「何を操作するか」で分かれている。
+
+| グループ | 対象 |
+| --- | --- |
+| `global` | herdr 全体（prefix mode / detach / reload config / 通知） |
+| `navigation` | 移動系のピッカーとモード（workspace list / session navigator など） |
+| `workspaces / tabs` | space・タブ・worktree・エージェントの作成 / 切替 / 削除 |
+| `panes` | ペインの分割・移動・リサイズ・ズーム・コピーモード |
+| `custom` | `[[keys.command]]` で自分が足したもの（下記） |
+
+**多すぎて探せないときは `/` を押す**。アクション名でもショートカットでも絞り込める
+（`Backspace` で編集、`Ctrl-U` でクリア）。
+
+**キーが表示されていない項目は「未割当」**。herdr は既定で割り当てていないアクションも一覧に
+並べるため、載っている＝押せる、ではない。既定で未割当なのは以下（`herdr --default-config` で
+値が `""` のもの）。
+
+`switch workspace 1-9` / `previous workspace` / `next workspace` / `previous agent` / `next agent` /
+`focus agent 1-9` / `open worktree` / `delete worktree checkout` / `last pane`
+
+> 紛らわしい組み合わせ: **`<prefix> 1..9` は `switch tab 1-9`**（タブ切替）。すぐ隣に並ぶ
+> `switch workspace 1-9` は別アクションで、既定では未割当。space を番号で切り替えたいなら
+> `[keys]` の `switch_workspace` に明示的に割り当てる必要がある。
+
+---
+
 ## キーバインド（prefix モード）
 
-いずれも `<prefix>` を打ってから続けて押す。主要な既定バインドを抜粋（全量は `herdr --default-config`）。
+いずれも `<prefix>` を打ってから続けて押す。ヘルプと同じ並びで、**既定で割り当て済みのもの**を挙げる。
 
-| キー | 動作 |
-| --- | --- |
-| `<prefix> ?` | ヘルプ |
-| `<prefix> s` | 設定 |
-| `<prefix> q` | デタッチ（セッションは生かしたまま抜ける） |
-| `<prefix> shift+r` | config 再読込 |
-| `<prefix> w` | ワークスペースピッカー |
-| `<prefix> shift+n` | 新規ワークスペース |
-| `<prefix> shift+g` | 新規 git worktree |
-| `<prefix> c` | 新規タブ |
-| `<prefix> p` / `<prefix> n` | 前 / 次のタブ |
-| `<prefix> 1..9` | タブを番号で切替 |
-| `<prefix> v` | ペインを縦分割 |
-| `<prefix> -` | ペインを横分割 |
-| `<prefix> x` | ペインを閉じる |
-| `<prefix> z` | ペインをズーム（全画面トグル） |
-| `<prefix> h/j/k/l` | 左/下/上/右のペインへフォーカス |
-| `<prefix> tab` / `<prefix> shift+tab` | 次 / 前のペインへ巡回 |
-| `<prefix> b` | サイドバーの表示トグル |
-| `<prefix> e` | スクロールバックを編集 |
-| `<prefix> r` | リサイズモード |
+| キー | 動作 | グループ |
+| --- | --- | --- |
+| `<prefix> ?` | ヘルプ | global |
+| `<prefix> s` | 設定 | global |
+| `<prefix> q` | デタッチ（セッションは生かしたまま抜ける） | global |
+| `<prefix> shift+r` | config 再読込 | global |
+| `<prefix> o` | 通知の対象を開く | global |
+| `<prefix> w` | ワークスペース（space）ピッカー | navigation |
+| `<prefix> g` | goto ピッカー（navigate モードに入る） | navigation |
+| `<prefix> shift+n` | 新規ワークスペース | workspaces / tabs |
+| `<prefix> shift+w` | ワークスペース名変更 | workspaces / tabs |
+| `<prefix> shift+d` | ワークスペースを閉じる | workspaces / tabs |
+| `<prefix> shift+g` | 新規 git worktree | workspaces / tabs |
+| `<prefix> c` | 新規タブ | workspaces / tabs |
+| `<prefix> shift+t` | タブ名変更 | workspaces / tabs |
+| `<prefix> p` / `<prefix> n` | 前 / 次のタブ | workspaces / tabs |
+| `<prefix> 1..9` | **タブ**を番号で切替 | workspaces / tabs |
+| `<prefix> shift+x` | タブを閉じる | workspaces / tabs |
+| `<prefix> v` | ペインを縦分割 | panes |
+| `<prefix> -` | ペインを横分割 | panes |
+| `<prefix> x` | ペインを閉じる | panes |
+| `<prefix> shift+p` | ペイン名変更 | panes |
+| `<prefix> z` | ペインをズーム（全画面トグル） | panes |
+| `<prefix> h/j/k/l` | 左/下/上/右のペインへフォーカス | panes |
+| `<prefix> shift+h/j/k/l` | ペインを入れ替える | panes |
+| `<prefix> tab` / `<prefix> shift+tab` | 次 / 前のペインへ巡回 | panes |
+| `<prefix> r` | リサイズモード | panes |
+| `<prefix> [` | コピーモード | panes |
+| `<prefix> e` | スクロールバックを編集 | panes |
+| `<prefix> b` | サイドバーの表示トグル | panes |
+
+> **`herdr --default-config` の雛形は全アクションを網羅していない。** コピーモード
+> （`copy_mode`）・ペイン入れ替え（`swap_pane_left/down/up/right`）・タブ移動
+> （`move_tab_previous` / `move_tab_next`）は雛形に項目が無いが実在する（`herdr config check`
+> が設定キーとして受理することで確認）。上表の `<prefix> [` と `<prefix> shift+h/j/k/l` は
+> herdr 公式ドキュメント（0.8.x）記載の既定値で、雛形から確認できないぶん**実測はしていない**。
+> **実際に効くキーの正解はヘルプ（`<prefix> ?`）**。雛形は「設定できる項目のうち主要なもの」に
+> 過ぎない。
 
 ---
 
