@@ -3,6 +3,11 @@
 # しない）。codex CLI が実行時に config.toml へ projects/tui などを追記しても
 # ドリフトにならない。初期値だけを撒くのが目的。
 #
+# private_ は付けない。create_ で内容の管理から外れても**モードだけは管理され続ける**ため、
+# 0600 を宣言すると、codex が config.toml を書き直すたび (umask どおり 0644 になる)
+# apply が「.codex/config.toml has changed since chezmoi last wrote it?」と聞いてくる。
+# 秘密情報はここではなく ~/.codex/auth.json にあり、HOME 自体が 0700 なので 0644 で困らない。
+#
 # 既定はサブスク(OpenAI ログイン / auth.json)。model_provider を指定しないことで
 # codex 既定の openai provider になる。Bedrock は codex-bedrock が
 # `--profile bedrock`(~/.codex/bedrock.config.toml)で明示的に被せる。
