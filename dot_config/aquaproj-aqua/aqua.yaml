@@ -35,6 +35,11 @@ packages:
   - name: peco/peco@v0.6.0
   - name: herdrdev/herdr@v0.8.2 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   - name: sxyazi/yazi@v26.8.15 # プレビュー付きファイラ (herdr の popup から起動)
+  - name: charmbracelet/glow@v3.0.0 # markdown ビューア TUI (herdr の popup から起動)
+  # markdown ビューア (ブラウザ)。mermaid / 全文検索 / live reload が要るとき用。
+  # pkg/browser 経由で xdg-open を呼ぶため、SSH 先では $BROWSER=portfwd-open が効き
+  # 手元 PC のブラウザで開く。
+  - name: k1LoW/mo@v1.6.7
   # --- editor: neovim + 検索バックエンド (fzf-lua) / linter / formatter ---
   - name: neovim/neovim@v0.12.4
   - name: BurntSushi/ripgrep@15.2.0

@@ -8,6 +8,7 @@
 | tmux | [tmux-cheatsheet.md](tmux-cheatsheet.md) | `dot_tmux.conf` |
 | herdr（AI エージェント多重化） | [herdr-cheatsheet.md](herdr-cheatsheet.md) | `dot_config/herdr/config.toml` |
 | gitui（git TUI） | [gitui-cheatsheet.md](gitui-cheatsheet.md) | `dot_config/gitui/theme.ron` |
+| Markdown プレビュー（glow / mo） | [markdown-preview-cheatsheet.md](markdown-preview-cheatsheet.md) | `dot_config/herdr/config.toml` / `dot_local/bin/herdr-mo` / `mo` / `mo-port` / `dot_config/aquaproj-aqua/aqua.yaml` |
 | Ghostty | [ghostty-cheatsheet.md](ghostty-cheatsheet.md) | `dot_config/ghostty/config` |
 | zsh | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` |
 | AI Git / PR | [ai-git-cheatsheet.md](ai-git-cheatsheet.md) | `dot_local/bin/git-aicommit` / `gh-pr-aicreate` / `private_dot_claude/hooks/pr-refresh-check.sh` |

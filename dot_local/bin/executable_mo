@@ -1,0 +1,52 @@
+#!/bin/bash
+# mo [args...] - mo(ブラウザ版 markdown ビューア)を必ずユーザごとのポートで起動する
+#
+# なぜ要るか:
+#   mo のサーバはポート単位でマシン全体に 1 つしか無く、--bind localhost でも loopback に
+#   ユーザ境界は無い。複数ユーザがいるホストで全員が既定の 6275 を使うと、先にサーバを
+#   立てた人の mo へ後から叩いた全員がぶら下がり、相手が開いた md が自分のブラウザに出る。
+#   ポートの決め方は mo-port(MO_PORT があればそれを優先)。
+#
+# なぜ zsh 関数ではなくスクリプトか:
+#   agmsg の spawn.sh や VS Code 拡張の spawn、非対話 zsh のようにシェルの rc を経由しない
+#   起動経路には関数が届かないため。claude-bedrock / codex-bedrock と同じ理由(詳細は
+#   docs/zsh-cheatsheet.md の「関数」節)。
+#
+# なぜ aqua の実体をフルパスで呼ぶか:
+#   このスクリプト自身が ~/.local/bin/mo として PATH に乗り、~/.local/bin は PATH 上で
+#   aqua の bin より前にある。`command mo` は関数・エイリアスだけを飛ばして PATH 探索は
+#   続けるため、素の mo のつもりで呼んでもこのスクリプト自身に戻ってきて無限再帰する。
+#   aqua の実体をフルパスで直接呼ぶことでこれを避ける。
+#
+# --port は後勝ちなので、自分で付ければそちらが使われる。既定のポートを変えたいときは
+# mo-port が見る MO_PORT を設定する。
+#
+# 関連: mo-port / herdr-mo / docs/markdown-preview-cheatsheet.md
+set -euo pipefail
+
+# 呼び出し元が env.sh を読んでいるとは限らないので、mo-port の解決に要る PATH と
+# aqua の解決に要る AQUA_GLOBAL_CONFIG は自前で通す(env.sh と同じ既定値。ただし
+# env.sh は無条件に代入するのに対し、ここは既に設定済みの値があれば尊重する)。
+# /usr/local/bin が要るのは mo-port ではなく aqua 側: aqua の実体(下の mo_bin)は
+# aqua-proxy への symlink で、aqua-proxy は内部で aqua 本体(/usr/local/bin/aqua)を
+# 探しに行く。無いと "aqua isn't found" で失敗する(実測)。
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${AQUA_GLOBAL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml}"
+
+aqua_root="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}"
+mo_bin="$aqua_root/bin/mo"
+
+die() {
+  echo "mo: $1" >&2
+  exit 1
+}
+
+[ -x "$mo_bin" ] || die "${mo_bin} が見つかりません(aqua 共有ストアへの導入が済んでいない可能性があります)"
+command -v mo-port >/dev/null 2>&1 || die "mo-port コマンドが見つかりません"
+
+# port=$(mo-port) を exec と同じ行に埋め込まないこと: set -e はコマンド置換の失敗を
+# 引数位置では捕まえないため、埋め込むと mo-port が失敗しても --port "" のまま exec
+# へ進んでしまう。代入を独立した行にすることで set -e を効かせる。
+port=$(mo-port)
+
+exec "$mo_bin" --port "$port" "$@"

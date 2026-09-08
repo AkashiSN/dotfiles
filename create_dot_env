@@ -1,1 +1,6 @@
 # global env
+
+# mo (ブラウザ版 markdown ビューア) のポートを固定したいときに設定する。既定は
+# ~/.local/bin/mo-port が uid から決める。複数ユーザのホストで他の人と被ったときや、
+# 別のポートを使いたいときだけ書く (docs/markdown-preview-cheatsheet.md)。
+# export MO_PORT=6275

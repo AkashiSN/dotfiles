@@ -74,9 +74,14 @@
 | --- | --- |
 | `<prefix> d` | gitui を popup で開く（差分確認・hunk 単位のステージング・コミット） |
 | `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。テキストファイルは `Enter` で `$EDITOR`(=nvim)） |
+| `<prefix> m` | md を選んで `mo` に渡す（**ブラウザ**で開く。mermaid・全文検索・保存即反映が要るとき。選択 UI は `Tab` で複数選択、`Ctrl-R` は選ばずにタブを開き直す） |
+| `<prefix> shift+m` | glow を popup で開く（**端末内**の markdown ビューア。ペインを見ながらざっと読む用） |
 
-**閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi とも `q`）。
+**閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi / glow とも `q`）。
 popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
+`<prefix> m`（mo）だけは例外的に**ファイルを選び終わると自動で閉じる** — 中で動くのは選択 UI だけで、
+表示そのものはブラウザへ出るため（`Esc` で何も選ばずに閉じてもよい）。詳細は
+[Markdown プレビュー チートシート](markdown-preview-cheatsheet.md)。
 
 **yazi 内のキー（popup 内で押す）**: `Enter` は従来どおり popup の**内側**で `$EDITOR`(=nvim) を開く（サッと見る用）。
 一方 `e` はカーソル中のファイルを **herdr の新規タブ**で起動した nvim で開く（腰を据えて編集する用）。

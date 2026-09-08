@@ -138,10 +138,15 @@ name = "catppuccin"  # ← 設定
 # popup はフォーカス中ペインの作業ディレクトリで起動するので、そのリポジトリのまま開く。
 # タブ/ペイン構成を変えないモーダルなので、閉じれば元のレイアウトに戻る。
 # alt 併用のバインドは端末(ghostty)依存で効かないことがあるため単一キーにする。
+#
+# description は上の雛形(= `herdr --default-config`)に載っていないが実在する任意項目で、
+# ヘルプ(prefix+?)の一覧に出るラベルになる。省略すると全部が "custom command" と表示され
+# 区別が付かないので必ず書く。ヘルプは `/` で絞り込めるため、英語の短いラベルにしておく。
 [[keys.command]]
 key = "prefix+d"     # ← 設定: diff
 type = "popup"
 command = "gitui"
+description = "gitui (git diff / commit)"
 width = "90%"
 height = "90%"
 
@@ -149,6 +154,34 @@ height = "90%"
 key = "prefix+f"     # ← 設定: files
 type = "popup"
 command = "yazi"
+description = "yazi (file manager)"
+width = "90%"
+height = "90%"
+
+# エージェントが書いた設計メモ・作業ログ(md)を、隣のペインを止めずに読むための popup。
+# 出す先で 2 つに分ける: mermaid / 全文検索 / 保存即反映が要るならブラウザ(mo)、ペインを
+# 見ながらざっと読むだけなら端末内(glow)。同じ「markdown」なので m / shift+m で並べる。
+#
+# mo は引数が無いと前回セッションを復元するだけでファイルを足せない。popup の中でどの md を
+# 読むか決められるよう、橋渡しスクリプト herdr-mo (fd で md 一覧 → fzf --multi → mo) を挟む。
+# mo は自分でバックグラウンドへ回るので、選び終わると popup は閉じ、表示はブラウザ側で続く
+# (SSH 先なら $BROWSER=portfwd-open 経由で手元 PC のブラウザが開く)。popup の /bin/sh に
+# ~/.local/bin がある保証は無いので $HOME 絶対パスで呼ぶ(yazi keymap の herdr-edit と同じ理由)。
+[[keys.command]]
+key = "prefix+m"     # ← 設定: markdown (ブラウザ)
+type = "popup"
+command = "$HOME/.local/bin/herdr-mo"
+description = "mo (markdown in browser)"
+width = "90%"
+height = "90%"
+
+# 引数を渡さない glow は起動時のディレクトリ以下の md を一覧するので、popup の cwd が
+# そのままエージェントのリポジトリになる。
+[[keys.command]]
+key = "prefix+shift+m"  # ← 設定: markdown (端末内)
+type = "popup"
+command = "glow"
+description = "glow (markdown viewer)"
 width = "90%"
 height = "90%"
 

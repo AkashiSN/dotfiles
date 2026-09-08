@@ -40,6 +40,7 @@
 | `dot_config/nvim/**` | `docs/nvim-cheatsheet.md` |
 | `dot_tmux.conf` | `docs/tmux-cheatsheet.md` |
 | `dot_config/herdr/config.toml` / `dot_config/yazi/*` / `dot_local/bin/executable_herdr-edit` | `docs/herdr-cheatsheet.md` |
+| `dot_local/bin/executable_herdr-mo` / `executable_mo` / `executable_mo-port`（markdown プレビュー） | `docs/markdown-preview-cheatsheet.md` |
 | `dot_config/ghostty/config` | `docs/ghostty-cheatsheet.md` |
 | `dot_config/gitui/theme.ron` | `docs/gitui-cheatsheet.md` |
 | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/zsh/rc.d/**` | `docs/zsh-cheatsheet.md` |

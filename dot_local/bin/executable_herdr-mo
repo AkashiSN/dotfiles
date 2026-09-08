@@ -1,0 +1,177 @@
+#!/bin/bash
+# herdr-mo - markdown を fzf で選び、mo (ブラウザ版 markdown ビューア) へ渡す
+#
+# 実際に行うこと:
+#   1. md を一覧する (git リポジトリ内ならリポジトリ全体、外なら cwd 以下 = glow と同じ範囲)
+#   2. fzf --multi で選ばせる (Tab で複数選択、プレビューは glow)
+#   3. 選ばれたファイルを mo へ渡す。mo は自分でバックグラウンドへ回り、
+#      xdg-open → $BROWSER=portfwd-open 経由で手元 PC のブラウザが開く
+#
+# --open を付ける理由:
+#   mo は既存グループへファイルを足すだけのときブラウザを開かない。開かないということは
+#   $BROWSER (= portfwd-open) が呼ばれず、手元 PC の portfwd へ通知が飛ばないということで、
+#   リレーが畳まれた後に <prefix> m を叩いても張り直されない (mo --shutdown してサーバを
+#   立て直すまで復旧できない)。--open は「既存グループへの追加でも必ず開く」ので、毎回
+#   通知が飛び、リレーが無ければ張り直され、あればタブが開くだけで済む。
+#
+# Ctrl-R (fzf の --expect) の理由:
+#   張り直したいだけのときに、要らない md を選ばせたくない。Ctrl-R はファイルを足さずに
+#   mo --target <group> --open だけを叩き、通知を投げ直す。
+#
+# --layout=reverse を付ける理由:
+#   fzf の tab は toggle+down だが、既定レイアウトはプロンプトが下でリストが上向きに伸びる
+#   ため、カーソルの初期位置 (先頭項目) が既に最下段で down が効かない。結果 Tab を連打しても
+#   同じ行をトグルし続け、1 件しか選べない (複数選べるのは Shift-Tab = toggle+up だけ)。
+#   reverse にするとリストが上から下へ並び、カーソルが最上段から下へ進むので Tab 連打で
+#   順に選べる。
+#
+# --target にリポジトリ名を渡す理由:
+#   mo のセッションは消すまで積み上がり、既定グループへ入れ続けるとサイドバーが数百件に
+#   膨らんで目的の md を探せなくなる。--target でグループを分けると、リポジトリごとに
+#   独立したサイドバーと URL (http://localhost:<ポート>/<リポジトリ名>) になる。
+#
+# --port を渡す理由:
+#   mo のサーバはポート単位でマシン全体に 1 つしか無く、共有サーバで既定の 6275 を使うと
+#   先に立てた人の mo へぶら下がって相手の md がサイドバーに出る。ポートは mo-port が
+#   ユーザごとに決める (理由と決め方はそちら)。mo は ~/.local/bin/mo ラッパー経由でも
+#   同じ mo-port の値を --port に渡すが、--port は後勝ちなのでここで明示しておいても
+#   無害 (ラッパーを経由しない呼び出し経路に変わっても壊れないようにする意図)。
+#   念のため listen 主が自分かも確かめる。
+#
+# 使用方法:
+#   herdr-mo
+#   - herdr の popup (<prefix> m) から起動される。popup はフォーカス中ペインの作業
+#     ディレクトリで開くので、エージェントを動かしているリポジトリのまま一覧が出る。
+#   - mo は引数が無いと前回セッションを復元するだけでファイルを足せない。この選択 UI が
+#     「どの md を読むか」を popup の中で決めるための橋渡しになる。
+#   - Tab で複数選べる。fzf の既定キーだが画面に出ていないと気づけないのでヘッダーに出す。
+#     Space に割り当て直さないのは、fzf のスペース区切り AND 検索 ('docs cheat' で両方を
+#     含む行に絞る) を潰さないため。
+#   - 何も選ばずに Esc で抜けたときは何もしない (= popup がそのまま閉じる)。
+#   - Ctrl-R はファイルを選ばず、開いているグループのタブを開き直す (ポートフォワードが
+#     切れているときの張り直し)。
+#
+# 入出力の約束:
+#   - 成功時は何も出さずに終わる。mo は即座に戻るので popup はすっと閉じ、表示は
+#     手元 PC のブラウザ側で続く。
+#   - エラーと警告は stderr に出し、TTY があれば Enter 待ちで読める時間を作る
+#     (止めないと popup が閉じてしまい理由を読めない)。
+#   - **$BROWSER が空のときは警告する。** popup は herdr サーバ起動時の環境を継承するため、
+#     portfwd 非対象のセッションでサーバを起動していると mo は起動するのにブラウザが開かない。
+#     一瞬で popup が閉じると原因不明になるので、その場で理由と URL を出す。
+#   - mo の出力はそのまま添えない。復元したセッションの全ファイルを並べるため数万文字になる
+#     ことがあり、popup では読めない (URL 行だけを抜いて見せる)。
+set -euo pipefail
+
+# TTY があれば読める時間を作る
+pause() {
+  if [ -t 0 ]; then
+    printf '\n[Enter] で元の画面に戻ります… ' >&2
+    read -r _ || true
+  fi
+}
+
+die() {
+  printf 'herdr-mo: %s\n' "$*" >&2
+  pause
+  exit 1
+}
+
+for cmd in mo mo-port fzf fd; do
+  command -v "$cmd" >/dev/null 2>&1 ||
+    die "${cmd} コマンドが見つかりません (aqua 共有ストアへの導入が済んでいない可能性があります)"
+done
+
+# ポートが他のユーザの mo に取られていないか確かめる。ss -ltnp は他人のプロセスを見せない
+# が、/proc/net/tcp には socket の uid が出る (st=0A が LISTEN、$2 が 16 進の
+# <アドレス>:<ポート>、$8 が uid)。他人の mo にぶら下がると、相手が開いた md の中身が
+# 自分のブラウザに出てしまうので、繋ぐ前に止める。
+# /proc が無い環境 (macOS) では空を返す。単独ユーザのマシンなので取り違えが起きない。
+port_owner_uid() {
+  local suffix
+  suffix=$(printf ':%04X' "$1")
+  awk -v suffix="$suffix" \
+    'FNR > 1 && $4 == "0A" && substr($2, length($2) - length(suffix) + 1) == suffix {
+       print $8
+       exit
+     }' /proc/net/tcp /proc/net/tcp6 2>/dev/null
+}
+
+port=$(mo-port)
+owner=$(port_owner_uid "$port" || true)
+if [ -n "$owner" ] && [ "$owner" != "$(id -u)" ]; then
+  die "ポート ${port} は別のユーザ (uid ${owner}) の mo が使っています。
+そのまま繋ぐと相手が開いた md が自分のブラウザに出るので、ここでは開きません。
+~/.env に MO_PORT=<空いているポート> を書いてずらしてください。"
+fi
+
+# 一覧の範囲は glow に合わせる: git リポジトリ内ならリポジトリ全体、外なら cwd 以下
+root=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+cd "$root"
+
+# mo のグループ名。URL のパス 1 要素になるので、使えない文字は - に潰す
+group=$(basename -- "$root" | sed -e 's/[^A-Za-z0-9._-]\{1,\}/-/g' -e 's/^-\{1,\}//' -e 's/-\{1,\}$//')
+[ -n "$group" ] || group=default
+
+# -H は dotfiles リポジトリの隠しディレクトリ配下 (.claude/ 等) の md も拾うため。
+# fd は既定で .gitignore を尊重するので、生成物は自然に除外される。
+if ! list=$(fd --type f --hidden --exclude .git --extension md --extension markdown); then
+  die "markdown の一覧に失敗しました (${root})"
+fi
+[ -n "$list" ] || die "markdown ファイルが見つかりません (${root})"
+
+# glow が無くてもファイル選択自体はできるようにフォールバックする
+if command -v glow >/dev/null 2>&1; then
+  # shellcheck disable=SC2016  # 展開するのは fzf のプレビュー用シェル。ここで展開してはいけない
+  preview='glow -w "${FZF_PREVIEW_COLUMNS:-80}" {}'
+else
+  preview='cat {}'
+fi
+
+# Esc / 該当なしで fzf が非ゼロ終了したときは、何もせず popup を閉じる
+if ! selection=$(printf '%s\n' "$list" |
+  fzf --multi --expect=ctrl-r --layout=reverse \
+    --header 'Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す' \
+    --prompt "mo/${group}> " --preview "$preview" --preview-window 'right,60%'); then
+  exit 0
+fi
+
+# --expect を付けると 1 行目は押されたキー (Enter なら空行) になり、2 行目以降が選択。
+key=${selection%%$'\n'*}
+chosen=${selection#*$'\n'}
+if [ "$chosen" = "$selection" ]; then
+  # 改行が無い = キー行しか無い (選択が空)
+  chosen=''
+fi
+
+# mapfile は bash 4 以降。macOS の /bin/bash は 3.2 なので read ループで読む。
+files=()
+if [ "$key" != "ctrl-r" ]; then
+  [ -n "$chosen" ] || exit 0
+  while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$f")
+  done <<<"$chosen"
+fi
+
+# mo の出力はファイルへ逃がす。バックグラウンドへ回った mo が標準出力を掴んだままだと
+# コマンド置換 ($(...)) はパイプが閉じるまで戻らず、popup が固まる。
+out=$(mktemp)
+trap 'rm -f "$out"' EXIT
+
+# ${files[@]+...} で包むのは、bash 3.2 が set -u のもとで空配列の "${files[@]}" を
+# 未定義変数として落とすため (Ctrl-R はファイルを選ばないので必ず空になる)。
+if ! mo --port "$port" --target "$group" --open ${files[@]+"${files[@]}"} >"$out" 2>&1; then
+  die "mo を起動できませんでした:
+$(head -20 "$out")"
+fi
+
+# shellcheck disable=SC2016  # メッセージ中の $BROWSER は変数名そのものを見せている
+if [ -z "${BROWSER:-}" ]; then
+  # mo の出力にはグループ URL もファイル URL も混ざるので、ホスト部だけ取って組み立てる
+  base=$(grep -m1 -oE 'https?://[^[:space:]/]+' "$out" || true)
+  printf 'herdr-mo: $BROWSER が未設定のため、手元 PC のブラウザは開きません。\n' >&2
+  printf '  mo 自体は起動しています: %s/%s\n' "${base:-http://localhost:$port}" "$group" >&2
+  printf '  popup は herdr サーバ起動時の環境を継承します。portfwd 対象のセッションで\n' >&2
+  printf '  `herdr server stop` → `herdr` と起動し直すと $BROWSER が渡ります。\n' >&2
+  pause
+fi

@@ -1,0 +1,46 @@
+#!/bin/bash
+# mo-port - このユーザが使う mo のポートを 1 行で返す
+#
+# なぜ要るか:
+#   mo のサーバはポート単位でマシン全体に 1 つしか無い。--bind localhost でも loopback に
+#   ユーザ境界は無いため、共有サーバで全員が既定の 6275 を使うと、先にサーバを立てた人の
+#   mo へ後から叩いた全員がぶら下がる。相手のサイドバー (= 相手が開いた md の中身) が
+#   自分のブラウザに出るうえ、こちらから相手のサーバを --shutdown することもできてしまう
+#   (実際に起きた)。uid からユーザごとに別のポートを決めて、これを避ける。
+#
+# 決め方:
+#   MO_PORT があればそれを使う (衝突したときや、意図して別のポートを使いたいときの逃げ道。
+#   ~/.env に書けば direnv が読む)。無ければ 6275 + (uid - 1000)。Linux の一般ユーザは
+#   uid 1000 番台なので 6275..6774 の中で一意になる。範囲外の uid (macOS の 501 等) は
+#   剰余で畳む (その場合だけ衝突しうるが、herdr-mo が listen 主を確かめて止める)。
+#
+# 使う側:
+#   - mo ラッパー (~/.local/bin/mo) が --port として渡す
+#   - herdr-mo が同じ値を使う (popup は mo ラッパーを経由しないため自分で呼ぶ)
+set -euo pipefail
+
+BASE=6275
+SPAN=500
+
+is_valid_port() {
+  case ${1:-} in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+}
+
+if [ -n "${MO_PORT:-}" ]; then
+  if is_valid_port "$MO_PORT"; then
+    printf '%s\n' "$MO_PORT"
+    exit 0
+  fi
+  printf 'mo-port: MO_PORT=%s は使えないので uid から決めます (1024-65535 の整数)\n' \
+    "$MO_PORT" >&2
+fi
+
+uid=$(id -u)
+if [ "$uid" -ge 1000 ] && [ "$uid" -lt $((1000 + SPAN)) ]; then
+  printf '%s\n' "$((BASE + uid - 1000))"
+else
+  printf '%s\n' "$((BASE + uid % SPAN))"
+fi
