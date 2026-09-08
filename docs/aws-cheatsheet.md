@@ -56,7 +56,33 @@ touch ~/.env                  # 無ければ作成（aws-switch が追記する�
 | --- | --- |
 | `aws-switch [profile] [role_name]` | プロファイルを切り替える（必要なら assume role）。`.env` を書き換え |
 | `aws-login <profile>` | 認証本体。`credential_process` として AWS CLI から自動で呼ばれる |
-| `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行を削除 |
+| `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行と認証情報キャッシュを削除 |
+
+### aws-login の認証情報キャッシュ
+
+`aws-login` は出力した認証情報を `~/.aws/.aws-login-<profile>.creds.json`（パーミッション
+600）に残し、`Expiration` まで 120 秒以上あればそれを返して即座に終える。**キャッシュに
+当たると 2.4 秒が 0.02 秒になる。**
+
+これが要るのは `credential_process` が「必要なとき 1 回」呼ばれるとは限らないため。発行される
+認証情報の寿命（約 15 分）が botocore の advisory refresh window（900 秒）を下回っていると、
+SDK は署名のたびに更新を試み、しかも access key / secret / token の各プロパティ参照で個別に
+呼ぶので、**1 回の署名で数回** `aws-login` が起動する。通常経路は `aws` CLI を 2 回起動する
+（`export-credentials` 0.7 秒 + `sts get-caller-identity` 0.9 秒）ため、これが十数秒に膨らみ、
+MCP サーバーのように起動時へ署名が集中する利用者は接続タイムアウト（30 秒）に掛かる。
+
+期限が近づけば通常経路へ落ち、`aws` CLI が新しいセッションを発行してキャッシュも更新される
+ので、自動更新の仕組みは変わらない。キャッシュを返す間は STS 検証を挟まないが、認証情報の
+寿命そのものが短いので窓は限られ、途中で無効化された場合も API が認証エラーを返すだけで
+復旧できる。`aws-logout` はトークンを破棄してもキャッシュの `Expiration` を縮められないため、
+ログアウト時にファイルごと消している。
+
+キャッシュが壊れている・空・`Expiration` が無いときは通常経路へ落ちるので、消して困ることは
+無い。挙動を疑ったら消してよい。
+
+```sh
+rm -f ~/.aws/.aws-login-<profile>.creds.json
+```
 
 ### aws-switch
 

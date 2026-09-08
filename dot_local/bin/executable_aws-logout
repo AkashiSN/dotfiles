@@ -33,6 +33,10 @@ if [ "$1" = "--all" ]; then
     # AWS CLI: すべてのプロファイルからログアウト
     aws logout --all || true
 
+    # aws-login のファイルキャッシュを消す。トークンを破棄してもキャッシュ済み creds の
+    # Expiration は縮まないため、消さないと期限が切れるまで無効な認証情報を返し続ける。
+    rm -f "$HOME"/.aws/.aws-login-*.creds.json
+
     # .aws/configファイルのパスを取得（環境変数またはデフォルト）
     CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
 
@@ -79,6 +83,10 @@ else
 
     # AWS CLI: 指定したプロファイルからログアウト
     aws logout || true
+
+    # aws-login のファイルキャッシュを消す（理由は --all 側と同じ）。キャッシュ名は
+    # -signin を付ける前のベースプロファイル名で作られる。
+    rm -f "$HOME/.aws/.aws-login-${AWS_PROFILE%-signin}.creds.json"
 
     # .aws/configファイルのパスを取得（環境変数またはデフォルト）
     CONFIG_FILE="${AWS_CONFIG_FILE:-$HOME/.aws/config}"

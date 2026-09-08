@@ -10,6 +10,8 @@
 #   - profile_name: ベースプロファイル名（自動的に"-signin"サフィックスが付与されます）
 #
 # 動作:
+#   0. 直近の出力を残したファイルキャッシュを見て、期限に余裕があれば aws CLI を起動せず返す
+#      （credential_process は 1 署名につき複数回呼ばれうるため。理由は下の CREDS_CACHE を参照）
 #   1. キャッシュから認証情報を取り出し、aws sts get-caller-identity で「実際に通るか」を検証
 #      （クレデンシャルが設定されているか、ではなく、いま有効か で判定する）
 #   2. 期限切れ／未ログインならブラウザでログインを実行
@@ -70,6 +72,74 @@ export AWS_PROFILE="$1-signin"
 # ローカル環境でEC2の認証情報が誤って使用されるのを防ぐ
 export AWS_EC2_METADATA_DISABLED=true
 
+# 認証情報のファイルキャッシュ。
+#
+# credential_process は「必要になったとき 1 回」呼ばれるとは限らない。発行される認証情報の
+# 寿命が botocore の advisory refresh window(900 秒)を下回っていると、SDK は署名のたびに
+# 「そろそろ更新すべき」と判断し、しかも access_key / secret_key / token の各プロパティ参照で
+# 個別に更新を試みるため、1 回の署名で数回ここが呼ばれる。このスクリプトは通常経路で
+# aws CLI を 2 回起動する(export-credentials 0.7 秒 + sts get-caller-identity 0.9 秒)ので、
+# 1 回 2.4 秒が十数秒に増幅される。MCP サーバーのように起動時に何度も署名する利用者は
+# これで数十秒待たされ、接続タイムアウト(30 秒)に掛かる。
+#
+# そこで直近の出力をファイルに残し、Expiration に余裕がある間は aws CLI を起動せず
+# それを返す(0.02 秒)。期限が近づけば通常経路へ落ち、aws CLI が新しいセッションを
+# 発行してキャッシュも更新されるので、自動更新の仕組みは変わらない。
+#
+# キャッシュを返す間は STS 検証を挟まない。認証情報の寿命そのものが短いので窓は限られ、
+# 途中で無効化された場合も API 呼び出しが認証エラーになるだけで復旧できる。ただし
+# aws-logout はトークンを破棄してもこのファイルの期限は縮まらないので、あちらで消している。
+CREDS_CACHE="$HOME/.aws/.aws-login-${1}.creds.json"
+# 期限までこれだけ残っていればキャッシュを使う。
+CREDS_CACHE_MIN_REMAINING=120
+
+# ISO8601 の時刻を epoch 秒へ。読めなければ何も出力せず非 0。
+# GNU date(Linux) は -d でそのまま読めるが、BSD date(macOS) は -j -f で書式を渡すうえ
+# %z が +0000 形式しか受け取らないため、末尾のオフセットを均してから渡す。
+to_epoch() {
+    local ts="$1"
+    date -d "$ts" +%s 2>/dev/null && return 0
+    ts="${ts%Z}"
+    case "$ts" in
+        *[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
+        *[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
+        *) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
+    esac
+    date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
+}
+
+# キャッシュが使えるならその内容を出力して 0 を返す。使えなければ 1。
+emit_cached_creds() {
+    local exp exp_epoch
+    [ -r "$CREDS_CACHE" ] || return 1
+    exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CREDS_CACHE")
+    [ -n "$exp" ] || return 1
+    exp_epoch=$(to_epoch "$exp") || return 1
+    [ -n "$exp_epoch" ] || return 1
+    [ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ] || return 1
+    cat "$CREDS_CACHE"
+}
+
+# creds を出力しつつキャッシュを更新する。
+# 認証情報を平文で置くので、作成した瞬間から他ユーザに読めないよう umask で絞る。
+# 書き込みに失敗しても認証自体は成立しているので、出力を優先して握りつぶす。
+emit_creds() {
+    local tmp
+    printf '%s\n' "$1"
+    tmp="${CREDS_CACHE}.tmp.$$"
+    if (
+        umask 077
+        printf '%s\n' "$1" >"$tmp"
+    ) 2>/dev/null; then
+        mv -f "$tmp" "$CREDS_CACHE" 2>/dev/null || rm -f "$tmp"
+    fi
+}
+
+# ここから下は aws CLI を起動する。キャッシュが使えるなら触らずに終える。
+if emit_cached_creds; then
+    exit 0
+fi
+
 # "-signin"プロファイルが存在していない場合
 if ! aws configure list-profiles | grep "$AWS_PROFILE" >/dev/null 2>&1; then
     # AWSリージョンを東京に設定
@@ -93,18 +163,19 @@ emit_creds_if_valid() {
     local creds sts_err
     creds=$(aws configure export-credentials --format process 2>/dev/null) || return 1
     [ -n "$creds" ] || return 1
-    # 抜け道: 従来どおり「設定があれば OK」に戻す。
+    # 抜け道: STS 検証を省略し、「設定があれば OK」で通す。
     if [ -n "$AWS_LOGIN_SKIP_VERIFY" ]; then
-        printf '%s\n' "$creds"
+        emit_creds "$creds"
         return 0
     fi
     if sts_err=$(aws sts get-caller-identity 2>&1 >/dev/null); then
-        printf '%s\n' "$creds"
+        emit_creds "$creds"
         return 0
     fi
     # STS 失敗。到達不能などの一時エラーならログインせずキャッシュで続行する。
     if printf '%s' "$sts_err" | grep -qiE 'could not connect|connect timeout|endpointconnectionerror|failed to establish|name resolution|getaddrinfo|name or service not known|network is unreachable|read timeout|connection (reset|aborted|refused)|temporarily unavailable|service unavailable|timed out'; then
         printf >&2 '%s\n' "aws-login: STS 検証をスキップ（${AWS_PROFILE}: ネットワーク到達不可）。キャッシュ済み認証情報で続行します。"
+        # 検証できていないのでキャッシュには残さない。次回も同じ判断をやり直す。
         printf '%s\n' "$creds"
         return 2
     fi
@@ -244,4 +315,4 @@ fi
 
 # ログイン直後（または上のロック内で別プロセスがログイン済みと判明した）creds を出力する。
 # 出力をこの 1 箇所に集約しているので、credential_process の stdout に JSON が二重に出ない。
-aws configure export-credentials --format process
+emit_creds "$(aws configure export-credentials --format process)"
