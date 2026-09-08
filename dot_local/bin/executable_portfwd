@@ -63,6 +63,15 @@ IDLE_TIMEOUT = 180.0
 # 活動が無い。この間を IDLE_TIMEOUT で計ると実際のログインより先に畳んでしまうため、旧方式
 # （ssh -L + ControlPersist 10m）が転送を保持していた時間に合わせて長く取る。
 PENDING_TIMEOUT = 600.0
+# ページ URL（URL 自体が localhost:port。mo の markdown ビューア等）のリレーは、通信が
+# 途絶えても畳まない。ブラウザのタブを閉じて昼休みに入っても、戻ってきたら同じ URL がその
+# まま開けることを優先する。代わりに転送先がまだ listen しているかを PROBE_INTERVAL ごとに
+# SOCKS CONNECT で確かめ、消えていたら畳む（アイドル時間ではなく転送先の生死で決める）。
+PROBE_INTERVAL = 60.0
+# 転送先の生死を確かめられない状態を許す時間。ssh が切れていると SOCKS プロキシに繋がらず、
+# 転送先が消えたのか ssh が落ちているだけなのかを区別できない。PC のスリープや一時的な切断で
+# 畳んでしまわないよう、この間は維持して ssh の復帰を待つ。
+UNREACHABLE_GRACE = 5400.0
 # accept の待ち時間。listener.close() が別スレッドの blocking accept を解除することは
 # （特に Windows で）保証されないため、自前で抜けられるように timeout を張る。
 ACCEPT_TIMEOUT = 1.0
@@ -181,18 +190,27 @@ _relays_lock = threading.Lock()
 
 class Relay:
     """ローカル 127.0.0.1:port で受けた接続を、SOCKS5 経由でリモートの
-    127.0.0.1:port へ中継する。ssh -L port:127.0.0.1:port の置き換え。"""
+    127.0.0.1:port へ中継する。ssh -L port:127.0.0.1:port の置き換え。
 
-    def __init__(self, host, port, socks_port):
+    畳むまでの寿命は 2 通りある。callback（OAuth の redirect_uri）のリレーは認証が終われば
+    用済みなのでアイドル時間で畳む。page（URL 自体が localhost:port）のリレーは開いたページ
+    を見続けるためのものなので、転送先が listen しなくなるまで維持する。"""
+
+    def __init__(self, host, port, socks_port, page=False):
         self.host = host
         self.port = port
         self.socks_port = socks_port
-        # last_activity / served は _lock 越しにしか読み書きしない。_pump は中継データの
-        # チャンクごとに last_activity を更新するため、_relays_lock のような広域ロックを
-        # ここで取ると全リレーの通信が直列化してしまう。Relay 専用の軽い lock に留める。
+        # last_activity / served / page とプローブの記録は _lock 越しにしか読み書きしない。
+        # _pump は中継データのチャンクごとに last_activity を更新するため、_relays_lock の
+        # ような広域ロックをここで取ると全リレーの通信が直列化してしまう。Relay 専用の軽い
+        # lock に留める。
         self._lock = threading.Lock()
         self._last_activity = time.monotonic()
         self._served = False
+        self._page = page
+        self._last_probe = time.monotonic()
+        self._unreachable_since = None
+        self._gone_reason = None
         self._stop = threading.Event()
         self.listener = socket.socket()
         # macOS/Linux の SO_REUSEADDR は TIME_WAIT の再バインドのみ許可し、他プロセスが
@@ -233,24 +251,87 @@ class Relay:
             if served:
                 self._served = True
 
+    def mark_page(self):
+        """ページリレーへ昇格させる。同じポートを先に callback として張った後で、同じホスト
+        からページの通知が来たときに呼ぶ。"""
+        with self._lock:
+            self._page = True
+            self._unreachable_since = None
+
+    def expiry_reason(self):
+        """畳んだ理由（ログ用）。ページリレーは _maybe_probe が理由を入れている。"""
+        with self._lock:
+            return self._gone_reason or "アイドルのため終了"
+
     def is_expired(self):
-        """まだ 1 回も接続を捌いていなければ PENDING_TIMEOUT、捌いた後なら IDLE_TIMEOUT を
-        last_activity と比べて期限切れかを判定する。"""
+        """期限切れかを判定する。callback リレーは、まだ 1 回も接続を捌いていなければ
+        PENDING_TIMEOUT、捌いた後なら IDLE_TIMEOUT を last_activity と比べる。ページリレーは
+        時間では判定せず、_maybe_probe が転送先の消滅を見つけたかどうかだけを見る。"""
         with self._lock:
             return self._is_expired_locked()
 
     def _is_expired_locked(self):
         """is_expired() の中身。_lock を握った状態でだけ呼ぶ内部用（_unregister_relay が
         判定と削除の間に touch() を割り込ませないため、自前で _lock を握って直接使う）。"""
+        if self._page:
+            # 判定にネットワーク I/O を持ち込むと、_unregister_relay が _relays_lock を握った
+            # ままプローブの完了を待つことになる。確かめるのは _maybe_probe の役目で、ここは
+            # その結果を読むだけ。
+            return self._gone_reason is not None
         elapsed = time.monotonic() - self._last_activity
         timeout = IDLE_TIMEOUT if self._served else PENDING_TIMEOUT
         return elapsed > timeout
+
+    def _maybe_probe(self):
+        """ページリレーの転送先がまだ listen しているかを確かめ、結果を _gone_reason に残す。
+
+        ネットワーク I/O を伴うので、ロックを握っていない accept ループから呼ぶ。SOCKS へは
+        2 回繋ぐ。プロキシが応答するか（= ssh が生きているか）と、その先の転送先へ CONNECT が
+        通るか（= 転送先が listen しているか）を区別する必要があり、ConnectionError は
+        OSError の一種なので例外の種類だけでは切り分けられないため。
+        """
+        now = time.monotonic()
+        with self._lock:
+            if not self._page or self._gone_reason is not None:
+                return
+            # 中継が動いていること自体が転送先の生存証明なので、その間は確かめない。
+            if now - self._last_activity < PROBE_INTERVAL:
+                return
+            if now - self._last_probe < PROBE_INTERVAL:
+                return
+            self._last_probe = now
+            socks_port = self.socks_port
+
+        if not _socks_probe(socks_port):
+            # SOCKS プロキシが応答しない = ssh が切れている。転送先の生死は分からないので、
+            # 猶予の間は維持したまま復帰を待つ。
+            with self._lock:
+                if self._unreachable_since is None:
+                    self._unreachable_since = now
+                    _log(f"relay {self.port}: SOCKS 127.0.0.1:{socks_port} が応答しません "
+                         f"（ssh 断とみなし最大 {UNREACHABLE_GRACE:.0f} 秒維持します）")
+                elif now - self._unreachable_since > UNREACHABLE_GRACE:
+                    self._gone_reason = "ssh が戻らないため終了"
+            return
+
+        try:
+            _socks_connect(socks_port, self.port).close()
+        except (OSError, ConnectionError):
+            # SOCKS までは届くのに CONNECT が通らない = 転送先がそのポートで listen して
+            # いない（mo を終了させた等）。
+            with self._lock:
+                self._gone_reason = "転送先が listen していないため終了"
+            return
+
+        with self._lock:
+            self._unreachable_since = None
 
     def _accept_loop(self):
         while not self._stop.is_set():
             try:
                 conn, _ = self.listener.accept()
             except socket.timeout:
+                self._maybe_probe()
                 if self.is_expired():
                     if not _unregister_relay(self):
                         continue
@@ -316,12 +397,16 @@ def _unregister_relay(relay):
                 return False
             del _relays[relay.port]
     relay.close()
-    _log(f"relay {relay.port}: アイドルのため終了 (via {relay.host})")
+    _log(f"relay {relay.port}: {relay.expiry_reason()} (via {relay.host})")
     return True
 
 
-def ensure_relay(host, port, socks_port):
-    """port のリレーを用意する。成功なら None、失敗なら reject メッセージを返す。"""
+def ensure_relay(host, port, socks_port, page=False):
+    """port のリレーを用意する。成功なら None、失敗なら reject メッセージを返す。
+
+    page=True は URL 自体が localhost:port のページを開く通知（mo 等）。アイドルでは畳まず、
+    転送先が listen しなくなるまで維持する。
+    """
     with _relays_lock:
         existing = _relays.get(port)
         if existing is not None:
@@ -331,9 +416,11 @@ def ensure_relay(host, port, socks_port):
                 return f"reject: ポート {port} は {existing.host} のリレーが使用中です"
             existing.socks_port = socks_port
             existing.touch()
+            if page:
+                existing.mark_page()
             return None
         try:
-            _relays[port] = Relay(host, port, socks_port)
+            _relays[port] = Relay(host, port, socks_port, page=page)
         except OSError as e:
             return f"reject: 127.0.0.1:{port} を listen できません ({e})"
     return None
@@ -386,25 +473,29 @@ def _socks_port_of(conf):
 
 
 def _callback_endpoint(parsed):
-    """ブラウザ URL から、ローカルへ -L 転送すべき callback (host, port) を決める。
+    """ブラウザ URL から、ローカルへ -L 転送すべき (host, port, 種別) を決める。
 
     2 パターンに対応する:
       1. OAuth/OIDC の authorize URL（例: `aws login` / `gh auth`）。ブラウザが開くのは
          認可サーバ上の URL で、コールバックは `redirect_uri` クエリに localhost:port
          として埋め込まれる（URL 自身のホストは認可サーバなので localhost ではない）。
-      2. URL 自体が localhost:port のコールバック（ツールが直接ローカル URL を開く場合）。
-    どちらでもないときは (None, None) を返す（呼び出し側は転送せず、URL を開くだけにする）。
+         種別は "callback"。
+      2. URL 自体が localhost:port（ツールが直接ローカル URL を開く場合）。種別は "page"。
+    どちらでもないときは (None, None, None) を返す（呼び出し側は転送せず、URL を開くだけ）。
+
+    種別はリレーの寿命を決めるためにある。1 は認証が終われば用済みなのでアイドルで畳み、
+    2 は開いたページを見続けるものなので転送先が生きている限り維持する。
     """
     # 1) authorize URL: redirect_uri クエリのローカルコールバックを最優先で使う。
     redirect = parse_qs(parsed.query).get("redirect_uri", [None])[0]
     if redirect:
         r = urlparse(redirect)
         if r.hostname in ("127.0.0.1", "localhost") and r.port is not None:
-            return r.hostname, r.port
-    # 2) URL 自体がローカルコールバックのとき。
+            return r.hostname, r.port, "callback"
+    # 2) URL 自体がローカルのページ / コールバックのとき。
     if parsed.hostname in ("127.0.0.1", "localhost") and parsed.port is not None:
-        return parsed.hostname, parsed.port
-    return None, None
+        return parsed.hostname, parsed.port, "page"
+    return None, None, None
 
 
 def _open_url(url):
@@ -446,9 +537,10 @@ def handle_notification(payload: dict) -> str:
         if f"LC_PORTFWD_HOST={host}" not in conf.get("setenv", []):
             return f"reject: {host} は portfwd 対象ではありません (SetEnv 不一致)"
 
-        # localhost callback を伴う URL（OAuth の authorize URL 等）のときだけ、その callback
-        # ポートをリレーする。普通の URL（callback 無し）は転送せず、ローカルで開くだけ。
-        _, cb_port = _callback_endpoint(parsed)
+        # URL から localhost のポートが読み取れたときだけリレーする。OAuth の authorize URL
+        # なら redirect_uri の callback ポート、ローカルのページ URL ならそのポート。どちらでも
+        # ない URL は転送せず、ローカルで開くだけ。
+        _, cb_port, cb_kind = _callback_endpoint(parsed)
         if cb_port is not None and not (1 <= cb_port <= 65535):
             return f"reject: callback ポートが範囲外です ({cb_port})"
         if cb_port:
@@ -457,13 +549,13 @@ def handle_notification(payload: dict) -> str:
                 return f"reject: {host}: {err}"
             if not _socks_probe(socks_port):
                 return f"reject: {host}: SOCKS プロキシ 127.0.0.1:{socks_port} が応答しません"
-            rejected = ensure_relay(host, cb_port, socks_port)
+            rejected = ensure_relay(host, cb_port, socks_port, page=cb_kind == "page")
             if rejected:
                 return rejected
 
         # ローカルブラウザで開く（authorize URL なら認可ページ、普通の URL ならそのページ）。
         _open_url(url)
-        relayed = f"relay {cb_port} " if cb_port else ""
+        relayed = f"relay {cb_port}（{cb_kind}） " if cb_port else ""
         return f"ok: {relayed}via {host}, opened {url}"
     except Exception as e:
         return f"error: {e}"

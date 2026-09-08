@@ -74,9 +74,20 @@ py -3 "$env:USERPROFILE\.local\bin\portfwd" status
   スクリプト自身にはアイドル自己終了も多重起動制御も無い。
 - listen に失敗（他プロセスが 55999 を掴んでいる等）すると `serve` は非ゼロ終了し、
   サービスマネージャが間隔を空けて再試行する。
-- リレーは通知ごとに張る。1 回も接続を捌いていない間はログイン・MFA 待ちのため 600 秒
-  （旧 `ssh -L` の `ControlPersist 10m` 相当）、接続を 1 回でも捌いた後はアイドル 180 秒で
-  listener を閉じる。
+- リレーは通知ごとに張り、寿命は **URL の種類で変わる**。`redirect_uri` に localhost の
+  callback を持つ authorize URL（`aws login` / `gh auth`）が **callback リレー**、URL 自体が
+  `localhost:<port>` のもの（`mo` の markdown ビューア等）が **page リレー**。
+  - **callback リレーは時間で畳む**。1 回も接続を捌いていない間はログイン・MFA 待ちのため
+    600 秒（旧 `ssh -L` の `ControlPersist 10m` 相当）、接続を 1 回でも捌いた後はアイドル
+    180 秒で listener を閉じる。
+  - **page リレーは時間では畳まない**。開いたページは見終わるまで繋がっていてほしいので、
+    **転送先が listen し続けている限り維持する**。`PROBE_INTERVAL`（60 秒）ごとに SOCKS
+    CONNECT で SSH 先の同じポートを叩き、**拒否されたら**（`mo` を終了させた等）畳む。
+    ブラウザのタブを閉じて放置しても切れない。
+  - **ssh が切れている間は判定を保留する**。SOCKS プロキシに繋がらないと、転送先が消えたのか
+    ssh が落ちているだけなのか区別がつかない。この間はリレーを維持し、`UNREACHABLE_GRACE`
+    （90 分）を超えても戻らなければ畳む。昼休みに PC がスリープした程度では消えず、ssh を
+    張り直せばタブはそのまま使える。
 - 環境変数（ローカル側）: `PORTFWD_PORT`(既定 55999) で daemon が listen する TCP ポート、
   `PORTFWD_OPEN_CMD` でブラウザ起動コマンド、`PORTFWD_LOG` でログファイル、`PORTFWD_SSH_CMD`
   で ssh コマンドを変更できる。リモート側（`portfwd-open` / `aws-login`）は `PORTFWD_SOCK`
@@ -234,9 +245,9 @@ Host <alias>
 
 ## 安全策
 
-- daemon がリレーを張るのは **localhost の callback が見つかったときだけ**（`redirect_uri` か
-  URL 自体が `127.0.0.1`/`localhost`）。それ以外の URL は転送せずブラウザで開くだけ
-  （任意ポート転送の踏み台化防止）。
+- daemon がリレーを張るのは **URL から localhost のポートが読み取れたときだけ**
+  （`redirect_uri` の callback か、URL 自体が `127.0.0.1`/`localhost`）。それ以外の URL は
+  転送せずブラウザで開くだけ（任意ポート転送の踏み台化防止）。
 - `ssh -G <host>` の `SetEnv LC_PORTFWD_HOST` が通知の host と一致しなければ破棄する。
   これが「明示的にオプトインされたホストのみ」の担保で、callback の有無に関わらず必須。
 - callback があるときは加えて、`dynamicforward` が 1 つだけ存在して IPv4 loopback に
