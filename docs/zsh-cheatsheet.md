@@ -2,7 +2,7 @@
 
 zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キーバインドをまとめたリファレンス。
 
-- プラグイン管理: **sheldon**（fzf-tab / zsh-autosuggestions 等）
+- プラグイン管理: **sheldon**（`zsh-completions` の fpath 追加と compinit）
 - プロンプト: **starship**（SSH/root 接続時はプロンプト先頭に `user@host` を表示。ローカル通常時は非表示）
 - ディレクトリ移動: zsh 既定どおり（`AUTO_PUSHD` は外した。`cd -` は直前のディレクトリへ戻るだけ）
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_zshenv.tmpl` で設定。非インタラクティブ実行にも適用）
@@ -268,6 +268,11 @@ codex-bedrock-spawn reviewer
 
 | キー | 動作 |
 | --- | --- |
+| `Tab` | 1 回目で一意に決まるところまで補完して候補一覧を表示。2 回目以降は一覧の選択が動き、行のテキストも同時に置き換わる |
+| `Enter`（一覧表示中） | 選択中の候補で確定（実行はもう一度 `Enter`） |
+| `↑` `↓` `←` `→`（一覧表示中） | 選択を移動 |
+| `C-g`（一覧表示中） | 選択を取り消して `Tab` を押す前の行へ戻す |
+| `**` + `Tab` | fzf でファイル/ディレクトリを絞り込んで挿入（`fzf --zsh`） |
 | `C-]` | `peco-src`: ghq リポジトリを peco で絞り込んで移動 |
 | `Home` | 行頭へ |
 | `End` | 行末へ |
@@ -276,8 +281,16 @@ codex-bedrock-spawn reviewer
 | `C-t` | fzf でファイル/ディレクトリをコマンドラインへ挿入 |
 | `M-c` | fzf でサブディレクトリへ `cd` |
 
-その他、sheldon 経由の **zsh-autosuggestions**（履歴・補完ベースの候補をグレー表示、`→` で確定）と
-**fzf-tab**（Tab 補完を fzf UI で選択）が有効。さらに **fzf**（aqua 管理）のキーバインドと `**<Tab>` 補完が有効（`fzf --zsh`）。
+`Tab` は zsh 標準の menu selection（`zstyle ':completion:*' menu select`）に一本化してある。1 回目の `Tab` で
+候補の共通接頭辞まで挿入して一覧を出し（`AUTO_LIST` + `unsetopt LIST_AMBIGUOUS`）、2 回目からは `AUTO_MENU` が
+一覧の選択を動かす。**一覧のハイライトと行のテキストは常に同じものを指す**ので、見えている候補が
+そのまま入る。`bindkey` で `Tab` に何かを割り当てることはしていない。
+
+候補は補完システムのタグごとにグループへ分かれて並ぶ（`group-name ''`）。ヒストリは混ぜていない
+（履歴からの検索は `C-r`）。
+
+`**<Tab>` 補完と `C-r` / `C-t` / `M-c` は **fzf**（aqua 管理、`fzf --zsh`）のもので、`Tab` は fzf の
+`fzf-completion` を経由して素の補完へ落ちる。
 
 ---
 
@@ -286,7 +299,7 @@ codex-bedrock-spawn reviewer
 | 設定 | 内容 |
 | --- | --- |
 | 大文字小文字 | 区別せず補完（`m:{a-z}={A-Z}`） |
-| メニュー補完 | fzf-tab の UI で選択（`cd` はディレクトリを `ls` プレビュー） |
+| メニュー補完 | zsh 標準の menu selection。1 回目の `Tab` で共通接頭辞＋一覧、2 回目以降で選択が巡回 |
 | ヒストリ | 100 万件保存、セッション間で共有（`SHARE_HISTORY`）、重複除去 |
 | スペル訂正 | 無効（`CORRECT` off） |
 | ベル | 鳴らさない（`NO_BEEP`） |

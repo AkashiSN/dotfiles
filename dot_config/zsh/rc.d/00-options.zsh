@@ -19,6 +19,7 @@ DIRSTACKSIZE=100 # ディレクトリスタックの最大サイズ
 
 setopt AUTO_MENU # タブキーの連打で自動的にメニュー補完
 setopt AUTO_LIST # 曖昧な補完で、自動的に選択肢をリストアップ
+unsetopt LIST_AMBIGUOUS # 共通接頭辞を入れた Tab でも一覧を出す(2 回目の Tab から巡回に入る)
 setopt AUTO_PARAM_KEYS # 変数名を補完する
 setopt PROMPT_SUBST # プロンプト文字列で各種展開を行なう
 setopt LIST_TYPES # 補完候補一覧でファイルの種別を識別マーク表示(ls -F の記号)

@@ -1,10 +1,6 @@
 # 30-plugins.zsh — sheldon / prompt / 各種 hook。
-# sheldon の plugins.toml が fpath -> compinit -> fzf-tab -> zsh-autosuggestions の順で展開する。
-# autosuggestions の設定はロード前に置く必要がある。
+# sheldon の plugins.toml が fpath -> compinit の順で展開する。
 
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
-ZSH_AUTOSUGGEST_USE_ASYNC=1
-ZSH_AUTOSUGGEST_MANUAL_REBIND=1
 if command -v sheldon &> /dev/null ;then
   eval "$(sheldon source)"
 fi
