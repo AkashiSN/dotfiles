@@ -1,8 +1,32 @@
-# .bash_profile
+# .bash_profile — bash でログインしたら zsh へ切り替える。
+#
+# 対話ログインのときだけ切り替える。Claude Code は `bash -c -l <command>` で
+# 非対話起動し、その中でシェルスナップショットを作るため、無条件に exec すると
+# スナップショットが成立しない（bash へ渡したコマンド文字列は zsh には引き継がれない）。
+# 詳細は docs/zsh-cheatsheet.md の「シェルの役割分担」。
+# shellcheck shell=bash
+case $- in
+*i*)
+	# 自前ビルドの zsh があればそれを優先する（ディストリ同梱より新しいことがあるため）。
+	_zsh=""
+	if [ -x "$HOME/.local/bin/zsh" ]; then
+		_zsh="$HOME/.local/bin/zsh"
+	elif command -v zsh >/dev/null 2>&1; then
+		_zsh="$(command -v zsh)"
+	fi
+	if [ -n "$_zsh" ]; then
+		export PATH="$HOME/.local/bin:$PATH"
+		SHELL="$_zsh"
+		export SHELL
+		exec "$SHELL" -l
+	fi
+	unset _zsh
+	;;
+esac
 
-# Use costom zsh
-if [ -f $HOME/.local/bin/zsh ]; then
-	export PATH=$HOME/.local/bin:$PATH
-	export SHELL=$HOME/.local/bin/zsh
-	exec $HOME/.local/bin/zsh -l
+# ここへ来るのは非対話ログイン（Claude Code など）、および zsh の無いホストの対話ログイン。
+# bash は -l では .bashrc を読まないので明示的に読む。env と alias はここから届く。
+if [ -f "$HOME/.bashrc" ]; then
+	# shellcheck source=/dev/null
+	. "$HOME/.bashrc"
 fi

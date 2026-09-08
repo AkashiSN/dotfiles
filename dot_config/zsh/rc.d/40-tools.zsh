@@ -28,16 +28,14 @@ if command -v tenv &> /dev/null ;then
   export TENV_VALIDATION=sha
 fi
 
-# terraform（bash 動的補完）
+# terraform（bash 動的補完）。alias tf は ~/.config/shell/aliases.sh（bash と共通）。
 if command -v terraform &> /dev/null ;then
   complete -o nospace -C "$(command -v terraform)" terraform
-  alias tf="terraform"
 fi
 
-# kubectl（非 aqua: ランタイム生成をキャッシュ）
+# kubectl（非 aqua: ランタイム生成をキャッシュ）。alias k は aliases.sh。
 if command -v kubectl > /dev/null 2>&1;then
   _load_completion kubectl 'kubectl completion zsh' "$(command -v kubectl)"
-  alias k="kubectl"
 fi
 
 # kiro（統合ターミナル内のみ）: シェル統合を有効化。コマンド境界/cwd 追跡/終了コード

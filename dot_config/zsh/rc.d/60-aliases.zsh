@@ -1,32 +1,9 @@
-# 60-aliases.zsh — エイリアスと基本 env。
+# 60-aliases.zsh — alias の読み込み。
+#
+# 実体は ~/.config/shell/aliases.sh（zsh・bash 共通）。bash で走る Claude Code にも
+# 同じ alias を届けるため、両シェルから読める POSIX sh の 1 ファイルにまとめてある。
+# zsh でしか意味を持たない alias をここへ足すことはできるが、いまは無い。
 
-case "$(uname)" in
-Darwin)
-  alias ls="ls -G"
-  alias ll="ls -lG"
-  alias la="ls -laG"
-  alias brew="PATH=/opt/homebrew/bin:/usr/local/sbin:/usr/local/bin:/sbin:/usr/sbin:/bin:/usr/bin brew"
-  export PATH_TO_FX="/Library/Java/JavaVirtualMachines/javafx-sdk/lib"
-  ;;
-Linux)
-  alias ls='ls --color=auto'
-  alias ll='ls -alF'
-  alias la='ls -A'
-  alias l='ls -CF'
-  alias ffmpeg-qsv="sudo env PATH=$HOME/.local/bin:$PATH env LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH env LIBVA_DRIVERS_PATH=$HOME/.local/lib env LIBVA_DRIVER_NAME=iHD ffmpeg"
-  export PATH_TO_FX="/usr/share/openjfx/lib"
-  ;;
-esac
-
-alias rsync="rsync -azP"
-alias conv-utf8='find . -type f -exec nkf --overwrite -w -Lu {} \;'
-
-alias vi=nvim
-alias vim=nvim
-
-# WSL 用の調整
-if [[ "$(uname -r)" == *microsoft* ]]; then
-  alias code="/mnt/c/Users/$(whoami)/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code"
-  unalias docker 2>/dev/null
-  unalias docker-compose 2>/dev/null
-fi
+_shell_aliases="${XDG_CONFIG_HOME:-$HOME/.config}/shell/aliases.sh"
+[ -r "$_shell_aliases" ] && source "$_shell_aliases"
+unset _shell_aliases

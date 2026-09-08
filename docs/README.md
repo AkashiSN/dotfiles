@@ -10,7 +10,7 @@
 | gitui（git TUI） | [gitui-cheatsheet.md](gitui-cheatsheet.md) | `dot_config/gitui/theme.ron` |
 | Markdown プレビュー（glow / mo） | [markdown-preview-cheatsheet.md](markdown-preview-cheatsheet.md) | `dot_config/herdr/config.toml` / `dot_local/bin/herdr-mo` / `mo` / `mo-port` / `dot_config/aquaproj-aqua/aqua.yaml` |
 | Ghostty | [ghostty-cheatsheet.md](ghostty-cheatsheet.md) | `dot_config/ghostty/config` |
-| zsh | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` |
+| zsh / bash | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/` / `dot_bashrc` |
 | AI Git / PR | [ai-git-cheatsheet.md](ai-git-cheatsheet.md) | `dot_local/bin/git-aicommit` / `gh-pr-aicreate` / `private_dot_claude/hooks/pr-refresh-check.sh` |
 | Terraform（provider キャッシュ / tflint） | [terraform-cheatsheet.md](terraform-cheatsheet.md) | `dot_terraformrc.tmpl` / `dot_local/bin/tf-cache-prune` / `dot_config/aquaproj-aqua/aqua.yaml` |
 | uv（既定の Python / ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `dot_config/uv/dot_python-version` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |

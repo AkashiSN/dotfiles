@@ -1,32 +1,11 @@
-# 10-path.zsh — PATH / FPATH / MANPATH 等。compinit(30) より前に fpath を確定させる。
+# 10-path.zsh — zsh 固有のパス設定。compinit(30) より前に fpath を確定させる。
+#
+# PATH / MANPATH / 開発系パス（LD_LIBRARY_PATH 等）と GOPATH は zsh・bash 共通の
+# ~/.config/shell/env.sh にある。ここに残すのは zsh でしか意味を持たないものだけ。
 
-# LOCAL_PREFIX と PATH への $LOCAL_PREFIX/bin 追加は .zshenv 側(非対話シェルにも要るため)。
-export MANPATH=$LOCAL_PREFIX/share/man:$MANPATH
-export INFOPATH=$LOCAL_PREFIX/share/info:$INFOPATH
-export LD_LIBRARY_PATH=$LOCAL_PREFIX/lib:$LD_LIBRARY_PATH
-export LIBRARY_PATH=$LOCAL_PREFIX/lib:$LIBRARY_PATH
-export PKG_CONFIG_PATH=$LOCAL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
-export C_INCLUDE_PATH=$LOCAL_PREFIX/include:$C_INCLUDE_PATH
-export CPLUS_INCLUDE_PATH=$LOCAL_PREFIX/include:$CPLUS_INCLUDE_PATH
 export FPATH=$LOCAL_PREFIX/share/zsh/site-functions:$FPATH
 
 mkdir -p ${LOCAL_PREFIX}/{share,lib,include,bin,share/zsh/site-functions}
-
-# agmsg: Codex monitor モードのシム（~/.agents/bin/codex）を本体 codex（~/.local/bin）
-# より前に置く。delivery.sh set monitor codex 実行時に生成され、未生成でも実害なし。
-# 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
-export PATH=$HOME/.agents/bin:$PATH
-
-# Golang (go 本体は aqua 管理)
-export GOPATH=$HOME/Project
-export GHQ_ROOT=$GOPATH/src
-export PATH=$GOPATH/bin:$PATH
-
-# Rancher Desktop
-export PATH=$HOME/.rd/bin:$PATH
-
-# NodeJS (Yarn)
-export PATH=$HOME/.yarn/bin:$PATH
 
 # /etc/profile.d — sh 向けに書かれたサードパーティのスクリプト群なので sh 意味論で
 # source する(詳細は docs/zsh-cheatsheet.md の「/etc/profile.d の読み込み」)。

@@ -1,16 +1,16 @@
 # zsh チートシート
 
-zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キーバインドをまとめたリファレンス。
+zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイリアス・関数・キーバインドをまとめたリファレンス。
 
 - プラグイン管理: **sheldon**（`zsh-completions` の fpath 追加と compinit）
 - プロンプト: **starship**（SSH/root 接続時はプロンプト先頭に `user@host` を表示。ローカル通常時は非表示）
 - ディレクトリ移動: zsh 既定どおり（`AUTO_PUSHD` は外した。`cd -` は直前のディレクトリへ戻るだけ）
-- エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_zshenv.tmpl` で設定。非インタラクティブ実行にも適用）
-- ロケール: `LANG=ja_JP.UTF-8`（`dot_zshenv.tmpl` で設定。全シェル/スクリプトに適用）
-- Python: `~/.local/bin` を `dot_zshenv.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`.zshenv` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
+- エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_config/shell/env.sh.tmpl` で設定。zsh・bash 共通、非インタラクティブ実行にも適用）
+- ロケール: `LANG=ja_JP.UTF-8`（`dot_config/shell/env.sh.tmpl` で設定。全シェル/スクリプトに適用）
+- Python: `~/.local/bin` を `dot_config/shell/env.sh.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`env.sh` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）や bash でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
 - Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
-- Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_zshenv.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
-- 構成: `dot_zshrc` はローダー。実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
+- Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_config/shell/env.sh.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
+- 構成: 環境変数と alias は zsh・bash 共通の `~/.config/shell/{env,aliases}.sh`（[シェルの役割分担](#シェルの役割分担)）。`dot_zshrc` はローダーで、対話専用の実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
 
 > 表記: `C-]` = Ctrl+]、`S-...` = Shift。エイリアス/関数の一部は対応ツール（terraform/kubectl 等）が
 > インストールされている場合のみ有効。CLI は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で管理。
@@ -89,7 +89,7 @@ AWS プロファイルの解決は `~/.local/bin/claude-bedrock-wrapper`（`<cla
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
-portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_zshenv.tmpl` の `LC_PORTFWD_HOST` チェックによる）。`$BROWSER` が既にセットされている場合（VSCode Remote 等が自前のヘルパを仕込んでいる場合）は上書きしない。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
+portfwd でオプトインした SSH セッションでは `$BROWSER` が自動で `~/.local/bin/portfwd-open` にセットされ、`aws login` / `gh auth` 等がブラウザを開こうとするとローカルのブラウザが開く（`dot_config/shell/env.sh.tmpl` の `LC_PORTFWD_HOST` チェックによる）。`$BROWSER` が既にセットされている場合（VSCode Remote 等が自前のヘルパを仕込んでいる場合）は上書きしない。詳細は [portfwd-cheatsheet.md](portfwd-cheatsheet.md) を参照。
 
 ### bedrock 起動で使う AWS プロファイル
 
@@ -303,6 +303,85 @@ codex-bedrock-spawn reviewer
 | ヒストリ | 100 万件保存、セッション間で共有（`SHARE_HISTORY`）、重複除去 |
 | スペル訂正 | 無効（`CORRECT` off） |
 | ベル | 鳴らさない（`NO_BEEP`） |
+
+---
+
+## シェルの役割分担
+
+ログインシェルは **zsh のまま**。一方 Claude Code の Bash ツールは
+`CLAUDE_CODE_SHELL=/bin/bash`（`~/.claude/settings.json` の `env`。ソースは
+`private_dot_claude/modify_settings.json.tmpl`）により **常に bash** で走る。同じマシンで
+2 つのシェルが動くため、設定を「両シェルが見る共通の土台」と「zsh 専用の対話部分」に分けている。
+
+### 全体像
+
+```
+                    ~/.config/shell/env.sh        ← POSIX sh。両シェルの唯一の env 源
+                       ↑ source          ↑ source
+                   ~/.zshenv           ~/.bashrc
+                （zsh 固有のみ）          + aliases.sh
+                       ↓                 + direnv hook bash / fnm env
+   ~/.zshrc → rc.d/*.zsh                ~/.bash_profile
+   （対話専用。bash へは持っていかない）   ├ 対話 → exec zsh -l（今までどおり）
+                                          └ 非対話 → . ~/.bashrc（Claude の経路）
+```
+
+`~/.config/shell/env.sh` の実体は chezmoi テンプレート（`dot_config/shell/env.sh.tmpl`）。
+Homebrew の prefix がアーキテクチャで変わるためテンプレートにしてある。
+
+### なぜ Claude は bash なのか
+
+Claude が bash の手癖でコマンドを書き、それが zsh で実行されると、エラーにならないまま
+挙動だけが変わる事故が起きる。手元で実測した差分は以下（`zsh -f` と `bash --norc`）。
+
+| # | 差分 | bash | zsh |
+| --- | --- | --- | --- |
+| 1 | マッチ 0 件の glob | パターンが literal で渡る（`ls` がエラー） | `no matches found` でコマンド自体を実行しない |
+| 2 | `$VAR` の単語分割 | 分割する（3 引数） | 分割しない（1 引数） |
+| 3 | 配列の添字 | 0 始まり | 1 始まり（`${arr[0]}` が空） |
+| 4 | `echo "a\tb"` | `\t` のまま | 実タブに解釈 |
+| 5 | `echo x \| read v` | `v` は空 | `v=x`（パイプの最終要素が現在のシェルで走る） |
+
+2 と 3 は「エラーにならず、意図と違う対象に対して成功する」型なので特に気づきにくい。
+1 は `NULL_GLOB` を[既定から外した](#既定から外さないオプション)ことで「黙って引数が消える」
+から「その場で止まる」に変わったが、bash とは依然として違う。
+
+### どこに何を書くか
+
+| 書きたいもの | 置き場所 |
+| --- | --- |
+| 環境変数 / PATH | `~/.config/shell/env.sh`（ソースは `dot_config/shell/env.sh.tmpl`） |
+| 両シェル共通の alias | `~/.config/shell/aliases.sh` |
+| 両シェル共通の振る舞いが要るもの | まず `~/.local/bin/` のスクリプト化を検討する |
+| 補完 / prompt / キーバインド / ZLE | `~/.config/zsh/rc.d/` |
+
+`~/.local/bin/` のスクリプトにするのは、VS Code / Kiro 拡張の spawn や agmsg の `spawn.sh` の
+ようにシェルの rc を経由しない起動経路にも届かせるため（`mo` / `claude-bedrock` /
+`codex-bedrock` が該当）。
+
+### env.sh の触ってはいけない不変条件
+
+- **`MANPATH` / `INFOPATH` の末尾の空要素（コロン）を壊さない。** man と GNU info はパス中の
+  空要素を「ここに組み込みの既定を挿入する」という意味で扱うため、これが無いと自前のパスで
+  既定がまるごと置き換わり、`man ls` のような標準マニュアルが引けなくなる。`env.sh` は
+  最後にまとめて末尾コロンを足す（先に `MANPATH=":"` を代入する形は zsh の
+  `typeset -U manpath` に潰されるので不可）。
+- **`LD_LIBRARY_PATH` / `LIBRARY_PATH` / `PKG_CONFIG_PATH` / `C_INCLUDE_PATH` /
+  `CPLUS_INCLUDE_PATH` には逆に空要素を足さない。** 動的リンカ・プリプロセッサ・pkg-config に
+  とって空要素は「カレントディレクトリ」を意味し、意図せずカレントのライブラリ/ヘッダを拾う
+  経路ができる。`MANPATH` に揃えて対称化したくなっても、この 5 つには足さない。
+- **PATH への追加は `_path_add`（move-to-front）を使う。** `~/.zshenv` が先に走らせる
+  `path_helper` が `/etc/paths.d` 由来の `/opt/homebrew/bin` を PATH の**後方**へ入れるため、
+  「既出なら何もしない」実装だと Homebrew のコマンドが `/usr/bin` より後ろに残り、`git` などが
+  macOS 同梱の版に解決されてしまう。`_prepend`（既出なら何もしない）は空要素の意味を持つ
+  `MANPATH` / `INFOPATH` 側で使う。
+
+### 禁止事項
+
+- `~/.bashrc`（`dot_bashrc`）に `shopt -s nullglob` を書かない。`IFS` を変えない。
+  上の 1 番の事故を bash 側へ持ち込むことになる。
+- `~/.config/shell/*.sh` は **POSIX sh** で書く。`[[ ]]` / 配列 / `local` は bash・zsh 拡張で、
+  `sh` として source されると構文エラーになる。
 
 ---
 

@@ -1,143 +1,28 @@
-# .zshenv
-export PATH
-export MANPATH
-export HOMEBREW_PATH
-
-# locale: 環境変数なので全シェル/スクリプトに効くよう .zshenv で設定する
-# (rc.d はインタラクティブ限定なので非インタラクティブ実行で取りこぼす)
-export LANG=ja_JP.UTF-8
-
-# エディタ: 環境変数なので全シェル/スクリプトに効くよう .zshenv で設定する
-# (rc.d はインタラクティブ限定なので非インタラクティブ実行で取りこぼす。herdr --remote で
-#  非インタラクティブな ssh セッションから herdr サーバを起動しても .zshenv は読まれるので、
-#  そこから spawn される popup にも EDITOR が引き継がれる)
-export EDITOR=nvim
-export VISUAL=nvim
-
-# -U: keep only the first occurrence of each duplicated value
-# ref. http://zsh.sourceforge.net/Doc/Release/Shell-Builtin-Commands.html#index-typeset
-typeset -U PATH path MANPATH manpath
+# .zshenv — 全シェル/スクリプトに効く環境変数。
+#
+# 実体は ~/.config/shell/env.sh。bash(Claude Code が使う)と共有するため POSIX sh で
+# 書いてある。ここには zsh 固有のものだけを置く。
+# 役割分担は docs/zsh-cheatsheet.md の「シェルの役割分担」。
 
 # ignore /etc/zprofile, /etc/zshrc, /etc/zlogin, and /etc/zlogout
 # ref. http://zsh.sourceforge.net/Doc/Release/Files.html
 # ref. http://zsh.sourceforge.net/Doc/Release/Options.html#index-GLOBALRCS
 unsetopt GLOBAL_RCS
+
 # copied from /etc/zprofile
 # system-wide environment settings for zsh(1)
+# env.sh より先に走らせる。ここで入るシステムのパスの前に、env.sh が自前のパスを足す。
 if [ -x /usr/libexec/path_helper ]; then
   eval `/usr/libexec/path_helper -s`
 fi
 
-{{ if eq .chezmoi.arch "arm64" -}}
-HOMEBREW_PATH=/opt/homebrew
-{{- else -}}
-HOMEBREW_PATH=/usr/local
-{{- end }}
+# -U: keep only the first occurrence of each duplicated value
+# ref. http://zsh.sourceforge.net/Doc/Release/Shell-Builtin-Commands.html#index-typeset
+# env.sh 側でも重複は弾いているが、ここより後(rc.d や外部)で足された分にも効かせる。
+typeset -U PATH path MANPATH manpath
 
-path=(
-  ${HOMEBREW_PATH}/bin(N-/) # homebrew
-  ${HOMEBREW_PATH}/sbin(N-/) # homebrew
-  ${path}
-)
-manpath=(
-  ${HOMEBREW_PATH}/share/man(N-/) # homebrew
-  ${manpath}
-)
+_shell_env="${XDG_CONFIG_HOME:-$HOME/.config}/shell/env.sh"
+[ -r "$_shell_env" ] && source "$_shell_env"
+unset _shell_env
 
-path=(
-  ${HOMEBREW_PATH}/opt/coreutils/libexec/gnubin(N-/) # coreutils
-  ${HOMEBREW_PATH}/opt/ed/libexec/gnubin(N-/) # ed
-  ${HOMEBREW_PATH}/opt/findutils/libexec/gnubin(N-/) # findutils
-  ${HOMEBREW_PATH}/opt/gawk/libexec/gnubin(N-/) # gawk
-  ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnubin(N-/) # sed
-  ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnubin(N-/) # tar
-  ${HOMEBREW_PATH}/opt/grep/libexec/gnubin(N-/) # grep
-  ${HOMEBREW_PATH}/opt/unzip/bin(N-/) # unzip
-  ${HOMEBREW_PATH}/opt/curl/bin(N-/) # curl
-  ${path}
-)
-manpath=(
-  ${HOMEBREW_PATH}/opt/coreutils/libexec/gnuman(N-/) # coreutils
-  ${HOMEBREW_PATH}/opt/ed/libexec/gnuman(N-/) # ed
-  ${HOMEBREW_PATH}/opt/findutils/libexec/gnuman(N-/) # findutils
-  ${HOMEBREW_PATH}/opt/gawk/libexec/gnuman(N-/) # gawk
-  ${HOMEBREW_PATH}/opt/gnu-sed/libexec/gnuman(N-/) # sed
-  ${HOMEBREW_PATH}/opt/gnu-tar/libexec/gnuman(N-/) # tar
-  ${HOMEBREW_PATH}/opt/grep/libexec/gnuman(N-/) # grep
-  ${HOMEBREW_PATH}/opt/unzip/share/man(N-/) # unzip
-  ${HOMEBREW_PATH}/opt/curl/share/man(N-/) # curl
-  ${manpath}
-)
-
-# aqua - Declarative CLI Version Manager (https://aquaproj.github.io/)
-export AQUA_REMOVE_MODE=pl
-export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
-export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
-export AQUA_POLICY_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua-policy.yaml"
-path=(
-  $AQUA_ROOT_DIR/bin(N-/) # aqua
-  ${path}
-)
-
-# rust - toolchain は rustup(aqua 管理)で導入。cargo/rustc プロキシは CARGO_HOME/bin。
-# 実際の toolchain 導入は run_onchange の 32-rust-default が rustup-init で行う。
-export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
-export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
-path=(
-  $CARGO_HOME/bin(N-/) # cargo/rustc (rustup 管理)
-  ${path}
-)
-
-# ~/.local/bin - chezmoi が配る自作スクリプト、uv tool のバイナリ、uv が --default で置く
-# python/python3。rc.d(10-path.zsh)ではなくここに置くのは、非対話シェル(ssh の一発実行・
-# スクリプト・他ツールからの起動)でも同じ python3 を引かせるため。/usr/bin より前に来るので、
-# python3 は macOS 同梱の 3.9 ではなく uv が入れた版になる。LOCAL_PREFIX を使う他の環境変数
-# (MANPATH など)は対話シェル限定でよいので 10-path.zsh のまま。
-export LOCAL_PREFIX="$HOME/.local"
-path=(
-  $LOCAL_PREFIX/bin(N-/)
-  ${path}
-)
-
-# terraform - provider をユーザー共通のキャッシュへ置き、プロジェクトごとの再ダウンロードを避ける。
-# 同じパスを ~/.terraformrc の plugin_cache_dir にも書いてあり(zsh を経由しない実行でも効かせるため)、
-# 両方ある場合はこの環境変数が優先される。ディレクトリ作成は run_onchange の
-# 36-terraform-plugin-cache が行う。掃除は tf-cache-prune。
-export TF_PLUGIN_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache"
-
-# portfwd: LC_PORTFWD_HOST は通常 ssh の SetEnv で渡るが、herdr のようにサーバ起動時の
-# 環境をペインへ配る multiplexer 越しだと、その変数を引き継がないシェルが起動しうる。
-# 値はホストごとに固定なので、変数があれば ~/.config/portfwd/host へ保存し、変数が
-# 無ければそこから復元する。普通の ssh セッションが一度あれば、その後は herdr の
-# ペインを含む全シェルで復元できる。ssh -G の引数になるため daemon 側と同じ文字種
-# のみ許可し、それ以外は保存も復元もしない（.zshenv は非対話シェルでも読まれるため
-# 警告は出さない）。書き込みに失敗しても（読み取り専用ホームなど）シェルは継続する。
-if [ -n "${LC_PORTFWD_HOST:-}" ]; then
-  if [[ "$LC_PORTFWD_HOST" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    _portfwd_host_file="${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host"
-    _portfwd_current=""
-    [ -r "$_portfwd_host_file" ] && read -r _portfwd_current < "$_portfwd_host_file"
-    if [ "$_portfwd_current" != "$LC_PORTFWD_HOST" ]; then
-      {
-        mkdir -p "${_portfwd_host_file:h}" && print -r -- "$LC_PORTFWD_HOST" > "$_portfwd_host_file"
-      } 2>/dev/null
-    fi
-    unset _portfwd_host_file _portfwd_current
-  fi
-elif [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host" ]; then
-  read -r _portfwd_host < "${XDG_CONFIG_HOME:-$HOME/.config}/portfwd/host"
-  if [[ "$_portfwd_host" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    export LC_PORTFWD_HOST="$_portfwd_host"
-  fi
-  unset _portfwd_host
-fi
-
-# portfwd: オプトインしたホストへ SSH したセッションでのみ、ブラウザ起動をローカルへ転送する。
-# LC_PORTFWD_HOST は ssh config の対象 Host ブロックの SetEnv でのみ渡るため、
-# ローカル mac の通常シェルでは未設定 → BROWSER を書き換えない。
-#
-# VSCode Remote 等が既に BROWSER を仕込んでいる場合は上書きしない。あちらは自前の
-# ポートフォワードで完結しており、奪うと逆に壊れるため。
-if [ -z "${BROWSER:-}" ] && [ -n "${LC_PORTFWD_HOST:-}" ] && [ -x "$HOME/.local/bin/portfwd-open" ]; then
-  export BROWSER="$HOME/.local/bin/portfwd-open"
-fi
+export PATH MANPATH HOMEBREW_PATH

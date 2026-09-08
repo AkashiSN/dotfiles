@@ -1,0 +1,43 @@
+# .bashrc — bash の入口。
+#
+# ログインシェルは zsh。bash を使うのは主に Claude Code で、
+# CLAUDE_CODE_SHELL=/bin/bash（~/.claude/settings.json）により `bash -c -l <command>` で
+# 毎回起動される。起動時には一度 `bash -c -l <snapshot script>` が走り、このファイルを
+# source して alias / 関数 / shopt をスナップショットする。
+#
+# ここに書いてはいけないもの:
+#   shopt -s nullglob  … マッチ 0 件の glob が引数ごと消える。`grep p *.md` が
+#                        マッチ 0 件のとき `grep p` に化けて stdin でハングする
+#   IFS の変更         … 単語分割が変わる
+# どちらも「bash の書き方で書かれたコマンドが期待どおり動く」というこのファイルの
+# 存在理由を壊す。詳細は docs/zsh-cheatsheet.md の「シェルの役割分担」。
+# shellcheck shell=bash
+
+# システム共通の定義（/etc/bashrc は PS1 の有無で対話判定を自前で持つ）。
+if [ -f /etc/bashrc ]; then
+	# shellcheck source=/dev/null
+	. /etc/bashrc
+fi
+
+_shell_dir="${XDG_CONFIG_HOME:-$HOME/.config}/shell"
+for _f in env.sh aliases.sh; do
+	# shellcheck source=/dev/null
+	[ -r "$_shell_dir/$_f" ] && . "$_shell_dir/$_f"
+done
+unset _shell_dir _f
+
+# 対話 bash でだけ要る hook。どちらも PROMPT_COMMAND 経由で動くため非対話では発火せず、
+# Claude にとっては無意味。効くのは zsh の中で素の `bash` を叩いたとき
+# （~/.bash_profile を読まないので zsh へ切り替わらない）だけ。
+case $- in
+*i*)
+	# direnv — ~/.envrc の dotenv で ~/.env を読む。zsh 側は rc.d/30-plugins.zsh。
+	if command -v direnv >/dev/null 2>&1; then
+		eval "$(direnv hook bash)"
+	fi
+	# fnm (node version manager, aqua 管理)
+	if command -v fnm >/dev/null 2>&1; then
+		eval "$(fnm env --use-on-cd --shell bash)"
+	fi
+	;;
+esac
