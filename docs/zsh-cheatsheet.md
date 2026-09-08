@@ -4,7 +4,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl`）のエイリアス・関数・キ
 
 - プラグイン管理: **sheldon**（fzf-tab / zsh-autosuggestions 等）
 - プロンプト: **starship**（SSH/root 接続時はプロンプト先頭に `user@host` を表示。ローカル通常時は非表示）
-- ディレクトリ移動: `AUTO_PUSHD` 有効（`cd` 履歴がスタックに積まれる）
+- ディレクトリ移動: zsh 既定どおり（`AUTO_PUSHD` は外した。`cd -` は直前のディレクトリへ戻るだけ）
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_zshenv.tmpl` で設定。非インタラクティブ実行にも適用）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_zshenv.tmpl` で設定。全シェル/スクリプトに適用）
 - Python: `~/.local/bin` を `dot_zshenv.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`.zshenv` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
@@ -290,6 +290,40 @@ codex-bedrock-spawn reviewer
 | ヒストリ | 100 万件保存、セッション間で共有（`SHARE_HISTORY`）、重複除去 |
 | スペル訂正 | 無効（`CORRECT` off） |
 | ベル | 鳴らさない（`NO_BEEP`） |
+
+---
+
+## 既定から外さないオプション
+
+`00-options.zsh` に置いてよいのは「表示・補完・履歴」だけで、**コマンドの引数や意味を
+変えるオプションは置かない**。zsh の既定から外すと、bash の書き方で書かれたコマンドが
+黙って違う対象に対して成功する。過去にここで on にしていたが、事故のもとなので外した
+（zsh の既定はすべて off）。
+
+| オプション | 実測した影響 |
+| --- | --- |
+| `NULL_GLOB` | マッチ 0 件で引数ごと消える → `grep p *.md` が stdin でハングする |
+| `BRACE_CCL` | `{json}` が `j n o s` の 4 引数に化ける |
+| `MARK_DIRS` | glob 結果が `sub` → `sub/`（rsync は末尾の / で意味が変わる） |
+| `MAGIC_EQUAL_SUBST` | `--out=~/x` が `--out=/home/you/x` に展開される |
+| `NUMERIC_GLOB_SORT` | glob の並びが f1,f10,f2 → f1,f2,f10 に変わる |
+
+あわせて、対話時の安全網を消していた `AUTO_RESUME` / `RM_STAR_SILENT` と、`cd -` の意味を
+変える `AUTO_PUSHD` / `PUSHD_IGNORE_DUPS`、`!` を履歴展開する `HIST_EXPAND` も外した。
+実際の端末の `TERM` を無条件に上書きしていた `export TERM=xterm-256color`（ghostty 側で
+`term = xterm-256color` を設定済みなので二重）と、zsh では効かない bash 変数
+`HISTTIMEFORMAT`（書式も誤り）も削除済み。
+
+### `/etc/profile.d` の読み込み（`10-path.zsh`）
+
+`/etc/profile.d/*.sh` は sh 向けのサードパーティスクリプト群。zsh は既定の `NOMATCH` により
+マッチ 0 件の glob をエラーにするため、そのまま source すると失敗するものがある
+（`debuginfod.sh` が実例）。`10-path.zsh` は `emulate -L sh` を関数内だけに閉じて sh 意味論に
+切り替え、その中で source することでこれを避けている。
+
+**`NULL_GLOB` を外すまでは、この非互換は `NULL_GLOB`（マッチ 0 件で引数ごと消える）の副作用で
+偶然隠れており、気づかれていなかった。** `NULL_GLOB` を既定から外したことでこの非互換が
+露出したため、sh 意味論での実行に切り替えた。
 
 ---
 
