@@ -329,6 +329,24 @@ neo-tree の Git タブから diffview へ（`docs/nvim-cheatsheet.md`）。フ�
 
 ---
 
+## 走行中の claude が AWS 認証切れを踏むと `AWS login:` タブが開く
+
+herdr は再接続してもエージェントを起動し直さないので、走り続けている `claude`（`claude-bedrock`
+で起動したもの）の AWS 認証が期限切れになることがある。このとき **`AWS login: <profile>` という
+タブが自動で開き、フォーカスがそこへ移る**（herdr の通知も出る）。開いたタブで `aws-auth-ensure` が
+走るので、案内に従ってログインすればよい。
+
+- **claude を起動し直す必要はない。** 認証が通れば次のツール呼び出しから復帰する。
+- タブは 1 枚しか開かない。閉じてから 60 秒は開き直さない。
+- 認証が済んだら、そのタブは `<prefix> x` で閉じてよい。
+- 期限切れは Claude Code の statusLine にも `⚠ AWS 未認証: <profile>` として出る。
+
+これが起きるのは `AWS_LOGIN_NO_INTERACTIVE` が立っている配下だけ。**ペインで普通に `aws s3 ls` を
+叩いて期限切れになった場合は、そのペインでそのままログインが走る**（タブは開かない）。仕組みは
+[aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)。
+
+---
+
 ## SSH 異常切断後の端末化け（`term-reset`）
 
 `herdr --remote <ssh-target>` で接続中に SSH が異常切断（`client_loop: send disconnect:

@@ -16,9 +16,17 @@
 #      （クレデンシャルが設定されているか、ではなく、いま有効か で判定する）
 #   2. 期限切れ／未ログインならブラウザでログインを実行
 #   3. STS が到達不能（ネットワーク断等）の一時エラーなら、ログインせずキャッシュで続行
-#   4. flockで排他制御し、複数プロセスの同時ログインを防止
+#   4. flockで排他制御し、複数プロセスの同時ログインを防止。待たされるときは理由と相手を
+#      表示する（端末を失った aws login が残ってロックを握ったままだと、黙って 60 秒固まる）
 #   - get-caller-identity は IAM 権限不要なので、失敗＝トークンが無効/期限切れ を意味する。
 #     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、「設定があれば OK」で通すこともできる。
+#   - AWS_LOGIN_NO_INTERACTIVE=1 が立っているときは、未認証でもログインへ進まずエラーで
+#     終わる（/dev/tty へは何も書かない）。TUI アプリ（Claude Code）は子プロセスへこれを
+#     継承させ、画面の中にログイン URL が割り込んで描かれるのを防ぐ。起動前の認証は
+#     aws-auth-ensure が済ませておく。
+#     この場合でも認証切れの事実は次の 2 つで人へ伝わる（下の「委譲」節）。
+#       - herdr セッション内なら、認証用のタブを開いてそちらでログインしてもらう
+#       - `~/.aws/.aws-login-<profile>.expired` を置き、Claude Code の statusLine が拾う
 #
 # SSH 先での挙動:
 #   通常の `aws login` は localhost のコールバックサーバ前提で、SSH 先だとブラウザも
@@ -93,6 +101,24 @@ CREDS_CACHE="$HOME/.aws/.aws-login-${1}.creds.json"
 # 期限までこれだけ残っていればキャッシュを使う。
 CREDS_CACHE_MIN_REMAINING=120
 
+# 「対話ログインできない場所で認証切れを踏んだ」ことを残す marker。
+# Claude Code の statusLine がこれを見て警告を出す（~/.claude/hooks/statusline.sh）。
+# statusLine は毎描画で走るので、そちらに STS を叩かせず、認証を実際に要求した側が置く。
+EXPIRED_MARKER="$HOME/.aws/.aws-login-${1}.expired"
+
+# ログインの排他ロック。同じプロファイルで同時にブラウザを開かないため。
+LOGIN_LOCK="$HOME/.aws/.aws-login-${1}.lock"
+# ロックが空くのを待つ上限。
+LOGIN_LOCK_WAIT=60
+
+mark_expired() {
+    : >"$EXPIRED_MARKER" 2>/dev/null || true
+}
+
+clear_expired() {
+    rm -f "$EXPIRED_MARKER" 2>/dev/null || true
+}
+
 # ISO8601 の時刻を epoch 秒へ。読めなければ何も出力せず非 0。
 # GNU date(Linux) は -d でそのまま読めるが、BSD date(macOS) は -j -f で書式を渡すうえ
 # %z が +0000 形式しか受け取らないため、末尾のオフセットを均してから渡す。
@@ -137,6 +163,7 @@ emit_creds() {
 
 # ここから下は aws CLI を起動する。キャッシュが使えるなら触らずに終える。
 if emit_cached_creds; then
+    clear_expired
     exit 0
 fi
 
@@ -201,12 +228,97 @@ emit_creds_if_valid() {
 #     取り逃して --remote へ落ちる。
 PORTFWD_HEALTH_TIMEOUT=5
 
-# 逆チャネルを使わないと判断した理由を人へ伝える。aws-switch は aws-login の出力を
-# >/dev/null 2>&1 で捨てるため、stderr ではなく制御端末へ直結する（端末が無ければ捨てる。
-# credential_process として呼ばれた場合がこれにあたる）。
-portfwd_notice() {
+# 人へ伝えたいことを制御端末へ直結する。aws-switch は aws-login の出力を >/dev/null 2>&1 で
+# 捨てるため、stderr へ出すとどこにも残らない（端末が無ければ捨てる。credential_process として
+# 呼ばれた場合がこれにあたる）。
+tty_notice() {
     if { : >/dev/tty; } 2>/dev/null; then
         printf 'aws-login: %s\n' "$1" >/dev/tty
+    fi
+}
+
+# 人へ必ず届けたいエラー。端末があればそちらへ、無ければ stderr へ出す
+# （両方に出すと端末で二重に見える）。
+notify_error() {
+    if { : >/dev/tty; } 2>/dev/null; then
+        tty_notice "$1"
+    else
+        printf 'aws-login: %s\n' "$1" >&2
+    fi
+}
+
+# ロックファイルを開いているプロセスの pid を列挙する（生の一覧。除外はしない）。
+#
+# 「ロックを作った pid」ではなく「ロックファイルを開いているプロセス」を探す。flock(1) 経由だと
+# 補助プロセスは既に終了していて、実際に押さえているのは fd を継いだ側だからである
+# （Linux の /proc/locks が載せるのは前者なので、そちらは見ない）。
+# 探し方は 2 つ持つ。lsof があれば mac / Linux どちらでも 1 回起動で済む。無い Linux では
+# /proc の fd シンボリックリンクを辿る（GNU find の -lname / -printf）。
+lock_holder_pids_raw() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -t -- "$LOGIN_LOCK" 2>/dev/null
+        return 0
+    fi
+    [ -d /proc ] || return 0
+    find /proc -mindepth 3 -maxdepth 3 -path '/proc/[0-9]*/fd/*' \
+        -lname "$LOGIN_LOCK" -printf '%h\n' 2>/dev/null |
+        sed 's#^/proc/##; s#/fd$##'
+}
+
+# そのうち自分の側を除いた pid。
+# 自分の側は 2 段で外す。探索の間は fd 200 を閉じて子へ継がせず、それでも残る自分の
+# サブシェル類はプロセスグループが同じかどうかで落とす（個々の pid を数え上げるより確実）。
+lock_open_pids() {
+    local ourpg pid pgid found=""
+    ourpg=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    for pid in $({ lock_holder_pids_raw; } 200>&-); do
+        pgid=$({ ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' '; } 200>&-)
+        [ -n "$pgid" ] || continue
+        [ "$pgid" = "$ourpg" ] && continue
+        found="${found:+$found }$pid"
+    done
+    printf '%s' "$found"
+}
+
+# ロック保持者の様子を 1 行で説明する。
+#
+# 親も制御端末も失った aws login はこの先ずっとロックを空けない。ブラウザ認証の途中で
+# 呼び出し元（TUI アプリなど）だけが死ぬとこうなり、残った aws login は消えた端末へ向かって
+# 入力を待ち続ける。待っても無駄だと分かるように、落としてよいことまで書く。
+#
+# その判定は「挙げた pid のどれにも制御端末が無く、かつどれかが init に引き取られている」で行う。
+# 端末を持つプロセスが 1 つでも混ざっていれば、まだ人が操作しているログインかもしれないので
+# pid を並べるだけにする（kill を勧める文面なので、迷ったら勧めない側に倒す）。
+# 先頭 1 つで代表させないのは、lsof と /proc で pid の並び順が違うため。
+describe_lock_holder() {
+    local pids pid info ppid tty no_tty=1 reparented=""
+    pids=$(lock_open_pids)
+    if [ -z "$pids" ]; then
+        printf '特定できないプロセス'
+        return
+    fi
+    for pid in $pids; do
+        info=$({ ps -o ppid=,tty= -p "$pid" 2>/dev/null; } 200>&-) || true
+        if [ -z "$info" ]; then
+            no_tty=""
+            break
+        fi
+        ppid=$(printf '%s' "$info" | awk '{print $1}')
+        tty=$(printf '%s' "$info" | awk '{print $2}')
+        # 制御端末が無いプロセスの tty を BSD ps は ??、GNU ps は ? と表す。
+        case "$tty" in
+            '' | '?' | '??') ;;
+            *)
+                no_tty=""
+                break
+                ;;
+        esac
+        [ "$ppid" = "1" ] && reparented=1
+    done
+    if [ -n "$no_tty" ] && [ -n "$reparented" ]; then
+        printf 'pid %s（制御端末を失って init 配下に残っています。空く見込みが無ければ kill %s で落とせます）' "$pids" "$pids"
+    else
+        printf 'pid %s' "$pids"
     fi
 }
 
@@ -215,7 +327,7 @@ portfwd_channel_available() {
         # 非 SSH（ローカル）では逆チャネルを使わないのが正常なので黙る。SSH セッションで
         # 空なら、オプトインしていないか sshd が LC_* を AcceptEnv していない。
         if [ -n "${SSH_CONNECTION:-}" ]; then
-            portfwd_notice "portfwd 逆チャネル: LC_PORTFWD_HOST が空。aws login --remote へフォールバックします。"
+            tty_notice "portfwd 逆チャネル: LC_PORTFWD_HOST が空。aws login --remote へフォールバックします。"
         fi
         return 1
     fi
@@ -223,12 +335,12 @@ portfwd_channel_available() {
     local body why
     local rc=0
     if [ ! -S "$sock" ]; then
-        portfwd_notice "portfwd 逆チャネルが使えません: ${sock} がありません。ローカルの ssh config の RemoteForward がこのパスを指していないか、bind に失敗しています。aws login --remote へフォールバックします。"
+        tty_notice "portfwd 逆チャネルが使えません: ${sock} がありません。ローカルの ssh config の RemoteForward がこのパスを指していないか、bind に失敗しています。aws login --remote へフォールバックします。"
         return 1
     fi
     # Unix domain socket へは curl でしか繋げない（bash の /dev/tcp は TCP 専用）。
     if ! command -v curl >/dev/null 2>&1; then
-        portfwd_notice "portfwd 逆チャネルが使えません: curl がありません。aws login --remote へフォールバックします。"
+        tty_notice "portfwd 逆チャネルが使えません: curl がありません。aws login --remote へフォールバックします。"
         return 1
     fi
     body=$(curl -sS --unix-socket "$sock" --max-time "$PORTFWD_HEALTH_TIMEOUT" \
@@ -245,7 +357,7 @@ portfwd_channel_available() {
         0)      why="${sock} の応答が portfwd daemon のものではありません" ;;
         *)      why="${sock} の /health に失敗しました（終了コード ${rc}）" ;;
     esac
-    portfwd_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
+    tty_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
     return 1
 }
 
@@ -253,13 +365,113 @@ portfwd_channel_available() {
 # 設定の有無ではなく STS の応答で判定するため、期限切れ/権限喪失はここを通過して
 # 下のログインフローへ進む。
 rc=0; emit_creds_if_valid || rc=$?
+if [ "$rc" -eq 0 ]; then
+    clear_expired
+    exit 0
+fi
+# rc=2 は STS 到達不能。有効かどうか確かめられていないので marker は触らない。
 if [ "$rc" -ne 1 ]; then
     exit 0
 fi
 
+# --- 委譲: herdr の別タブでログインしてもらう ------------------------------
+#
+# TUI アプリ（Claude Code）は起動時に自分の配下へ AWS_LOGIN_NO_INTERACTIVE=1 を撒く。
+# その中で認証切れを踏んだとき、この場でログイン UI を出すと画面が壊れる。かといって
+# 黙って失敗すると、走り続けているセッションを直す手立てがない（herdr は再接続しても
+# アプリを起動し直さないので、起動前チェックも効かない）。
+#
+# そこで herdr セッション内なら、認証用のタブを開いてそちらへ人を連れて行く。開いたタブは
+# herdr サーバが起こすので AWS_LOGIN_NO_INTERACTIVE を継承せず、ふつうの端末として
+# 下のログイン分岐（portfwd 逆チャネル / $BROWSER / --remote）がそのまま働く。
+#
+# 呼び出し元は待たせずに失敗させる。MCP の接続タイムアウトは 30 秒しかなく、人の認証を
+# 待ってブロックする方が体験が悪い。認証が通れば次の呼び出しで復帰する（credential_process
+# の失敗は botocore にキャッシュされない）。
+
+# 認証タブを開き直すまでの間隔。ユーザがタブを閉じたときに湧き続けるのを防ぐ。
+HANDOFF_COOLDOWN=60
+
+# 既に認証タブが開いている、または閉じた直後か。
+handoff_recent() {
+    local marker="$1" pane_id last now
+    [ -r "$marker" ] || return 1
+    read -r pane_id last <"$marker" || return 1
+    if [ -n "$pane_id" ] && herdr pane get "$pane_id" >/dev/null 2>&1; then
+        return 0
+    fi
+    now=$(date +%s)
+    [ -n "$last" ] && [ $((now - last)) -lt "$HANDOFF_COOLDOWN" ]
+}
+
+# 認証タブを開いて aws-auth-ensure を走らせる。
+open_auth_tab() {
+    local profile="$1" marker="$2" out pane_id
+    # herdr CLI は結果を JSON で標準出力へ書く。credential_process の標準出力は creds 専用
+    # なので、必ず捕まえて漏らさない。
+    out=$(herdr tab create --label "AWS login: ${profile}" --focus 2>/dev/null) || return 1
+    pane_id=$(printf '%s' "$out" |
+        sed -n 's/.*"pane_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    [ -n "$pane_id" ] || return 1
+    printf '%s %s\n' "$pane_id" "$(date +%s)" >"$marker" 2>/dev/null || true
+    # pane run はコマンドを「そのペインへの入力」として送る。起きたばかりのシェルが
+    # プロンプトを出すまで少し待つ。
+    sleep 0.5
+    herdr pane run "$pane_id" aws-auth-ensure "$profile" >/dev/null 2>&1 || return 1
+    herdr notification show "AWS 認証が切れています" \
+        --body "${profile} の認証が切れました。開いたタブでログインしてください。" \
+        --position top-right --sound request >/dev/null 2>&1 || true
+}
+
+# herdr へ委譲できたら 0、できなければ 1。
+handoff_to_herdr() {
+    local profile="$1" lock marker
+    [ "${HERDR_ENV:-}" = "1" ] || return 1
+    [ -n "${HERDR_SOCKET_PATH:-}" ] && [ -S "$HERDR_SOCKET_PATH" ] || return 1
+    command -v herdr >/dev/null 2>&1 || return 1
+    # pane run はコマンドを入力として送るので、シェルのメタ文字を含む名前は渡さない。
+    case "$profile" in
+        *[!A-Za-z0-9._-]* | "") return 1 ;;
+    esac
+
+    lock="$HOME/.aws/.aws-login-${profile}.handoff.lock"
+    marker="$HOME/.aws/.aws-login-${profile}.handoff"
+    (
+        # 1 回の署名で何度も呼ばれるので、同時に走っても 1 タブに収める。
+        flock -n 9 || exit 0
+        if handoff_recent "$marker"; then
+            exit 0
+        fi
+        open_auth_tab "$profile" "$marker"
+    ) 9>"$lock"
+}
+
+# 対話ログインを禁じられているなら、ここではログインしない。
+# credential_process は TUI アプリの子プロセス（MCP サーバ等）からも呼ばれ、そこでの
+# ログイン URL は画面の中へ割り込んで表示を壊す。
+if [ -n "${AWS_LOGIN_NO_INTERACTIVE:-}" ]; then
+    mark_expired
+    if handoff_to_herdr "$1"; then
+        echo "aws-login: ${1} は未認証です。herdr の \"AWS login: ${1}\" タブで認証してください。" >&2
+    else
+        echo "aws-login: ${1} は未認証です（AWS_LOGIN_NO_INTERACTIVE のため対話ログインしません）。" >&2
+        echo "           端末で aws-auth-ensure ${1} を実行してください。" >&2
+    fi
+    exit 1
+fi
+
 # 認証情報の取得に失敗 → flockで排他制御してログイン
 (
-    flock -w 60 200 || exit 1
+    # まず待たずに試す。取れなければ「誰が握っているのか」を出してから待つ。黙って 60 秒
+    # 固まると、原因がロック待ちであることすら分からない。
+    if ! flock -n 200; then
+        tty_notice "${1} のログインロックを $(describe_lock_holder) が握っています。最大 ${LOGIN_LOCK_WAIT} 秒待ちます…"
+        if ! flock -w "$LOGIN_LOCK_WAIT" 200; then
+            reason="${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
+            notify_error "$reason"
+            exit 1
+        fi
+    fi
     # ロック取得後に再チェック（待っている間に別プロセスがログイン済みかもしれない）。
     # ここでも STS で実際に有効かを確認するが、creds の出力は最後の 1 箇所に集約するため
     # ここでは抑制し、判定結果（多重ログイン回避）だけを使う。
@@ -311,8 +523,18 @@ fi
         unset DISPLAY
         aws login
     fi
-) 200>"$HOME/.aws/.aws-login-${1}.lock"
+) 200>"$LOGIN_LOCK"
 
 # ログイン直後（または上のロック内で別プロセスがログイン済みと判明した）creds を出力する。
 # 出力をこの 1 箇所に集約しているので、credential_process の stdout に JSON が二重に出ない。
-emit_creds "$(aws configure export-credentials --format process)"
+# creds を取れなければログインは完結していない。コマンド置換を引数へ直に書くと失敗を
+# 見逃すので、変数に受けて確かめてから出力する（空のまま 0 で終わると、呼び出し元は
+# ログインできたものとして先へ進む）。
+creds=$(aws configure export-credentials --format process) || creds=""
+if [ -z "$creds" ]; then
+    mark_expired
+    notify_error "${1} の認証情報を取得できませんでした。ログインが完了していません。"
+    exit 1
+fi
+emit_creds "$creds"
+clear_expired

@@ -1,0 +1,118 @@
+#!/bin/bash
+# aws-auth-ensure <プロファイル> [用途] - そのプロファイルがいま認証済みかを確かめ、
+# 未認証なら認証する。
+#
+# 何のためにあるか:
+#   AWS CLI/SDK は認証情報が要るまで credential_process (= aws-login) を呼ばないので、
+#   未認証のまま TUI アプリを起動すると、画面が立ったあとでログイン URL が /dev/tty へ
+#   割り込んで表示が崩れる。起動前にここを通し、きれいな端末でログインを済ませておく。
+#
+#   ~/.env は書き換えない。「今選ばれているプロファイルを認証するだけ」で、選択そのものを
+#   変えたいときは aws-switch を使う。
+#
+# 判定は aws-login と同じ順序をなぞる:
+#   1. creds キャッシュに余裕があれば認証済み (aws-login はこの窓で aws CLI を起動せずに
+#      返すので、ここで拾わないと不要なログインを促してしまう)
+#   2. 無ければ <プロファイル>-signin で sts get-caller-identity を叩き、「設定があるか」
+#      ではなく「いま通るか」で判定する。-signin は credential_process を持たないので
+#      aws-login へ再帰しない
+#
+# 未認証だったとき:
+#   - 端末があれば、どのプロファイルが何用なのかを出してから aws-login を実行する
+#   - 端末が無い (VS Code 拡張ホスト / agmsg の spawn) か AWS_LOGIN_NO_INTERACTIVE が
+#     立っていれば、打つべきコマンドを案内して非ゼロ終了する
+#
+# 終了コード: 0 = 認証済み / 1 = 未認証のまま / 2 = 使い方の誤り
+# 呼び出し側は、そのプロファイルが無いと動かないなら 1 で止め、無くても縮退運転できるなら
+# 警告にとどめる、と使い分ける。
+#
+# 関連: aws-login / aws-switch / claude-bedrock-wrapper / docs/aws-cheatsheet.md
+set -euo pipefail
+
+PROG=aws-auth-ensure
+
+# 対話シェルを経由せず起動されうるため PATH を自前で通す。aqua 管理のツールを解決するには
+# AQUA_GLOBAL_CONFIG も要る (未設定だと aqua-proxy がバージョンを解決できない)。
+export PATH="$HOME/.local/bin:${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${AQUA_GLOBAL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml}"
+
+# 期限までこれだけ残っていればキャッシュを認証済みとみなす (aws-login と同じ値)。
+CREDS_CACHE_MIN_REMAINING=120
+
+note() {
+    printf '%s: %s\n' "$PROG" "$1" >&2
+}
+
+if [ $# -lt 1 ] || [ -z "$1" ]; then
+    note "使い方: $PROG <プロファイル> [用途]"
+    exit 2
+fi
+PROFILE="$1"
+LABEL="${2:-}"
+# メッセージ中の「どのプロファイルか」。用途があれば添える。
+WHO="$PROFILE"
+[ -z "$LABEL" ] || WHO="$PROFILE ($LABEL)"
+
+# aws が無ければ何も判定できない。ここで止めると呼び出し元の起動まで巻き添えになるので
+# 素通しする (ツールが無ければ安全に no-op)。
+command -v aws >/dev/null 2>&1 || exit 0
+
+# ISO8601 の時刻を epoch 秒へ。読めなければ何も出力せず非 0 (aws-login と同じ実装)。
+# GNU date(Linux) は -d でそのまま読めるが、BSD date(macOS) は -j -f で書式を渡すうえ
+# %z が +0000 形式しか受け取らないため、末尾のオフセットを均してから渡す。
+to_epoch() {
+    local ts="$1"
+    date -d "$ts" +%s 2>/dev/null && return 0
+    ts="${ts%Z}"
+    case "$ts" in
+        *[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
+        *[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
+        *) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
+    esac
+    date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
+}
+
+# aws-login が残した creds キャッシュに、まだ使える余裕があるか。
+cache_fresh() {
+    local cache="$HOME/.aws/.aws-login-${PROFILE}.creds.json" exp exp_epoch
+    [ -r "$cache" ] || return 1
+    exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cache")
+    [ -n "$exp" ] || return 1
+    exp_epoch=$(to_epoch "$exp") || return 1
+    [ -n "$exp_epoch" ] || return 1
+    [ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ]
+}
+
+# -signin セッションでいま STS が通るか。呼び出し元が持ち込んだ認証情報や既定プロファイル、
+# EC2 インスタンスロールを拾わないよう断ってから叩く。
+session_valid() {
+    env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+        AWS_PROFILE="${PROFILE}-signin" \
+        AWS_EC2_METADATA_DISABLED=true \
+        aws sts get-caller-identity >/dev/null 2>&1
+}
+
+if cache_fresh || session_valid; then
+    # 認証切れ marker が残っていれば消す (別経路で入り直したときのため)。
+    # 置くのは aws-login、読むのは Claude Code の statusLine。
+    rm -f "$HOME/.aws/.aws-login-${PROFILE}.expired" 2>/dev/null || true
+    exit 0
+fi
+
+# 対話ログインへ進んでよいか。AWS_LOGIN_NO_INTERACTIVE は「この配下でログイン UI を出すな」
+# の意なので、ここでも従う。
+if [ -n "${AWS_LOGIN_NO_INTERACTIVE:-}" ] || [ ! -t 0 ] || ! { : >/dev/tty; } 2>/dev/null; then
+    note "${WHO} が未認証です。aws-login ${PROFILE} を実行してください。"
+    exit 1
+fi
+
+note "${WHO} が未認証です。ログインします…"
+# aws-login の標準出力は creds の JSON 専用。ログインの進捗と URL は /dev/tty へ出るので、
+# 標準出力は捨てて画面に JSON を吐かせない。
+if aws-login "$PROFILE" >/dev/null; then
+    note "${PROFILE} にログインしました。"
+    exit 0
+fi
+
+note "${PROFILE} のログインに失敗しました。"
+exit 1

@@ -66,6 +66,17 @@ hook 側からは見えないので、`statusline.sh` が表示のついでに m
 閾値未満が緑、閾値以上が黄（`/compact-prep` を促す圏内）、閾値 +20% 以上が赤（自動 compact が
 目前）。
 
+AWS の認証が切れているときは、行の末尾に赤で `⚠ AWS 未認証: <profile>` が付く。
+
+```
+[Opus 5] chezmoi (main) ▓▓▓░░░░░░░ 31% ⚠ AWS 未認証: cdx-pre-dev
+```
+
+marker（`~/.aws/.aws-login-<profile>.expired`）を置くのは `aws-login` で、statusLine は**有無を
+見るだけ**。毎描画で走るので、こちらから STS を叩いて認証を確かめには行かない。別経路で入り
+直して marker が取り残された場合は、creds キャッシュの期限を読んで自分で消す（`aws` は起動
+しない）。仕組みは [aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)。
+
 ## `/compact-prep` が保存するもの
 
 `${TMPDIR:-/tmp}/claude-compact-<UID>/state/<SESSION_ID>.md` に次の見出しで保存する。

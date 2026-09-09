@@ -19,7 +19,11 @@
 # aws-switch で選んでいる AWS_PROFILE は上書きするので影響されない。認証はそのプロファイルの
 # credential_process = aws-login が担う (追加ログイン不要)。
 #
-# 関連: claude-bedrock / docs/zsh-cheatsheet.md
+# 起動前に、そのプロファイルが認証済みかを aws-auth-ensure で確かめる。未認証のまま起動
+# すると、TUI が立ったあとで credential_process (aws-login) がログイン URL を /dev/tty へ
+# 出し、画面が崩れるため。Bedrock 用プロファイルが無いと動かないので、未認証なら起動しない。
+#
+# 関連: claude-bedrock / aws-auth-ensure / docs/zsh-cheatsheet.md
 set -euo pipefail
 
 die() {
@@ -34,6 +38,17 @@ die() {
 export PATH="$HOME/.local/bin:${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$PATH"
 
 export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+
+AUTH_ENSURE="$HOME/.local/bin/aws-auth-ensure"
+if [ -x "$AUTH_ENSURE" ]; then
+  "$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock" ||
+    die "Bedrock 用プロファイル ${AWS_PROFILE} が未認証のため起動しません。"
+fi
+
+# 子プロセス (MCP サーバ等) から credential_process が呼ばれても、画面の中にログイン URL を
+# 描かせない。期限が切れたら herdr のタブと statusLine で人へ渡る (docs/aws-cheatsheet.md)。
+export AWS_LOGIN_NO_INTERACTIVE=1
+
 export CLAUDE_CODE_USE_BEDROCK=1
 export CLAUDE_CODE_USE_MANTLE=1
 export CLAUDE_CODE_ENABLE_AUTO_MODE=1

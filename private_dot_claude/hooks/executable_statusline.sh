@@ -5,6 +5,9 @@
 # statusLine は context_window を受け取れる唯一の拡張点で、hook 側からは使用率が見えない。
 # marker を読んで実際に知らせるのは userpromptsubmit-compact-prep-reminder.sh。
 #
+# AWS の認証切れも 1 行の末尾に出す。marker を置くのは aws-login で、ここでは有無を見るだけ。
+# statusLine は毎描画で走るので、こちらから STS を叩いて認証を確かめには行かない。
+#
 # fail-open (常に exit 0)
 
 set -uo pipefail
@@ -64,6 +67,40 @@ dim=$'\033[2m'
 line="${dim}[${model}]${reset} ${cwd##*/}"
 [[ -n "$branch" ]] && line+=" ${dim}(${branch})${reset}"
 line+=" ${color}${bar} ${pct}%${reset}"
+
+# AWS の認証切れ。aws-login が「対話ログインできない場所で認証切れを踏んだ」ときに置く
+# marker を見る。glob が何も拾わないのが通常なので、平時の費用はゼロ。
+# 別経路で入り直したまま marker が残ることがあるので、creds キャッシュの期限を見て
+# 生き返っていれば自分で消す (ファイル読みだけで済ませ、aws は起動しない)。
+# BSD date(macOS) は -d を解さないので、GNU date を先に試して -j -f へ落とす。
+to_epoch() {
+  local ts="$1"
+  date -d "$ts" +%s 2>/dev/null && return 0
+  ts="${ts%Z}"
+  case "$ts" in
+    *[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;;
+    *[+-][0-9][0-9][0-9][0-9]) ;;
+    *) ts="${ts}+0000" ;;
+  esac
+  date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
+}
+
+expired=""
+for marker in "$HOME"/.aws/.aws-login-*.expired; do
+  [[ -e "$marker" ]] || continue
+  prof=${marker##*/.aws-login-}
+  prof=${prof%.expired}
+  exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$HOME/.aws/.aws-login-${prof}.creds.json" 2>/dev/null)
+  if [[ -n "$exp" ]] && exp_epoch=$(to_epoch "$exp") && [[ -n "$exp_epoch" ]] &&
+    (( exp_epoch - $(date +%s) > 120 )); then
+    rm -f "$marker" 2>/dev/null || true
+    continue
+  fi
+  expired+="${expired:+,}${prof}"
+done
+[[ -n "$expired" ]] && line+=" "$'\033[31m'"⚠ AWS 未認証: ${expired}${reset}"
+
 printf '%s\n' "$line"
 
 # --- 閾値超で警告 marker を書く -----------------------------------------

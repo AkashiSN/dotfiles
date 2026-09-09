@@ -57,6 +57,7 @@ touch ~/.env                  # 無ければ作成（aws-switch が追記する�
 | `aws-switch [profile] [role_name]` | プロファイルを切り替える（必要なら assume role）。`.env` を書き換え |
 | `aws-login <profile>` | 認証本体。`credential_process` として AWS CLI から自動で呼ばれる |
 | `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行と認証情報キャッシュを削除 |
+| `aws-auth-ensure <profile> [用途]` | そのプロファイルがいま認証済みかを確かめ、未認証なら認証する。TUI アプリを起動する前に通す |
 
 ### aws-login の認証情報キャッシュ
 
@@ -115,7 +116,16 @@ aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN で�
 - STS が **到達不能**（ネットワーク断など）の一時エラーのときは、ログインせずキャッシュ済み
   認証情報で続行する（期限内の作業を不要なログインで止めない）。
 - `AWS_LOGIN_SKIP_VERIFY=1` を付けると STS 検証を省略し、従来の「設定があれば OK」動作に戻せる。
-- `flock` で排他制御し、複数プロセスが同時にログイン画面を開くのを防ぐ。
+- `AWS_LOGIN_NO_INTERACTIVE=1` を付けると、未認証でもログインへ進まず `/dev/tty` へ何も書かずに
+  エラー終了する。代わりに認証を人へ渡す（下の
+  [走行中に認証が切れたとき](#走行中に認証が切れたとき)）。
+- `flock` で排他制御し、複数プロセスが同時にログイン画面を開くのを防ぐ。ロックが空いていれば
+  黙って取る。取れなかったときだけ「誰が握っているのか」を出してから最大 60 秒待つ。
+  保持者は `lsof`（無ければ Linux の `/proc/<pid>/fd`）でロックファイルを開いているプロセスを
+  引いて求める。**`/proc/locks` は見ない** — あちらが載せるのはロックを作った pid で、`flock(1)`
+  経由だとその補助プロセスは既に終了しており、実際に押さえているのは fd を継いだ側になる。
+  挙げた pid のどれにも制御端末が無く、かつどれかが init 配下なら、待っても空かない見込みとして
+  `kill` のコマンドまで出す（端末を持つプロセスが 1 つでも混ざっていれば pid を並べるだけ）。
 
 #### SSH 先でのログイン（`--remote` 自動切替）
 
@@ -168,6 +178,72 @@ aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN で�
   `portfwd-open` に向けるため。逆チャネルが死んでいる場合はここを素通りして 3 の `--remote` へ
   落とす。あわせて、VSCode の `$BROWSER` ヘルパが出す Node の `DEP0169` 警告は
   `NODE_OPTIONS=--no-deprecation` でこの分岐に限り抑止する。
+
+### aws-auth-ensure
+
+```sh
+aws-auth-ensure cdx-pre-dev            # 未認証ならその場でログインする
+aws-auth-ensure cdx-pre-dev "Bedrock"  # 第 2 引数はメッセージに出す用途ラベル
+```
+
+AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`）を呼ばない。そのため
+**未認証のまま TUI アプリを起動すると、画面が立ったあとでログイン URL が `/dev/tty` へ割り込み、
+表示が崩れる**。起動前にここを通し、まだきれいな端末でログインを済ませておく。
+
+- `~/.env` は書き換えない。「いま選ばれているプロファイルを認証するだけ」で、選択そのものを
+  変えたいときは `aws-switch` を使う。
+- 判定は `aws-login` と同じ順序（認証情報キャッシュに余裕があれば認証済み → 無ければ
+  `<profile>-signin` で `sts get-caller-identity`）。認証済みならキャッシュ読みだけで済み、
+  `aws` CLI も起動しない。
+- 未認証のときの動きは端末の有無で変わる。
+
+  | 状況 | 動き |
+  | --- | --- |
+  | 端末あり | どのプロファイルが何用で未認証かを出してから `aws-login` を実行 |
+  | 端末なし（VS Code 拡張ホスト / agmsg の spawn）または `AWS_LOGIN_NO_INTERACTIVE=1` | 打つべき `aws-login <profile>` を案内して終了コード 1 |
+
+- 終了コードは `0` = 認証済み / `1` = 未認証のまま / `2` = 使い方の誤り。呼び出し側は、
+  そのプロファイルが無いと動かないなら `1` で止め、無くても縮退運転できるなら警告にとどめる。
+- `aws` が PATH に無ければ何も判定せず素通しする（呼び出し元の起動を巻き添えにしない）。
+
+いま通しているのは `claude-bedrock-wrapper`（[zsh-cheatsheet.md](zsh-cheatsheet.md#bedrock-起動で使う-aws-プロファイル)）。
+Bedrock 用プロファイルが未認証なら Claude Code を起動しない。
+
+### 走行中に認証が切れたとき
+
+起動前チェックだけでは、**アプリが走っている最中に期限が切れたとき**を取りこぼす。子プロセスから
+`credential_process` が呼ばれ、結局 TUI の中に URL が描かれてしまう。herdr は再接続しても
+アプリを起動し直さないので、起動前チェックにも二度と当たらない。
+
+そこで TUI アプリを起動する側は `AWS_LOGIN_NO_INTERACTIVE=1` を export する。これが立っている
+`aws-login` はその場でログインせず、**認証を人へ渡す 2 つの道**を取る。
+
+| 何が起きるか | どこで見えるか |
+| --- | --- |
+| herdr セッション内なら、`AWS login: <profile>` というタブを開いて `aws-auth-ensure` を走らせ、そこへフォーカスを移す。あわせて herdr の通知を出す | herdr のタブ |
+| `~/.aws/.aws-login-<profile>.expired` を置く | Claude Code の statusLine が `⚠ AWS 未認証: <profile>` と出す |
+
+呼び出し元には待たせず失敗を返す。MCP の接続タイムアウトは 30 秒しかなく、人の認証を待って
+ブロックする方が体験が悪いため。**認証が通れば次の呼び出しで復帰する**（`credential_process` の
+失敗は botocore に負のキャッシュとして残らない）。
+
+開いたタブは herdr サーバが起こすので `AWS_LOGIN_NO_INTERACTIVE` を継承せず、ふつうの端末として
+上のログイン分岐（portfwd 逆チャネル / `$BROWSER` / `--remote`）がそのまま働く。**どの方式で
+ログインするかを新しく判断しなくて済むのが、タブへ委譲する一番の利点。**
+
+`credential_process` は 1 回の署名で何度も呼ばれるので、タブが湧かないよう抑えてある。
+
+- `~/.aws/.aws-login-<profile>.handoff` に `<pane_id> <epoch>` を残し、そのペインがまだ開いて
+  いれば新しく開かない
+- ペインが閉じていても 60 秒は開き直さない（ユーザが閉じたのに湧き続けるのを防ぐ）
+- 同時呼び出しは `flock` で 1 つに絞る
+
+`.expired` は認証が通った時点で `aws-login` / `aws-auth-ensure` が消す。別経路（手打ちの
+`aws login` など）で入り直して取り残された場合は、statusLine が creds キャッシュの期限を見て
+自分で消す（[claude-compact-cheatsheet.md](claude-compact-cheatsheet.md#statusline-の表示)）。
+
+`AWS_LOGIN_NO_INTERACTIVE` が唯一のゲートなので、**herdr のペインで普通に `aws s3 ls` を叩いて
+期限切れになった場合は今までどおりその場でログインする**。タブは湧かない。
 
 ### aws-logout
 
