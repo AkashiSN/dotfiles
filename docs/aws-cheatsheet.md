@@ -211,8 +211,9 @@ AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`�
   そのプロファイルが無いと動かないなら `1` で止め、無くても縮退運転できるなら警告にとどめる。
 - `aws` が PATH に無ければ何も判定せず素通しする（呼び出し元の起動を巻き添えにしない）。
 
-いま通しているのは `claude-bedrock-wrapper`（[zsh-cheatsheet.md](zsh-cheatsheet.md#bedrock-起動で使う-aws-プロファイル)）。
-Bedrock 用プロファイルが未認証なら Claude Code を起動しない。
+いま通しているのは Bedrock の起動経路（[zsh-cheatsheet.md](zsh-cheatsheet.md#bedrock-起動で使う-aws-プロファイル)）。
+`claude-bedrock-wrapper` と `codex-bedrock` は Bedrock 用プロファイルが未認証ならアプリを起動しない。
+`codex-bedrock-spawn` はペインを作る前に通す（spawn 先の codex は `codex-bedrock` を通らないため）。
 
 ### 走行中に認証が切れたとき
 
@@ -226,7 +227,7 @@ Bedrock 用プロファイルが未認証なら Claude Code を起動しない�
 | 何が起きるか | どこで見えるか |
 | --- | --- |
 | herdr セッション内なら、`AWS login: <profile>` というタブを開いて `aws-auth-ensure` を走らせ、そこへフォーカスを移す。あわせて herdr の通知を出す | herdr のタブ |
-| `~/.aws/.aws-login-<profile>.expired` を置く | Claude Code の statusLine が `⚠ AWS 未認証: <profile>` と出す |
+| `~/.aws/.aws-login-<profile>.expired` を置く | Claude Code の statusLine が `⚠ AWS 未認証: <profile>` と出す（statusLine は Claude Code にしか無いので、codex で気づく手掛かりはタブだけ） |
 
 呼び出し元には待たせず失敗を返す。MCP の接続タイムアウトは 30 秒しかなく、人の認証を待って
 ブロックする方が体験が悪いため。**認証が通れば次の呼び出しで復帰する**（`credential_process` の

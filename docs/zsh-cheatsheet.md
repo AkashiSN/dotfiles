@@ -63,8 +63,8 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `claude [args]` | `claude` をラップし、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。セッション名プレフィックスは claude 既定でホスト名）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。ローカルや非対話シェルでは実バイナリのまま無変更 |
 | `claude-bedrock [args]` | claude.ai 障害時に Claude Code を Amazon Bedrock（グローバル推論プロファイル）へ切り替えて起動（`~/.local/bin/claude-bedrock`）。env はその呼び出しにだけ乗るので通常の `claude` は claude.ai のまま。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` を常に上書きするので、対話中に `aws-switch` で選んでいるプロファイルには影響されない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。SSH 接続先の引数なし起動には `claude`（関数）と同じ規則で `--remote-control` を足す |
 | `codex [args]` | `codex` をラップし、起動直前に `codex-appserver-evict` で共有 app-server の `CODEX_HOME` を照合する。食い違う app-server（＝ Bedrock 用に残ったもの）を畳んで作り直させ、素の codex が黙って Bedrock で走るのを防ぐ。app-server に繋がない呼び出し（`exec` / `login` / `--version` など）では何もしない |
-| `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`~/.local/bin/codex-bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。`CODEX_HOME` をプロジェクトごとの一時 home へ向け、その `config.toml` を「素の config ＋ `~/.codex/bedrock.config.toml`」にする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` に渡し、その `credential_process = aws-login` が認証を担う。リージョン/モデルを変えるときは `dot_codex/private_bedrock.config.toml` を編集 |
-| `codex-bedrock-spawn <name> [opts]` | agmsg の codex エージェントを Bedrock で動く状態で herdr のペインに立ち上げる（`~/.local/bin/codex-bedrock-spawn`）。内部で `spawn.sh` を呼ぶ。`--team` / `--project` / `--direction` 以外の引数は spawn.sh へ素通し（`--boot-prompt` など）。片付けは素の agmsg と同じ `despawn.sh <team> <self> <name> --force` |
+| `codex-bedrock [args]` | codex を Amazon Bedrock へ切り替えて起動（`~/.local/bin/codex-bedrock`）。通常の `codex` はサブスク（OpenAI ログイン）のまま。`CODEX_HOME` をプロジェクトごとの一時 home へ向け、その `config.toml` を「素の config ＋ `~/.codex/bedrock.config.toml`」にする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`（既定 `cdx-pre-dev`）で `AWS_PROFILE` に渡し、その `credential_process = aws-login` が認証を担う。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルを変えるときは `dot_codex/private_bedrock.config.toml` を編集 |
+| `codex-bedrock-spawn <name> [opts]` | agmsg の codex エージェントを Bedrock で動く状態で herdr のペインに立ち上げる（`~/.local/bin/codex-bedrock-spawn`）。内部で `spawn.sh` を呼ぶ。ペインを作る前に `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（spawn 先の codex は `codex-bedrock` を通らないため）。`--team` / `--project` / `--direction` 以外の引数は spawn.sh へ素通し（`--boot-prompt` など）。片付けは素の agmsg と同じ `despawn.sh <team> <self> <name> --force` |
 | `term-reset` | 端末のマウス報告 / フォーカス報告 / 括弧付き貼り付け / Kitty keyboard protocol（`\e[<u` で pop、`\e[=0;1u` でフラグ 0）を無効化して端末状態を復旧。SSH 異常切断でリモートの nvim 等が有効化した端末モードが居残り、キー入力で `15;1:3u` 等・マウスで `0;129;39M` 等が漏れたときに叩く（素の端末でも無害）。詳細は [herdr チートシート](herdr-cheatsheet.md#ssh-異常切断後の端末化けterm-reset) |
 | `herdr [args]` / `ssh [args]` | ローカルシェルでのみ実バイナリをラップし、戻り際に必ず `term-reset` する（`herdr --remote` / `ssh` 先の異常切断による端末化けを自動復旧）。herdr は内部で自前の ssh を exec するため `herdr` 自体もラップ対象。リモートシェル（`$SSH_CONNECTION` あり）ではラップしない |
 
@@ -103,14 +103,15 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 | `CLAUDE_CODE_BEDROCK_AWS_PROFILE` | `cdx-pre-dev` | `claude-bedrock` |
 | `CODEX_BEDROCK_AWS_PROFILE` | `cdx-pre-dev` | `codex-bedrock` |
 
-`claude-bedrock` は起動前に `aws-auth-ensure` を通す。未認証のまま起動すると、TUI が立ったあとで
-`credential_process`（`aws-login`）がログイン URL を `/dev/tty` へ出して画面が崩れるため。未認証なら
-そこで止まる（Bedrock 用プロファイルが無いと動かないので、警告では済ませない）。あわせて配下へ
-`AWS_LOGIN_NO_INTERACTIVE=1` を撒き、走行中に期限が切れても画面の中に URL を描かせない。切れたときは
-herdr のタブと statusLine で人へ渡る（[aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)）。
+`claude-bedrock` と `codex-bedrock` は起動前に `aws-auth-ensure` を通す。未認証のまま起動すると、
+TUI が立ったあとで `credential_process`（`aws-login`）がログイン URL を `/dev/tty` へ出して画面が
+崩れるため。未認証ならそこで止まる（Bedrock 用プロファイルが無いと動かないので、警告では済ませない）。
+確かめるのはどちらも Bedrock 用の 1 つだけ。あわせて配下へ `AWS_LOGIN_NO_INTERACTIVE=1` を撒き、
+走行中に期限が切れても画面の中に URL を描かせない。切れたときは herdr のタブと statusLine で人へ渡る
+（[aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)）。
 
-> `codex-bedrock` はこの確認を通していない。未認証のまま起動すると同じように画面が崩れるので、
-> 気になるときは先に `aws-auth-ensure $CODEX_BEDROCK_AWS_PROFILE` を打つ。
+> `.expired` を読む statusLine は Claude Code にしか無いので、codex で走行中に切れたときに気づく
+> 手掛かりは herdr のタブだけになる。
 
 ### `claude-bedrock` のリージョン/モデル上書き変数
 
@@ -241,14 +242,23 @@ codex-bedrock-spawn reviewer
 - マニフェスト（`drivers/types/codex/type.conf`）の `cli=codex` は固定で差し替えられない
 - codex に `--profile` 相当の環境変数は無い
 
-`codex-bedrock-spawn` がやっていることは 4 つ:
+`codex-bedrock-spawn` がやっていることは 5 つ:
 
-1. `codex-bedrock --print-home` で一時 home を用意（codex は起動しない）
-2. `codex-appserver-evict` で食い違う app-server を畳む
-3. `herdr pane split --env CODEX_HOME=... --env AWS_PROFILE=...` でペインを作る
-4. `HERDR_ENV` / `HERDR_PANE_ID` を落として `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
+1. `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（未認証ならここでログインし、
+   通らなければ spawn しない）
+2. `codex-bedrock --print-home` で一時 home を用意（codex は起動しない）
+3. `codex-appserver-evict` で食い違う app-server を畳む
+4. `herdr pane split --env CODEX_HOME=... --env AWS_PROFILE=... --env AWS_LOGIN_NO_INTERACTIVE=1` で
+   ペインを作る
+5. `HERDR_ENV` / `HERDR_PANE_ID` を落として `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
 
-4 で env を落とすのは、spawn の配置優先度が **`$TMUX` → herdr → `--terminal` テンプレート**で、
+1 が要るのは、spawn 先の codex が `codex-bedrock` を通らないため（`spawn.sh` は `type.conf` の
+`cli=codex` を非対話 bash のブートスクリプトから直接 exec する）。スクリプトが持つ起動前チェックは
+spawn には効かないので、人の居るこのペインで先に通しておく。4 の `AWS_LOGIN_NO_INTERACTIVE` は、
+走行中に期限が切れたときログイン URL を spawn 先のペインへ描かせないため（代わりに herdr のタブへ
+委譲される）。
+
+5 で env を落とすのは、spawn の配置優先度が **`$TMUX` → herdr → `--terminal` テンプレート**で、
 落とさないと herdr パスが先に勝って env 無しのペインを作り直してしまうため。
 
 テンプレート経路は placement レコードを書かないので、`despawn --force` が `no placement record` で

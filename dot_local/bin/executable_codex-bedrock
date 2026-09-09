@@ -11,6 +11,10 @@
 # 使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)。その
 # credential_process = aws-login が認証を担うため追加ログインは不要。Bedrock は SigV4 認証で
 # auth.json を見ないので、一時 home に資格情報は置かない。
+#
+# 起動前に aws-auth-ensure でそのプロファイルが認証済みかを確かめ、未認証なら起動しない。
+# 未認証のまま起動すると、TUI が立ったあとで credential_process(aws-login)がログイン URL を
+# /dev/tty へ出して画面が崩れるため。
 # 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
 set -euo pipefail
 
@@ -232,6 +236,18 @@ fi
 
 export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
 export CODEX_HOME="$HOME_DIR"
+
+# Bedrock 用プロファイルが無いと動かないので、未認証なら起動しない。
+# PATH は足さない。aws-auth-ensure は自前で通すし、ここで ~/.local/bin を前に出すと agmsg
+# monitor の codex シム(~/.agents/bin/codex)を飛び越してしまう。
+AUTH_ENSURE="$HOME/.local/bin/aws-auth-ensure"
+if [ -x "$AUTH_ENSURE" ] && ! "$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock"; then
+  die "Bedrock 用プロファイル $AWS_PROFILE が未認証のため起動しない"
+fi
+
+# 子プロセスから credential_process が呼ばれても、画面の中にログイン URL を描かせない。
+# 走行中に切れたときは herdr のタブへ委譲される(docs/aws-cheatsheet.md)。
+export AWS_LOGIN_NO_INTERACTIVE=1
 
 codex-appserver-evict "$HOME_DIR" "$@"
 

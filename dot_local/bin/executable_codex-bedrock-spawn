@@ -60,6 +60,9 @@ PROJECT="$(cd "$PROJECT" && pwd -P)"
 command -v herdr >/dev/null 2>&1 || die "herdr が PATH に無い"
 [ -x "$S/spawn.sh" ] || die "agmsg が見つからない: $S/spawn.sh"
 
+# Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。
+PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+
 # チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
 if [ -z "$TEAM" ]; then
   TEAM="$("$S/whoami.sh" "$PROJECT" 2>/dev/null | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
@@ -82,24 +85,36 @@ print(value)
 ' "$@"
 }
 
-# 1) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。
+# 1) Bedrock 用プロファイルの認証を済ませる。spawn 先の codex は codex-bedrock を通らない
+#    (spawn.sh が cli=codex を直接 exec する)ので、未認証のままだと立ち上がった TUI の中へ
+#    credential_process(aws-login)がログイン URL を描いて画面が崩れる。ここは人が居る対話ペイン
+#    なので、未認証ならその場でログインまで進む。
+if [ -x "$HOME/.local/bin/aws-auth-ensure" ]; then
+  "$HOME/.local/bin/aws-auth-ensure" "$PROFILE" "Bedrock" \
+    || die "Bedrock 用プロファイル $PROFILE が未認証のため spawn しない"
+fi
+
+# 2) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。
 HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" \
   || die "一時 home を用意できなかった"
 
-# 2) 別の CODEX_HOME で走っている app-server は畳む。残っているとペインの codex が
+# 3) 別の CODEX_HOME で走っている app-server は畳む。残っているとペインの codex が
 #    それを再利用してしまい、設定が食い違う。
 (cd "$PROJECT" && codex-appserver-evict "$HOME_DIR")
 
-# 3) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
+# 4) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
+# AWS_LOGIN_NO_INTERACTIVE は、走行中に期限が切れたときログイン URL をこのペインへ
+# 描かせないため。代わりに aws-login が herdr のタブへ委譲する(docs/aws-cheatsheet.md)。
 resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --cwd "$PROJECT" \
   --env "CODEX_HOME=$HOME_DIR" \
-  --env "AWS_PROFILE=${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}" 2>&1)" \
+  --env "AWS_PROFILE=$PROFILE" \
+  --env "AWS_LOGIN_NO_INTERACTIVE=1" 2>&1)" \
   || die "herdr pane split に失敗した: $resp"
 PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" \
   || die "herdr pane split の応答から pane_id を読めなかった: $resp"
 herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
 
-# 4) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
+# 5) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
 #    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
 #    env 無しのペインを作り直してしまうため。
 if ! env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
@@ -109,7 +124,7 @@ if ! env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
   die "spawn.sh に失敗した"
 fi
 
-# 5) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
+# 6) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
 #    これが無いと despawn --force が no placement record で失敗する。
 # shellcheck disable=SC1091
 . "$S/lib/actas-lock.sh"
@@ -120,6 +135,6 @@ mkdir -p "$(dirname "$rec")"
 cat <<EOS
 spawned codex '$NAME' (team $TEAM) in herdr pane $PANE
   CODEX_HOME  $HOME_DIR
-  AWS_PROFILE ${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}
+  AWS_PROFILE $PROFILE
   片付け      $S/despawn.sh $TEAM <self> $NAME --force
 EOS
