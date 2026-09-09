@@ -45,6 +45,22 @@ esac
 
 project="$PWD"
 
+# argv がちょうど `codex app-server ...` の形をしたプロセスか。**この確認が要る。**
+# `pgrep -f` はコマンドライン全体に対する部分一致なので、この文字列を含むだけの無関係な
+# プロセス——まさにこのスクリプトを探して走らせているシェル自身を含む——まで候補に挙がる。
+# cwd はプロジェクトと一致してしまうため、cwd 照合だけでは弾けない。
+is_app_server() {
+  local args exe sub
+  args="$(ps -p "$1" -o args= 2>/dev/null)" || return 1
+  [ -n "$args" ] || return 1
+  exe="${args%% *}"
+  sub="${args#"$exe"}"
+  sub="${sub# }"
+  sub="${sub%% *}"
+  [ "$sub" = "app-server" ] || return 1
+  [ "$(basename "$exe")" = "codex" ]
+}
+
 # プロセスの CODEX_HOME を読む。未設定なら既定の ~/.codex。
 proc_codex_home() {
   local home
@@ -56,6 +72,7 @@ proc_codex_home() {
 # プロセス署名と cwd で特定する(agmsg は TUI の cwd で app-server を起動するため、
 # cwd がそのまま agmsg のキーと一致する)。
 for pid in $(pgrep -f 'codex app-server' 2>/dev/null || true); do
+  is_app_server "$pid" || continue
   cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
   [ "$cwd" = "$project" ] || continue
   actual="$(proc_codex_home "$pid")"

@@ -20,11 +20,14 @@ set -euo pipefail
 
 BASE_HOME="$HOME/.codex"
 OVERLAY="$BASE_HOME/bedrock.config.toml"
+# 一時 home はホーム配下に置く。codex は一時ディレクトリ配下の CODEX_HOME を「一時的なもの」
+# とみなし、PATH ヘルパー(apply_patch など)の作成を拒む。
+#
 # CODEX_HOME はフックの信頼キー(hooks.state)などに埋まる。codex はそのキーをシンボリック
-# リンク解決後の絶対パスで持つので、こちらも解決済みの形に揃えておく。揃っていないと
-# macOS の /var -> /private/var や TMPDIR 末尾の / のせいでキーが一致せず、コピーしてきた
-# 信頼が効かずに毎回フックの確認が出る。
-RUNTIME_ROOT="${TMPDIR:-/tmp}"
+# リンク解決後の絶対パスで持つので、こちらも解決済みの形に揃えておく。揃っていないとパスの
+# 表記違い(macOS の /var -> /private/var など)でキーが一致せず、コピーしてきた信頼が効かずに
+# 毎回フックの確認が出る。
+RUNTIME_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}"
 RUNTIME_ROOT="${RUNTIME_ROOT%/}/codex-bedrock"
 mkdir -p "$RUNTIME_ROOT"
 RUNTIME_ROOT="$(cd "$RUNTIME_ROOT" && pwd -P)"
@@ -75,23 +78,53 @@ live_codex_homes() {
   done | sort -u
 }
 
+# 一時 home の回収と作成は直列化する。ロックが無いと、同じプロジェクトで並行起動した
+# 2 つが揃って「live でない」と判定し、同じ home を rm -rf → 作成して、一方の作りかけを
+# もう一方が消してしまう。
+exec 9>"$RUNTIME_ROOT/.lock"
+flock 9
+
 LIVE_HOMES="$(live_codex_homes)"
 is_live() { printf '%s\n' "$LIVE_HOMES" | grep -qxF "$1"; }
 
-# 誰も使っていない一時 home を掃除する。終了時ではなく起動時に回収するので、異常終了して
-# 残ったものも次回の起動で片付く。
-if [ -d "$RUNTIME_ROOT" ]; then
-  for d in "$RUNTIME_ROOT"/*; do
-    [ -d "$d" ] || continue
-    is_live "$d" || rm -rf "$d"
-  done
-fi
+# home を用意し終えてから codex が立ち上がる(プロセス一覧に出る)までの窓を守る猶予[分]。
+# この間の home は「誰も使っていない」ように見えるが、これから使われる。起動は数十秒で
+# 済むので短くてよい——長くすると、設定を変えた直後の起動が古い home を使い回してしまう。
+FRESH_MIN=2
 
-# 同じプロジェクトの codex-bedrock が既に走っているならその home をそのまま使う。走っている
-# codex の下で config.toml を書き換えると、codex が書き戻す実行時状態を壊すため触らない。
-if ! is_live "$HOME_DIR"; then
-  rm -rf "$HOME_DIR"
-  mkdir -p "$HOME_DIR"
+# 誰も使っていない一時 home を回収する。終了時ではなく起動時に回収するので、異常終了して
+# 残ったものも次回の起動で片付く。
+for d in "$RUNTIME_ROOT"/*; do
+  [ -d "$d" ] || continue
+  # このプロジェクトの home は回収しない。作り直すかどうかは下の stale_home が決める。
+  # ここで消すと毎回まっさらになり、codex がその home に書いた信頼(プロジェクトや
+  # フックの trust)が起動のたびに失われて、そのつど確認を聞かれる。
+  [ "$d" = "$HOME_DIR" ] && continue
+  is_live "$d" && continue
+  [ -n "$(find "$d" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ] && continue
+  rm -rf "$d"
+done
+
+# 合成のもと(素の config / オーバレイ)が、合成済み config より新しいか。
+stale_home() {
+  [ -f "$HOME_DIR/config.toml" ] || return 0
+  # 用意した直後の home は、これから codex が使う。掃除側と同じ猶予で作り直しも止める。
+  [ -n "$(find "$HOME_DIR" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ] && return 1
+  [ "$BASE_HOME/config.toml" -nt "$HOME_DIR/config.toml" ] && return 0
+  [ "$OVERLAY" -nt "$HOME_DIR/config.toml" ] && return 0
+  return 1
+}
+
+# home を作り直すのは、誰も使っておらず、かつ元が更新されているときだけ。走っている codex の
+# 下で config.toml を書き換えると codex が書き戻す実行時状態を壊すし、用意し終えたばかりで
+# まだ codex を起動していない(プロセス一覧に出ない)home を別の起動が作り直すと、そちらが壊れる。
+if ! is_live "$HOME_DIR" && stale_home; then
+  # 別のディレクトリに組み立ててから rename する。途中で失敗しても、欠けたものが HOME_DIR
+  # として残らない(次の起動がそれを完成品とみなして使ってしまう)。
+  BUILD="$RUNTIME_ROOT/.build.$$"
+  rm -rf "$BUILD"
+  mkdir -p "$BUILD"
+  trap 'rm -rf "$BUILD"' EXIT
 
   # config.toml: 素の config に bedrock オーバレイを被せる。TOML はトップレベルキーを最初の
   # テーブルヘッダより前にしか書けないので、両者を「テーブル前」と「テーブル以降」に割って
@@ -102,8 +135,9 @@ if ! is_live "$HOME_DIR"; then
   # 複数行文字列の中に `[` で始まる行が来ることがあり、行の見た目だけではテーブルヘッダと
   # 区別できないため。読み込んで書き直すのではなく行を並べ替えるので、コメントと codex 自身が
   # 書いた整形はそのまま残る。
-  "$PY" - "$BASE_HOME/config.toml" "$OVERLAY" "$BASE_HOME" "$HOME_DIR" > "$HOME_DIR/config.toml" <<'PY' \
-    || { rm -rf "$HOME_DIR"; die "config.toml の合成に失敗した"; }
+  # hooks.state のキーに埋めるのは rename 後の場所(HOME_DIR)。書き出し先は組み立て中の BUILD。
+  "$PY" - "$BASE_HOME/config.toml" "$OVERLAY" "$BASE_HOME" "$HOME_DIR" > "$BUILD/config.toml" <<'PY' \
+    || die "config.toml の合成に失敗した"
 import sys
 import tomllib
 
@@ -217,14 +251,21 @@ PY
   # グローバル指示とフックは素の home から持ち込む。MCP サーバやマーケットプレイスは
   # config.toml 内で絶対パスを指しているので CODEX_HOME が変わってもそのまま解決する。
   for f in AGENTS.md hooks.json; do
-    [ -f "$BASE_HOME/$f" ] && cp "$BASE_HOME/$f" "$HOME_DIR/$f"
+    [ -f "$BASE_HOME/$f" ] && cp "$BASE_HOME/$f" "$BUILD/$f"
   done
-  [ -d "$BASE_HOME/skills" ] && cp -R "$BASE_HOME/skills" "$HOME_DIR/skills"
+  [ -d "$BASE_HOME/skills" ] && cp -R "$BASE_HOME/skills" "$BUILD/skills"
 
   # agmsg の codex ドライバは rollout を $HOME/.codex/sessions に決め打ちで探す。実 home の
   # sessions へ張っておかないと、Bedrock セッションのトランスクリプトを agmsg が見失う。
-  ln -s "$BASE_HOME/sessions" "$HOME_DIR/sessions"
+  ln -s "$BASE_HOME/sessions" "$BUILD/sessions"
+
+  # ここまで通ってはじめて home として見せる。
+  rm -rf "$HOME_DIR"
+  mv "$BUILD" "$HOME_DIR"
+  trap - EXIT
 fi
+
+flock -u 9
 
 # 一時 home を用意するだけで codex は起動しない。CODEX_HOME を自分で渡して codex を
 # 起動したい呼び出し元(codex-bedrock-spawn)のための入り口。app-server の照合は

@@ -36,18 +36,15 @@ while [ "$#" -gt 0 ]; do
     --project) PROJECT="${2:-}"; shift 2 ;;
     --direction) DIRECTION="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    # 知らないフラグは spawn.sh へ素通し。値を取るフラグかは分からないので、次の引数が
-    # フラグでなければ値とみなして一緒に運ぶ。
-    -*)
+    # spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
+    # みなすと `--fresh <name>` の <name> まで吸ってしまうので、ここは明示列挙する。
+    --boot-prompt|--split|--terminal|--ready-timeout|--model)
       PASS+=("$1")
-      if [ "$#" -gt 1 ]; then
-        case "$2" in
-          ""|-*) ;;
-          *) PASS+=("$2"); shift ;;
-        esac
-      fi
+      if [ "$#" -gt 1 ]; then PASS+=("$2"); shift; fi
       shift
       ;;
+    # 残りは値を取らないフラグと `--opt=value` 形式として素通しする。
+    -*) PASS+=("$1"); shift ;;
     *) [ -n "$NAME" ] && die "名前は 1 つだけ指定する(余分: $1)"; NAME="$1"; shift ;;
   esac
 done
@@ -98,11 +95,26 @@ fi
 HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" \
   || die "一時 home を用意できなかった"
 
-# 3) 別の CODEX_HOME で走っている app-server は畳む。残っているとペインの codex が
+# 3) このプロジェクトを信頼させる。codex は信頼するまでプロジェクトローカルの config /
+#    hooks / exec policy を読まないので、agmsg が置く .codex/hooks.json(配信フック)が効かない。
+#    書くのは揮発する一時 home の config.toml だけで、素の ~/.codex/config.toml には触らない
+#    ——信頼するのは agmsg が立ち上げたこの codex に限る。
+case "$PROJECT" in
+  *'"'*|*\\*) die "パスに \" か \\ を含むプロジェクトは信頼設定を書けない: $PROJECT" ;;
+esac
+if ! grep -qF "[projects.\"$PROJECT\"]" "$HOME_DIR/config.toml"; then
+  cat >>"$HOME_DIR/config.toml" <<EOF
+
+[projects."$PROJECT"]
+trust_level = "trusted"
+EOF
+fi
+
+# 4) 別の CODEX_HOME で走っている app-server は畳む。残っているとペインの codex が
 #    それを再利用してしまい、設定が食い違う。
 (cd "$PROJECT" && codex-appserver-evict "$HOME_DIR")
 
-# 4) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
+# 5) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
 # AWS_LOGIN_NO_INTERACTIVE は、走行中に期限が切れたときログイン URL をこのペインへ
 # 描かせないため。代わりに aws-login が herdr のタブへ委譲する(docs/aws-cheatsheet.md)。
 resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --cwd "$PROJECT" \
@@ -112,25 +124,37 @@ resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --
   || die "herdr pane split に失敗した: $resp"
 PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" \
   || die "herdr pane split の応答から pane_id を読めなかった: $resp"
+
+# ここから先の失敗は、起動済みのペインと書きかけの placement レコードを残す。最後まで
+# 通ったときだけ trap を解いて残す。
+rollback() {
+  herdr pane close "$PANE" >/dev/null 2>&1 || true
+  [ -n "${rec:-}" ] && rm -f "$rec"
+  return 0
+}
+trap rollback EXIT
+
 herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
 
-# 5) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
+# 6) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
 #    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
 #    env 無しのペインを作り直してしまうため。
-if ! env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
+env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
   "$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
-  --terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"}; then
-  herdr pane close "$PANE" >/dev/null 2>&1 || true
-  die "spawn.sh に失敗した"
-fi
+  --terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"} \
+  || die "spawn.sh に失敗した"
 
-# 6) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
-#    これが無いと despawn --force が no placement record で失敗する。
+# 7) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
+#    これが無いと despawn --force が no placement record で失敗する。既存レコードは常に
+#    上書きする。前の異常終了で古い pane_id が残っていると、despawn --force がそちらを
+#    畳んで今のペインを取り逃がす。
 # shellcheck disable=SC1091
 . "$S/lib/actas-lock.sh"
 rec="$(agmsg_spawn_path "$TEAM" "$NAME")"
 mkdir -p "$(dirname "$rec")"
-[ -s "$rec" ] || printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" > "$rec"
+printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" > "$rec"
+
+trap - EXIT
 
 cat <<EOS
 spawned codex '$NAME' (team $TEAM) in herdr pane $PANE

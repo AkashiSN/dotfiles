@@ -155,7 +155,8 @@ Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は r
 `legacy 'profile = "..."' config is no longer supported` で拒否される。
 
 そこで `CODEX_HOME` を使う。これは環境変数なので子プロセスへ継承され、app-server にも同じ設定が乗る。
-`codex-bedrock` はプロジェクトごとに `$TMPDIR/codex-bedrock/<sha1(プロジェクトパス)>` を用意し、そこへ:
+`codex-bedrock` はプロジェクトごとに `~/.cache/codex-bedrock/<sha1(プロジェクトパス)>`
+（`$XDG_CACHE_HOME` があればその下）を用意し、そこへ:
 
 - `config.toml` — 素の `~/.codex/config.toml` に `~/.codex/bedrock.config.toml` を被せて生成。MCP サーバ・
   フックの trust hash・`projects` の trust_level・サンドボックスの writable roots はそのまま引き継ぐ
@@ -169,9 +170,11 @@ Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は r
 （herdr の agent-state フック）が毎回「Hooks need review」で止まる。中身が変わっていればハッシュが合わず
 従来どおり確認が出るので、信頼を素通しにしているわけではない。
 
+置き場をホーム配下にしているのは、**codex が一時ディレクトリ配下の `CODEX_HOME` を「一時的なもの」と
+みなし、PATH ヘルパー（`apply_patch` など）を作らない**ため。`$TMPDIR` に置くとこれらが効かない。
+
 一時 home のパスは `pwd -P` で**シンボリックリンクを解決した形**にする。codex は信頼キーを解決後の絶対
-パスで持つため、macOS の `/var` → `/private/var` を揃えないとキーが一致しない（`TMPDIR` 末尾の `/` も同様に
-落とす）。
+パスで持つため、macOS の `/var` → `/private/var` のような表記違いがあるとキーが一致しない。
 
 #### `config.toml` の合成
 
@@ -202,7 +205,24 @@ model = "gpt-5.6-sol"   # ← 以降はテーブル部扱いになり、落と�
 （[uv チートシート](uv-cheatsheet.md#uv-管理の-python)）。合成に third-party パッケージは使わない
 （オフラインで動かなくなるのを避けるため）。実 config で実測 15ms 程度。
 
-一時 home は使い捨てで、参照している codex が居なくなったものは次回の `codex-bedrock` 起動時に回収する。
+#### 一時 home の回収と作り直し
+
+回収も作り直しも起動時に行う（終了時ではないので、異常終了して残ったものも次の起動で片付く）。判断は
+3 つの条件を組み合わせる:
+
+- **参照している codex が居るか** — 生きている `codex` プロセスの `CODEX_HOME` を `ps eww` で集めて照合する。
+  走っている codex の下で `config.toml` を書き換えると、codex が書き戻す実行時状態を壊す
+- **用意してから 2 分（`FRESH_MIN`）以内か** — home を用意し終えてから codex がプロセス一覧に出るまでの窓を
+  守る。この間の home は「誰も使っていない」ように見えるが、これから使われる
+- **合成のもとが新しいか** — 素の `config.toml` か `bedrock.config.toml` が合成済みより新しいときだけ
+  作り直す。毎回作り直すと、codex がその home に書いた信頼（プロジェクト・フックの trust）が起動のたびに
+  失われ、そのつど確認を聞かれる
+
+同時起動は `~/.cache/codex-bedrock/.lock` の `flock` で直列化する。無いと、並行起動した 2 つが揃って
+「誰も使っていない」と判定し、同じ home を消して作り直し、一方の作りかけをもう一方が消してしまう。
+作るときは別ディレクトリ（`.build.<pid>`）で組み立ててから rename するので、途中で失敗しても欠けたものが
+home として残らない。
+
 セッション履歴やスレッド DB は実 home と別になる（`sessions` だけ共有）。
 
 ### app-server の取り合いを防ぐ（`codex-appserver-evict`）
@@ -214,7 +234,9 @@ Bedrock 用 app-server を拾う向き**は課金先が変わるので特に厄�
 
 `codex-appserver-evict <期待する CODEX_HOME> [codex の引数...]` が起動直前にこれを潰す。`pgrep` と `lsof`
 でそのプロジェクト（＝ cwd 一致）の app-server を特定し、`ps eww` でその `CODEX_HOME` を読んで、期待と
-違えば畳む。agmsg の run ディレクトリ名には依存せず codex 自身のプロセス署名だけを見ているので、agmsg 側の
+違えば畳む。候補は `ps -o args=` で**argv がちょうど `codex app-server ...` の形か**まで確かめる。
+`pgrep -f` はコマンドライン全体への部分一致なので、その文字列を含むだけの無関係なプロセス（このスクリプトを
+探して走らせているシェル自身を含む）まで挙がり、cwd もプロジェクトと一致してしまうため。agmsg の run ディレクトリ名には依存せず codex 自身のプロセス署名だけを見ているので、agmsg 側の
 命名が変わっても壊れない。`codex` 関数と `codex-bedrock` の両方から呼ぶので、どちら向きの取り違えも防げる。
 
 同じ種類（同じ `CODEX_HOME`）なら畳まないため、同一プロジェクトで codex-bedrock を並行起動しても
@@ -227,7 +249,7 @@ app-server を共有できる。逆に、種類をまたいで切り替えると
 ```sh
 codex-bedrock-spawn reviewer
 #   → spawned codex 'reviewer' (team dotfiles) in herdr pane wQ:p7
-#       CODEX_HOME  /private/var/folders/.../codex-bedrock/<sha1>
+#       CODEX_HOME  /Users/<user>/.cache/codex-bedrock/<sha1>
 #       AWS_PROFILE cdx-pre-dev
 ```
 
@@ -247,23 +269,31 @@ codex-bedrock-spawn reviewer
 1. `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（未認証ならここでログインし、
    通らなければ spawn しない）
 2. `codex-bedrock --print-home` で一時 home を用意（codex は起動しない）
-3. `codex-appserver-evict` で食い違う app-server を畳む
-4. `herdr pane split --env CODEX_HOME=... --env AWS_PROFILE=... --env AWS_LOGIN_NO_INTERACTIVE=1` で
+3. 一時 home の `config.toml` にこのプロジェクトの `trust_level = "trusted"` を書く
+4. `codex-appserver-evict` で食い違う app-server を畳む
+5. `herdr pane split --env CODEX_HOME=... --env AWS_PROFILE=... --env AWS_LOGIN_NO_INTERACTIVE=1` で
    ペインを作る
-5. `HERDR_ENV` / `HERDR_PANE_ID` を落として `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
+6. `HERDR_ENV` / `HERDR_PANE_ID` を落として `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
 
 1 が要るのは、spawn 先の codex が `codex-bedrock` を通らないため（`spawn.sh` は `type.conf` の
 `cli=codex` を非対話 bash のブートスクリプトから直接 exec する）。スクリプトが持つ起動前チェックは
-spawn には効かないので、人の居るこのペインで先に通しておく。4 の `AWS_LOGIN_NO_INTERACTIVE` は、
+spawn には効かないので、人の居るこのペインで先に通しておく。5 の `AWS_LOGIN_NO_INTERACTIVE` は、
 走行中に期限が切れたときログイン URL を spawn 先のペインへ描かせないため（代わりに herdr のタブへ
 委譲される）。
 
-5 で env を落とすのは、spawn の配置優先度が **`$TMUX` → herdr → `--terminal` テンプレート**で、
+3 は agmsg の配信フックのため。codex はプロジェクトを信頼するまでプロジェクトローカルの config /
+hooks / exec policy を読まないので、`.codex/hooks.json` が効かない。書くのは揮発する一時 home の
+`config.toml` だけで、素の `~/.codex/config.toml` には触らない（信頼するのは agmsg が立ち上げた
+この codex に限る）。一時 home を作り直した直後は、codex が一度だけフックの確認を出す。
+
+6 で env を落とすのは、spawn の配置優先度が **`$TMUX` → herdr → `--terminal` テンプレート**で、
 落とさないと herdr パスが先に勝って env 無しのペインを作り直してしまうため。
 
 テンプレート経路は placement レコードを書かないので、`despawn --force` が `no placement record` で
 失敗する。`codex-bedrock-spawn` は herdr パスと同じ形式（`herdr:<pane_id>\t<project>\tcodex`）で
-自分で書いている。
+自分で書いている。既存レコードは常に上書きする——前の異常終了で古い pane_id が残っていると、
+`despawn --force` がそちらを畳んで今のペインを取り逃がすため。途中で失敗したときは、作ったペインと
+書きかけのレコードを畳んでから終わる。
 
 > **経緯**: 以前は codex の AWS プロファイルを `dot_codex/private_bedrock.config.toml` に
 > `profile = "cdx-pre-dev"` とハードコードし、`claude-bedrock` は `aws-switch` で選んだ
