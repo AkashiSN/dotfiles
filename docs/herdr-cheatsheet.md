@@ -265,7 +265,7 @@ yazi 内で `.` を押せば一時的にトグルできる。
 | `[ui.toast] delivery` | `system` | 背景エージェントの状態変化（要対応/完了）を macOS 通知センターへ。初回は OS の通知許可が必要 |
 | `[experimental] switch_ascii_input_source_in_prefix` | `true` | prefix モード中だけ ASCII 配列へ一時切替し、抜けたら元へ戻す（日本語 IME 有効のまま prefix を取りこぼさない。macOS 専用） |
 | `[experimental] reveal_hidden_cursor_for_cjk_ime` | `true` | claude/codex など自前カーソル描画の TUI でも IME 候補ウィンドウが追従する |
-| `[experimental] cjk_ime_agents` | `["claude","codex","kiro"]` | カーソル追従を実際に使うエージェントに限定 |
+| `[experimental] cjk_ime_agents` | `["claude","codex","kiro","cline"]` | カーソル追従を実際に使うエージェントに限定 |
 | `[[keys.command]]` | `<prefix> d` = gitui / `<prefix> f` = yazi | 差分確認とファイル探索を popup で。nvim を開かずサッと見る用（詳細は上の「カスタムコマンド（popup）」） |
 
 > **`onboarding` をわざわざ書いている理由**: herdr はウィザードで選ばせたあと
@@ -309,6 +309,30 @@ yazi 内で `.` を押せば一時的にトグルできる。
 > herdr 本体を更新してフック版が上がったとき（`status --outdated-only` に出る）は、
 > `run_onchange_after_45-herdr-integration.sh.tmpl` 内の `herdr-integration-marker:` の日付を書き換えると
 > 既存マシンでも `chezmoi apply` で再導入されて最新版に揃う。
+
+---
+
+## ペインで動かすエージェント CLI の導入
+
+`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` で入れる。
+claude / codex / kiro は公式のネイティブインストーラ（curl ワンライナー）で `~/.local/bin`
+などに置かれ、以後は本体が自己更新する。
+
+**Cline だけは配布が npm のみ**なので導入経路が違う。
+
+| 項目 | 内容 |
+| --- | --- |
+| 導入 | `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`。版を固定したいときはスクリプト内の変数に版を書く） |
+| Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。**導入のときだけ** npm が要るので、`30-node-default` が fnm で用意した node を使う |
+| 認証 | 自動化しない。導入後に端末で一度 `cline auth`（対話ウィザード）か `cline auth --provider <name> --apikey <key> --modelid <model>` |
+| 更新 | `chezmoi apply`（`CLINE_VERSION` が `latest` なら毎回追従）または本体の `cline update` |
+
+> **node の LTS メジャーが上がると消える。** npm グローバルは fnm が管理する node の中に入るため、
+> `fnm install --lts` が新しいメジャーを入れると `cline` が PATH から失われる。
+> スクリプト内の `CLINE_VERSION` を書き換えて `chezmoi apply` すれば入れ直される。
+
+IME 候補ウィンドウの追従（`cjk_ime_agents`）には `cline` を含めてある（上の「設定挙動」）。
+エージェント状態 integration のフック（`herdr integration install`）は claude / codex のみ入れている。
 
 ---
 

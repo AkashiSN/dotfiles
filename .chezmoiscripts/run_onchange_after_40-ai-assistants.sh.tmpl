@@ -6,7 +6,7 @@
 set -eu
 
 {{ template "shell-log" }}
-step "AI アシスタント CLI(claude/codex/kiro/ollama/agmsg/codegraph/graphify)をインストール中"
+step "AI アシスタント CLI(claude/codex/kiro/cline/ollama/agmsg/codegraph/graphify)をインストール中"
 
 # graphify は uv (aqua 管理) で入れるため、aqua の bin と設定も解決可能にする
 # (AQUA_GLOBAL_CONFIG が無いと aqua-proxy がバージョンを解決できない)。
@@ -45,6 +45,28 @@ fi
 if command -v kiro-cli >/dev/null 2>&1; then
 	kiro-cli integrations uninstall -s dotfiles || true
 fi
+
+# --- Cline CLI (npm: cline) ---
+# VS Code 拡張と同じエージェントを端末で動かす CLI。公式の配布は npm のみで、
+# プラットフォーム別バイナリを optional dependencies で解決するため実行時の Node は不要
+# (導入のときだけ npm が要る)。node/npm は 30-node-default が fnm で用意する。
+# latest だと毎回最新へ追従する。固定したいときは版を書く(例: 2.1.4)。
+# 値を書き換えると run_onchange で既存マシンでも再実行される。
+CLINE_VERSION="latest"
+# fnm env はシェルを自動検出するとき $SHELL を見るため、POSIX sh で走るこのスクリプトでは
+# zsh 向け出力(`rehash`)を吐いて落ちる。30-node-default と同じくシェルを明示する。
+if command -v fnm >/dev/null 2>&1; then
+	eval "$(fnm env --shell bash)"
+fi
+# npm グローバルは fnm が管理する node の中に入るので、node の LTS メジャーが上がると
+# 消える。そのときは CLINE_VERSION を書き換えてこのスクリプトを再実行して入れ直す。
+if command -v npm >/dev/null 2>&1; then
+	npm install -g "cline@$CLINE_VERSION"
+fi
+# プロバイダ認証は非対話にできないため自動化しない。導入後に端末で一度だけ実行する:
+#   cline auth                                     # 対話ウィザード
+#   cline auth --provider anthropic --apikey sk-... --modelid <model>
+# 更新は本体の `cline update` でも行える。
 
 # --- Ollama (ollama.com) ---
 # ローカルで LLM を動かすランタイム(クラウド API ではなくオフライン実行)。
