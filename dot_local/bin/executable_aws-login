@@ -17,7 +17,8 @@
 #   2. 期限切れ／未ログインならブラウザでログインを実行
 #   3. STS が到達不能（ネットワーク断等）の一時エラーなら、ログインせずキャッシュで続行
 #   4. flockで排他制御し、複数プロセスの同時ログインを防止。待たされるときは理由と相手を
-#      表示する（端末を失った aws login が残ってロックを握ったままだと、黙って 60 秒固まる）
+#      表示し、呼び出し元を失って居座っているログインは落として先へ進む
+#      （落とすまでに ORPHAN_GRACE の猶予を置く。下の「居座ったログインの掃除」を参照）
 #   - get-caller-identity は IAM 権限不要なので、失敗＝トークンが無効/期限切れ を意味する。
 #     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、「設定があれば OK」で通すこともできる。
 #   - AWS_LOGIN_NO_INTERACTIVE=1 が立っているときは、未認証でもログインへ進まずエラーで
@@ -110,6 +111,16 @@ EXPIRED_MARKER="$HOME/.aws/.aws-login-${1}.expired"
 LOGIN_LOCK="$HOME/.aws/.aws-login-${1}.lock"
 # ロックが空くのを待つ上限。
 LOGIN_LOCK_WAIT=60
+# 待っている間に保持者を見直す間隔[秒]。待ち始めた時点では猶予の内側だった孤児が、
+# 待っているうちに猶予を超えることがあるので、上限まで一息に寝ない。
+LOCK_POLL_INTERVAL=2
+# 呼び出し元を失ったログインを落とすまでの猶予[秒]。呼び出し元が消えた直後はまだ人が
+# ブラウザで認証を続けていることがあり、localhost コールバックさえ戻れば aws login は
+# 自力で完了できる。そこを横から落とすと操作が無駄になる。
+ORPHAN_GRACE=180
+# 自分の側のプロセスを見分けるための起点。サブシェルの $$ は親の値を引き継ぐので、
+# ここで一度だけ確定させる。
+SELF_PID=$$
 
 mark_expired() {
     : >"$EXPIRED_MARKER" 2>/dev/null || true
@@ -265,61 +276,165 @@ lock_holder_pids_raw() {
         sed 's#^/proc/##; s#/fd$##'
 }
 
+# pid の属性を 1 つ読む（ppid / pgid / etime）。ps 越しに読むので mac / Linux どちらでも同じ。
+# fd 200 は継がせない。継ぐと自分自身がロックの保持者として見つかり、しかも評価する頃には
+# 終わっているので、消えた pid を保持者として報告してしまう。
+proc_field() {
+    { ps -o "$2=" -p "$1" 2>/dev/null | tr -d ' '; } 200>&-
+}
+
+# pid が ancestor 自身か、その子孫か。
+is_descendant() {
+    local pid="$1" ancestor="$2" depth=0
+    while [ "$depth" -lt 64 ]; do
+        [ "$pid" = "$ancestor" ] && return 0
+        case "$pid" in
+            '' | 0 | 1) return 1 ;;
+        esac
+        pid=$(proc_field "$pid" ppid)
+        depth=$((depth + 1))
+    done
+    return 1
+}
+
 # そのうち自分の側を除いた pid。
 # 自分の側は 2 段で外す。探索の間は fd 200 を閉じて子へ継がせず、それでも残る自分の
-# サブシェル類はプロセスグループが同じかどうかで落とす（個々の pid を数え上げるより確実）。
+# サブシェル類は SELF_PID の子孫かどうかで落とす。プロセスグループで落とすと、同じジョブから
+# 起きた別の aws-login まで一緒に外れて、保持者を見失う。
 lock_open_pids() {
-    local ourpg pid pgid found=""
-    ourpg=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    local pid found=""
     for pid in $({ lock_holder_pids_raw; } 200>&-); do
-        pgid=$({ ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' '; } 200>&-)
-        [ -n "$pgid" ] || continue
-        [ "$pgid" = "$ourpg" ] && continue
+        # 見つけてから評価するまでに終わったプロセスは、もう握っていない。
+        kill -0 "$pid" 2>/dev/null || continue
+        is_descendant "$pid" "$SELF_PID" && continue
         found="${found:+$found }$pid"
     done
     printf '%s' "$found"
 }
 
-# ロック保持者の様子を 1 行で説明する。
+# 保持者が属するジョブ（プロセスグループ）を遡り、呼び出し元が失われていればその起点の pid を
+# 返す。起点の親が init になっている＝ログインを始めさせた側がもう居ないということで、
+# 認証コードを貼る人も結果の戻り先も無く、ロックはこの先も空かない。
 #
-# 親も制御端末も失った aws login はこの先ずっとロックを空けない。ブラウザ認証の途中で
-# 呼び出し元（TUI アプリなど）だけが死ぬとこうなり、残った aws login は消えた端末へ向かって
-# 入力を待ち続ける。待っても無駄だと分かるように、落としてよいことまで書く。
-#
-# その判定は「挙げた pid のどれにも制御端末が無く、かつどれかが init に引き取られている」で行う。
-# 端末を持つプロセスが 1 つでも混ざっていれば、まだ人が操作しているログインかもしれないので
-# pid を並べるだけにする（kill を勧める文面なので、迷ったら勧めない側に倒す）。
-# 先頭 1 つで代表させないのは、lsof と /proc で pid の並び順が違うため。
+# 制御端末の有無では見分けられない。端末はセッション単位なので、同じ端末で別のアプリが
+# 動いていれば tty は残ったままになる。
+orphan_root() {
+    local pid="$1" depth=0 jobpg ppid ppg
+    jobpg=$(proc_field "$pid" pgid)
+    [ -n "$jobpg" ] || return 1
+    while [ "$depth" -lt 64 ]; do
+        ppid=$(proc_field "$pid" ppid)
+        [ -n "$ppid" ] || return 1
+        if [ "$ppid" = "1" ]; then
+            printf '%s' "$pid"
+            return 0
+        fi
+        ppg=$(proc_field "$ppid" pgid)
+        [ -n "$ppg" ] || return 1
+        # 親が別のジョブにいるなら、そこが生きた呼び出し元。
+        [ "$ppg" != "$jobpg" ] && return 1
+        pid="$ppid"
+        depth=$((depth + 1))
+    done
+    return 1
+}
+
+# プロセスの起動からの経過秒。ps の etime（[[dd-]hh:]mm:ss）を秒へ均す。
+proc_age_seconds() {
+    local e
+    e=$(proc_field "$1" etime)
+    [ -n "$e" ] || return 1
+    printf '%s' "$e" | awk -F'[-:]' '{
+        if (NF == 4) { print ((($1 * 24 + $2) * 60) + $3) * 60 + $4 }
+        else if (NF == 3) { print (($1 * 60) + $2) * 60 + $3 }
+        else if (NF == 2) { print $1 * 60 + $2 }
+        else { print 0 }
+    }'
+}
+
+# 引数の pid のうち 1 つでも生きていれば 0。
+any_alive() {
+    local pid
+    for pid in "$@"; do
+        kill -0 "$pid" 2>/dev/null && return 0
+    done
+    return 1
+}
+
+# ロック保持者の様子を 1 行で説明する。待っても無駄なのかどうかを先に伝える。
 describe_lock_holder() {
-    local pids pid info ppid tty no_tty=1 reparented=""
+    local pids pid root age
     pids=$(lock_open_pids)
     if [ -z "$pids" ]; then
         printf '特定できないプロセス'
         return
     fi
     for pid in $pids; do
-        info=$({ ps -o ppid=,tty= -p "$pid" 2>/dev/null; } 200>&-) || true
-        if [ -z "$info" ]; then
-            no_tty=""
-            break
-        fi
-        ppid=$(printf '%s' "$info" | awk '{print $1}')
-        tty=$(printf '%s' "$info" | awk '{print $2}')
-        # 制御端末が無いプロセスの tty を BSD ps は ??、GNU ps は ? と表す。
-        case "$tty" in
-            '' | '?' | '??') ;;
-            *)
-                no_tty=""
-                break
-                ;;
-        esac
-        [ "$ppid" = "1" ] && reparented=1
+        root=$(orphan_root "$pid") || continue
+        age=$(proc_age_seconds "$root") || age=0
+        printf 'pid %s（呼び出し元を失った aws login。起動から %s 秒で、この先も空きません）' \
+            "$pids" "$age"
+        return
     done
-    if [ -n "$no_tty" ] && [ -n "$reparented" ]; then
-        printf 'pid %s（制御端末を失って init 配下に残っています。空く見込みが無ければ kill %s で落とせます）' "$pids" "$pids"
-    else
-        printf 'pid %s' "$pids"
-    fi
+    printf 'pid %s' "$pids"
+}
+
+# 居座ったログインの掃除。呼び出し元を失ったままロックを握っている aws login を落とす。
+# 落としたら 0、落とす相手が居なければ 1。
+#
+# ORPHAN_GRACE の猶予を置くのは、呼び出し元が消えた直後はまだ人がブラウザで認証を続けて
+# いることがあるため。localhost コールバックさえ戻れば aws login は自力で完了してトークン
+# キャッシュへ保存できるので、そこを横から落とすと操作が無駄になる。
+reap_orphan_lock_holders() {
+    local pids pid root age victims="" victim n=0
+    pids=$(lock_open_pids)
+    [ -n "$pids" ] || return 1
+
+    for pid in $pids; do
+        root=$(orphan_root "$pid") || continue
+        age=$(proc_age_seconds "$root") || continue
+        [ "$age" -lt "$ORPHAN_GRACE" ] && continue
+        # 落とすのは起点とその配下だけ。同じロックを別のジョブも握っていたとき、
+        # そちらを巻き添えにしない。
+        for victim in $root $pids; do
+            is_descendant "$victim" "$root" || continue
+            case " $victims " in
+                *" $victim "*) continue ;;
+            esac
+            victims="${victims:+$victims }$victim"
+        done
+    done
+    [ -n "$victims" ] || return 1
+
+    tty_notice "呼び出し元を失った aws login（pid ${victims}）がログインロックを握ったままです。落として先へ進みます。"
+    # shellcheck disable=SC2086  # victims は pid の並びなので、単語分割がそのまま望む挙動
+    kill -TERM $victims 2>/dev/null || true
+    # ロックは開いている fd が全部閉じて初めて空くので、消えるまで少しだけ待つ。
+    # shellcheck disable=SC2086
+    while [ "$n" -lt 20 ] && any_alive $victims; do
+        sleep 0.1
+        n=$((n + 1))
+    done
+    # shellcheck disable=SC2086
+    kill -KILL $victims 2>/dev/null || true
+    return 0
+}
+
+# ログインロックを取る。取れたら 0、上限まで空かなければ 1。
+#
+# 待っている間も孤児を掃除する。待ち始めた時点では猶予の内側だった保持者が、待っている
+# うちに猶予を超えることがある。
+acquire_login_lock() {
+    local profile="$1" waited=0
+    flock -n 200 && return 0
+    reap_orphan_lock_holders && flock -n 200 && return 0
+    tty_notice "${profile} のログインロックを $(describe_lock_holder) が握っています。最大 ${LOGIN_LOCK_WAIT} 秒待ちます…"
+    while [ "$waited" -lt "$LOGIN_LOCK_WAIT" ]; do
+        flock -w "$LOCK_POLL_INTERVAL" 200 && return 0
+        waited=$((waited + LOCK_POLL_INTERVAL))
+        reap_orphan_lock_holders && flock -n 200 && return 0
+    done
+    return 1
 }
 
 portfwd_channel_available() {
@@ -462,15 +577,11 @@ fi
 
 # 認証情報の取得に失敗 → flockで排他制御してログイン
 (
-    # まず待たずに試す。取れなければ「誰が握っているのか」を出してから待つ。黙って 60 秒
-    # 固まると、原因がロック待ちであることすら分からない。
-    if ! flock -n 200; then
-        tty_notice "${1} のログインロックを $(describe_lock_holder) が握っています。最大 ${LOGIN_LOCK_WAIT} 秒待ちます…"
-        if ! flock -w "$LOGIN_LOCK_WAIT" 200; then
-            reason="${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
-            notify_error "$reason"
-            exit 1
-        fi
+    # まず待たずに試す。取れなければ「誰が握っているのか」を出してから待ち、居座っている
+    # 孤児は落として奪う。黙って 60 秒固まると、原因がロック待ちであることすら分からない。
+    if ! acquire_login_lock "$1"; then
+        notify_error "${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
+        exit 1
     fi
     # ロック取得後に再チェック（待っている間に別プロセスがログイン済みかもしれない）。
     # ここでも STS で実際に有効かを確認するが、creds の出力は最後の 1 箇所に集約するため
