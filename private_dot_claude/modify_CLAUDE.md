@@ -47,11 +47,11 @@ codex へのレビュー依頼は **`codex-review` スキル**の手順で行う
 
 そのうえで、手順を思い出す前に踏みやすい 2 つだけここに置く。
 
-- **Bedrock で動かすなら `spawn.sh` を直接使わない。`codex-bedrock-spawn <reviewer> --fresh` を
-  使う。** codex の `--profile` は `codex app-server` が受け取らず、agmsg monitor モードでは
-  TUI がその共有 app-server に繋ぐため、素の `spawn.sh` で起動した codex はサブスク側で走る。
-  `--fresh` が無いと過去セッションを復帰して前の依頼の文脈が混ざる（サブスクで起動するときも
-  同じ）。
+- **`spawn.sh` を直接使わない。`codex-bedrock-spawn <reviewer> --fresh` を使う。** codex の
+  `--profile` は `codex app-server` が受け取らず、agmsg monitor モードでは TUI がその共有
+  app-server に繋ぐため、素の `spawn.sh` で起動した codex は Bedrock にならない。Bedrock か素かは
+  `~/.config/zsh/no-codex-bedrock` の有無で決まり、`codex-bedrock-spawn` が両方を面倒みる。
+  `--fresh` が無いと過去セッションを復帰して前の依頼の文脈が混ざる。
 - **片付けは `despawn.sh <team> <self> <reviewer> --force`。素の graceful を先に打っては
   いけない。** graceful は何も片付けないうえ placement レコードを消すので、続けて `--force` を
   打っても `no placement record` で失敗し、**二度と force できなくなる**（順序は一方通行）。

@@ -142,6 +142,29 @@ monitor モードのプロジェクトなら `codex` を叩くだけでシムが
 > レビューの発火は手探り運用。まずは agmsg を入れて claude ↔ codex がメッセージを
 > やり取りできる状態を確認することから始める。
 
+## spawn する codex の設定（`spawn_options.yaml`）
+
+`.chezmoiscripts/run_after_46-agmsg-spawn-options.sh.tmpl` が `~/.agmsg/config/spawn_options.yaml`
+を書く。agmsg が spawn する codex にだけ足す CLI 引数で、内容は**承認ポリシー**:
+
+```yaml
+codex:
+  --ask-for-approval: never
+  --sandbox: workspace-write
+```
+
+レビュー役は確認に答える人がいないところで走るので、承認待ちで止まると依頼が返ってこない。
+サンドボックスは残す（書けるのはワークスペースと `~/.codex/config.toml` の `writable_roots`）。
+手打ちの `codex` / `codex-bedrock` はこのファイルを通らないので、今までどおり確認を出す。
+
+先頭の `# managed-by:` 行を消すと、以後 chezmoi は一切触らない。
+
+> **Bedrock 設定はここでは渡さない。** codex の `--profile` は runtime コマンド専用で
+> `codex app-server` が受け取らず、monitor モードでは TUI がその共有 app-server に繋ぐため、
+> CLI 引数では切り替わらない（[zsh チートシート](zsh-cheatsheet.md#codex-bedrock-が一時-codex_home-を使う理由)）。
+> Bedrock で spawn するかどうかは `codex-bedrock-spawn` が
+> `~/.config/zsh/no-codex-bedrock` を見て決める。マーカーが無ければ Bedrock、あれば素の codex。
+
 ## 役割管理など（Claude Code 追加コマンド）
 
 | コマンド | 動作 |

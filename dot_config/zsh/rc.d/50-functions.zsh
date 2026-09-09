@@ -81,18 +81,29 @@ function agmsg-bridge-reap () {
   return 0
 }
 
-# claude.ai 障害時などに Claude Code を Amazon Bedrock(グローバル推論プロファイル)で
-# 起動するのは ~/.local/bin/claude-bedrock(スクリプト)の役目。ここに関数を置かないのは、
-# VS Code 拡張の claudeProcessWrapper がシェルを経由せず実行ファイルのパスを spawn する
-# ため、関数では届かないから(env の定義は claude-bedrock-wrapper に一本化)。
+# 対話シェルの `claude` を Amazon Bedrock(グローバル推論プロファイル)経由で起動する。
+# ~/.config/zsh/no-claude-bedrock を置くと素のバイナリ(claude.ai 認証)で起動する。一度だけ
+# 迂回したいときは `command claude`(関数ごと素通しするので下の --remote-control も付かない)。
+# env の定義とプロファイルの認証確認は ~/.local/bin/claude-bedrock(-wrapper)が持つ。関数では
+# なくスクリプトに持たせているのは、VS Code 拡張の claudeProcessWrapper がシェルを経由せず
+# 実行ファイルのパスを spawn するため。
+#
+# SSH 接続先で「引数なしの素の起動」のときだけ --remote-control を付け、claude.ai / モバイル
+# 等のリモートからそのインタラクティブセッションを操作できるようにする(claude-bedrock も同じ
+# 規則を持つ)。引数付き(プロンプト・-p/--print・mcp/update 等のサブコマンド・-c/--resume 等)は
+# 素通しする。セッション名プレフィックスは claude 既定でホスト名。
+#
+# 関数なので効くのは対話 zsh だけ。Claude Code 自身のシェル(CLAUDE_CODE_SHELL=/bin/bash)や
+# 非対話シェルからの起動には届かない。
 # 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
-
-# claude を Remote Control 付きで起動できるようラップする。SSH 接続先で「引数なしの素の起動」の
-# ときだけ --remote-control を付け、claude.ai / モバイル等のリモートからそのインタラクティブ
-# セッションを操作できるようにする。引数付き(プロンプト・-p/--print・mcp/update 等のサブコマンド・
-# -c/--resume 等)は素通しする。Remote Control のセッション名プレフィックスは claude 既定でホスト名。
-# 非対話シェル(スクリプト等)では rc.d が読まれず実バイナリのままなので影響しない。
 function claude () {
+  local bedrock=$HOME/.local/bin/claude-bedrock
+  # ${commands[claude]} は PATH 上の実体(この関数ではなく外部コマンド)。
+  if [[ ! -f ${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-claude-bedrock \
+        && -x $bedrock && -n ${commands[claude]} ]]; then
+    $bedrock "$@"
+    return
+  fi
   if [[ -n $SSH_CONNECTION && $# -eq 0 ]]; then
     command claude --remote-control
     return
@@ -100,12 +111,24 @@ function claude () {
   command claude "$@"
 }
 
-# codex をラップし、起動直前に共有 app-server の CODEX_HOME を照合する。agmsg monitor モードの
-# app-server はプロジェクトパスだけでキーされ設定を見ないので、codex-bedrock(CODEX_HOME を
-# 一時 home へ向ける)が残した Bedrock 用 app-server を素の codex が黙って再利用してしまう。
-# codex-appserver-evict が食い違う app-server を畳み、codex に作り直させる。Bedrock 側の起動は
-# ~/.local/bin/codex-bedrock。詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+# 対話シェルの `codex` を Amazon Bedrock 経由で起動する。
+# ~/.config/zsh/no-codex-bedrock を置くと素のバイナリ(OpenAI サブスク認証)で起動する。
+# 一度だけ迂回したいときは `command codex`。AWS プロファイルの解決と一時 CODEX_HOME の用意は
+# ~/.local/bin/codex-bedrock が持つ。agmsg で spawn する codex も同じマーカーを見る
+# (codex-bedrock-spawn)。
+#
+# 素で起動するときは、その前に共有 app-server の CODEX_HOME を照合する。agmsg monitor モードの
+# app-server はプロジェクトパスだけでキーされ設定を見ないので、codex-bedrock が残した Bedrock 用
+# app-server を素の codex が黙って再利用してしまう。codex-appserver-evict が食い違う app-server を
+# 畳み、codex に作り直させる(Bedrock 側は codex-bedrock が同じことをする)。
 function codex () {
+  local bedrock=$HOME/.local/bin/codex-bedrock
+  # ${commands[codex]} は PATH 上の実体(この関数ではなく外部コマンド)。
+  if [[ ! -f ${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock \
+        && -x $bedrock && -n ${commands[codex]} ]]; then
+    $bedrock "$@"
+    return
+  fi
   codex-appserver-evict "${CODEX_HOME:-$HOME/.codex}" "$@"
   command codex "$@"
 }

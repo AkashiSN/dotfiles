@@ -9,6 +9,9 @@
 # そこで env 付きのペインを先に作り、spawn.sh には --terminal テンプレートで「そのペインで
 # boot script を走らせる」とだけ指示する。
 #
+# ~/.config/zsh/no-codex-bedrock を置くと、対話シェルの `codex` と同じく素の codex
+# (OpenAI サブスク)で spawn する。マーカー 1 つで手打ちと spawn が一緒に切り替わる。
+#
 # 使い方: codex-bedrock-spawn <name> [options]
 #   --team <team>        参加させるチーム(既定: プロジェクトの登録から解決)
 #   --project <path>     起動先プロジェクト(既定: $PWD)
@@ -35,7 +38,7 @@ while [ "$#" -gt 0 ]; do
     --team) TEAM="${2:-}"; shift 2 ;;
     --project) PROJECT="${2:-}"; shift 2 ;;
     --direction) DIRECTION="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     # spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
     # みなすと `--fresh <name>` の <name> まで吸ってしまうので、ここは明示列挙する。
     --boot-prompt|--split|--terminal|--ready-timeout|--model)
@@ -56,6 +59,14 @@ PROJECT="$(cd "$PROJECT" && pwd -P)"
 [ -n "${HERDR_PANE_ID:-}" ] || die "herdr のペインの中で実行する(HERDR_PANE_ID が無い)"
 command -v herdr >/dev/null 2>&1 || die "herdr が PATH に無い"
 [ -x "$S/spawn.sh" ] || die "agmsg が見つからない: $S/spawn.sh"
+
+# 素の codex へ戻すマーカー。対話シェルの `codex` 関数と同じファイルを見るので、置けば
+# 手打ちと spawn の両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、
+# ペインの配置も spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
+  exec "$S/spawn.sh" codex "$NAME" --project "$PROJECT" \
+    ${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
+fi
 
 # Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。
 PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"

@@ -36,14 +36,10 @@ $S/identities.sh "$(pwd)" codex   # → <team> <reviewer>
 
 ## 手順
 
-起動だけが 2 通りで、確認・送信・片付けは共通。
-
-### サブスク（OpenAI ログイン）で起動する
-
 ```bash
 S=~/.agents/skills/agmsg/scripts
 
-$S/spawn.sh codex <reviewer> --project "$(pwd)" --fresh   # 起動。ペインが開く
+codex-bedrock-spawn <reviewer> --fresh            # 起動。ペインが開く
 $S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
 $S/send.sh <team> <self> <reviewer> "<依頼>"
 # 返信を待つ: $S/history.sh <team> に "<reviewer> → <self>" が現れる
@@ -51,15 +47,9 @@ $S/despawn.sh <team> <self> <reviewer> --force    # 片付け → status=forced
 $S/delivery.sh status codex "$(pwd)"              # → no identities registered for this project
 ```
 
-### Amazon Bedrock で起動する
-
-`spawn.sh` を直接は使わない。`codex-bedrock-spawn`（内部で spawn.sh を呼ぶ）を使う。
-
-```bash
-codex-bedrock-spawn <reviewer> --fresh            # 起動。Bedrock 用のペインが開く
-```
-
-以降（`delivery.sh status` → `send.sh` → `despawn.sh ... --force`）はサブスクと同じ。
+**Bedrock で動くかサブスク（OpenAI ログイン）で動くかは `~/.config/zsh/no-codex-bedrock` の
+有無で決まる。** マーカーが無ければ Bedrock、あれば `codex-bedrock-spawn` が素の `spawn.sh` へ
+委譲する。どちらでも手順は同じなので、レビューを頼む側が起動方法を選び分ける必要はない。
 
 依頼文には**対象ファイル・変更の背景・見てほしい観点**を書く。背景が無いと、意図的な設計を
 バグとして報告される。
@@ -68,10 +58,11 @@ codex-bedrock-spawn <reviewer> --fresh            # 起動。Bedrock 用のペ�
 
 - **`--fresh` を付ける。** `spawn.sh` は resumable な過去セッションがあると既定で復帰するので、
   付けないと前の依頼の文脈が混ざる。
-- **Bedrock で動かしたいなら `spawn.sh` を直接使わない。** codex の `--profile` は runtime
+- **`spawn.sh` を直接使わない。`codex-bedrock-spawn` を使う。** codex の `--profile` は runtime
   コマンド専用で `codex app-server` が受け取らず、monitor モードでは TUI がその共有 app-server へ
-  `--remote` で繋ぐため、素の spawn で起動した codex はサブスク側で走る。`codex-bedrock-spawn` は
+  `--remote` で繋ぐため、素の spawn で起動した codex は Bedrock にならない。`codex-bedrock-spawn` は
   `CODEX_HOME` を Bedrock 用の一時 home へ向けたペインを作る（env なら app-server まで届く）。
+  マーカーがあるときは中で素の `spawn.sh` へ委譲するので、こちらを入口にしておけば両方に効く。
 - **`--force` を最初から付ける。素の graceful を先に打ってはいけない。** graceful な despawn は
   actas ロックだけを土台にしているが、codex は `actas-claim` を一度も走らせないのでロックが常に
   `free`。graceful は `status=ok note=no-live-lock` を返して**何も片付けない**うえ、離脱の直前に
@@ -106,7 +97,8 @@ codex-bedrock-spawn <reviewer> --fresh --boot-prompt "<依頼。返信は
 
 ## 気をつけること
 
-- **サブスク版と Bedrock 版を同じプロジェクトで混ぜると、開いていた側のセッションが切れる。**
+- **サブスク版と Bedrock 版を同じプロジェクトで混ぜると（マーカーを付け外しした直後など）、
+  開いていた側のセッションが切れる。**
   app-server はプロジェクトパスだけでキーされ設定を見ずに再利用されるので、`codex-bedrock-spawn`
   と zsh の `codex` 関数は起動前に `codex-appserver-evict` で食い違う app-server を畳む。
 - Bedrock 用の一時 home を作り直した直後（`~/.codex/config.toml` かオーバレイを更新した後）は、

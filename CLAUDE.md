@@ -52,7 +52,7 @@
 | `dot_terraformrc.tmpl` / `dot_local/bin/executable_tf-cache-prune` / `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（tflint） | `docs/terraform-cheatsheet.md` |
 | `dot_config/uv/dot_python-version` / `dot_local/bin/executable_uv-cache-prune` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` | `docs/uv-cheatsheet.md` |
 | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） | `docs/shell-lint-cheatsheet.md` |
-| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `dot_local/bin/executable_codex-monitor.sh` / `private_dot_claude/skills/codex-review/SKILL.md` | `docs/agmsg-cheatsheet.md` |
+| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `run_after_46-agmsg-spawn-options.sh.tmpl` / `dot_local/bin/executable_codex-monitor.sh` / `private_dot_claude/skills/codex-review/SKILL.md` | `docs/agmsg-cheatsheet.md` |
 | `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces） | `docs/claude-plugins-cheatsheet.md` |
 | `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl`（statusLine・compact 系 hook） | `docs/claude-compact-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph 関連） | `docs/codegraph-cheatsheet.md` |

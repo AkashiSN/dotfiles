@@ -1,0 +1,61 @@
+#!/bin/sh
+# agmsg が spawn する codex の承認ポリシーを緩める (~/.agmsg/config/spawn_options.yaml)。
+#
+# レビュー役として立ち上げる codex は、確認に答える人がいないところで走る。承認待ちで
+# 止まると依頼が返ってこないので、コマンド実行の確認を省く。
+#
+#   --ask-for-approval never  : 実行前の確認を求めない
+#   --sandbox workspace-write : サンドボックスは残す。書けるのはワークスペースと
+#                               ~/.codex/config.toml の writable_roots (agmsg の db/teams/run)
+#
+# 効くのは agmsg が spawn した codex だけ。手打ちの `codex` / `codex-bedrock` はこのファイルを
+# 通らないので、今までどおり確認を出す。
+#
+# Bedrock 設定はここでは渡さない (CODEX_HOME 方式。dot_local/bin/executable_codex-bedrock)。
+# codex の `--profile` は runtime コマンド専用で `codex app-server` が受け取らず、agmsg monitor
+# モードでは TUI がその共有 app-server に繋ぐため、CLI 引数では切り替わらない。Bedrock で
+# spawn するかどうかは codex-bedrock-spawn がマーカー (~/.config/zsh/no-codex-bedrock) を見て
+# 決める。
+#
+# run_after (run_once ではない): 冪等に差分だけ書くので、毎回走って構わない。
+#
+# 関連: dot_local/bin/executable_codex-bedrock-spawn / docs/agmsg-cheatsheet.md
+set -eu
+
+{{ template "shell-log" }}
+
+# agmsg が入っていない環境では何もしない (導入は 40-ai-assistants の役目)。
+[ -d "$HOME/.agents/skills/agmsg" ] || exit 0
+
+CONFIG_DIR="$HOME/.agmsg/config"
+TARGET="$CONFIG_DIR/spawn_options.yaml"
+# このマーカーを含むファイルだけを管理対象にする。ユーザが他の type を足したい等で
+# マーカー行を消したら、以後 chezmoi は一切触らない。
+MARKER="# managed-by: chezmoi run_after_46-agmsg-spawn-options"
+
+if [ -f "$TARGET" ] && ! grep -qxF "$MARKER" "$TARGET"; then
+	exit 0
+fi
+
+NEW="$(
+	cat <<EOS
+${MARKER}
+# 編集しても次の 'chezmoi apply' で上書きされる。手で管理したいときは上の 1 行を消す。
+#
+# agmsg が spawn する codex に足す CLI 引数。レビュー役は確認に答える人がいないところで
+# 走るので、承認待ちで止まらないようにする。サンドボックスは残す。
+codex:
+  --ask-for-approval: never
+  --sandbox: workspace-write
+EOS
+)"
+
+# 差分が無いときは書かない (mtime を無駄に動かさない / ログを増やさない)。
+if [ -f "$TARGET" ] && [ "$NEW" = "$(cat "$TARGET")" ]; then
+	exit 0
+fi
+
+mkdir -p "$CONFIG_DIR"
+printf '%s\n' "$NEW" >"$TARGET"
+step "agmsg spawn-options"
+note "spawn する codex の承認を省く設定を書きました (--ask-for-approval never)"
