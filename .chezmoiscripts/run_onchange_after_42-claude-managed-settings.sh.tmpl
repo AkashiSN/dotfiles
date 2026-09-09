@@ -1,0 +1,56 @@
+{{ if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/bin/sh
+# Claude Code の managed settings（policy 層）をシステムディレクトリへ配置する。
+# policy はユーザ / プロジェクト / ローカル / --settings のどの層よりも上に立ち、
+# 下位からは上書きできない。コミットと PR への署名およびセッション URL の付与は、
+# 忘れても破れないようにここで落とす。
+#
+# run_onchange: 下の POLICY を書き換えると既存マシンでも再実行される（全操作が冪等）。
+set -eu
+
+{{ template "shell-log" }}
+
+# --- policy 本体（ここを編集する） -------------------------------------------
+# スキーマは settings.json と同じ。commit / pr は署名の文面そのものを渡す文字列で、
+# 空文字（""）が「その署名を出さない」の指定。false は型が合わず、attribution
+# ブロックごと丸ごと捨てられて sessionUrl の抑止まで効かなくなる。
+POLICY=$(cat <<'JSON'
+{
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  }
+}
+JSON
+)
+# -----------------------------------------------------------------------------
+
+{{ if eq .chezmoi.os "darwin" -}}
+DIR="/Library/Application Support/ClaudeCode"
+{{- else -}}
+DIR="/etc/claude-code"
+{{- end }}
+DEST="$DIR/managed-settings.json"
+
+# 既に同じ内容なら sudo を呼ばずに抜ける（chezmoi apply ごとにパスワードを求めない）。
+if [ -f "$DEST" ] && [ "$(cat "$DEST")" = "$POLICY" ]; then
+	exit 0
+fi
+
+step "Claude Code の managed settings を配置中"
+
+# root 所有のシステムディレクトリなので sudo が要る。非対話 apply では通らないので、
+# 失敗しても apply 全体は止めず、手当ての方法だけ案内して抜ける。
+if ! sudo mkdir -p "$DIR"; then
+	notice "Claude Code の managed settings を配置できなかった（sudo が通らない）"
+	note "対話端末で chezmoi apply を再実行すると配置される"
+	exit 0
+fi
+
+printf '%s\n' "$POLICY" | sudo tee "$DEST" >/dev/null
+sudo chmod 644 "$DEST"
+
+echo "claude: managed settings 配置完了 ($DEST)"
+note "確認: claude の /status の Setting sources 行に Enterprise managed settings (file) が出る"
+{{- end }}
