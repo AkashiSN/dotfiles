@@ -36,11 +36,11 @@ gitui は **libgit2 経由で SSH 認証**し、SSH 鍵を **ssh-agent 経由で
 そのため **ssh-agent が無い / 鍵が未登録**だと push が `push failed, bad credentials` になる。
 
 - 対処は zsh 側で自動化済み: 1Password が無いホストでは対話シェル起動時に通常の
-  `ssh-agent` を常駐させ既定鍵を `ssh-add` する（`dot_config/zsh/rc.d/40-tools.zsh`）。
+  `ssh-agent` を常駐させ既定鍵を `ssh-add` する（`dot_config/zsh/rc.d/25-ssh-agent.zsh`）。
 - 反映するには **新しいシェルを開く**（または `exec zsh`）→ その中から gitui を起動する。
 - 確認: `ssh-add -l` に鍵が出ていれば OK。出ていなければ `eval "$(ssh-agent -s)" && ssh-add` で手動登録。
 
-> 詳細は [zsh チートシート](zsh-cheatsheet.md#ssh-エージェント40-toolszsh)。
+> 詳細は [zsh チートシート](zsh-cheatsheet.md#ssh-エージェント25-ssh-agentzsh)。
 
 ---
 

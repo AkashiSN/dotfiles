@@ -123,7 +123,7 @@ registry.terraform.io/hashicorp/aws
 
 | 項目 | 内容 |
 | --- | --- |
-| `tf` | `terraform` のエイリアス（`40-tools.zsh`、terraform がある場合のみ） |
+| `tf` | `terraform` のエイリアス（`~/.config/shell/aliases.sh`、terraform がある場合のみ） |
 | 補完 | terraform は bash 動的補完（`complete -o nospace -C terraform terraform`）。tenv は fpath へ事前生成 |
 
 ## トラブルシュート
