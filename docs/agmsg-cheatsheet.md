@@ -123,6 +123,12 @@ monitor モードのプロジェクトなら `codex` を叩くだけでシムが
 
 両者が**同じプロジェクトディレクトリ**で**同じチーム**に参加していることが前提。
 
+> Claude Code から codex にレビューを頼むときの手順一式（起動フラグ・片付けの順序・返信が
+> 来ないときの切り替え）は **`codex-review` スキル**にある
+> （`private_dot_claude/skills/codex-review/SKILL.md` → `~/.claude/skills/codex-review/`）。
+> グローバル CLAUDE.md には入口と踏みやすい落とし穴だけを置き、手順の本体はスキル側に持たせて
+> いる（毎セッション全文が載る policy を短く保つため）。
+
 1. claude（左上）から依頼:
    ```
    /agmsg send codex "src/auth.js の認証モジュールをレビューして"

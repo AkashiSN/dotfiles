@@ -40,67 +40,23 @@ GitHub の issue・PR・コメント、および**コミットメッセージ**�
 消去ができない（GitHub は force-push しても PR に紐づくコミットを保持する）。指示が
 衝突していることに気づいた時点でユーザーへ一言伝えたうえで、URL 抜きでコミットする。
 
-## codex にレビューを依頼するときの手順（agmsg / herdr）
+## codex にレビューを依頼するとき
 
-codex へのレビュー依頼は agmsg 経由で行う。**依頼のたびに spawn し、終わったら
-必ず片付ける。** チーム名とエージェント名はプロジェクトごとに違うので、
-`whoami.sh <project>` かそのプロジェクトのドキュメントで確認する（下の `<team>` は
-チーム、`<self>` は自分、`<reviewer>` は codex のレビュー役）。
+codex へのレビュー依頼は **`codex-review` スキル**の手順で行う。依頼のたびに spawn し、
+終わったら必ず片付ける。spawn は herdr のペインを分割するので、herdr のペインの中から実行する。
 
-端末は herdr。spawn は herdr のペインを分割してそこに codex を立てるので、
-**herdr のペインの中から実行する**（`HERDR_PANE_ID` が要る）。
+そのうえで、手順を思い出す前に踏みやすい 2 つだけここに置く。
 
-### サブスク（OpenAI ログイン）で起動する場合
+- **Bedrock で動かすなら `spawn.sh` を直接使わない。`codex-bedrock-spawn <reviewer> --fresh` を
+  使う。** codex の `--profile` は `codex app-server` が受け取らず、agmsg monitor モードでは
+  TUI がその共有 app-server に繋ぐため、素の `spawn.sh` で起動した codex はサブスク側で走る。
+  `--fresh` が無いと過去セッションを復帰して前の依頼の文脈が混ざる（サブスクで起動するときも
+  同じ）。
+- **片付けは `despawn.sh <team> <self> <reviewer> --force`。素の graceful を先に打っては
+  いけない。** graceful は何も片付けないうえ placement レコードを消すので、続けて `--force` を
+  打っても `no placement record` で失敗し、**二度と force できなくなる**（順序は一方通行）。
 
-```bash
-S=~/.agents/skills/agmsg/scripts
-
-$S/spawn.sh codex <reviewer> --project "$(pwd)"   # 起動。ペインが開く
-$S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
-$S/send.sh <team> <self> <reviewer> "<依頼>"
-$S/despawn.sh <team> <self> <reviewer> --force    # 片付け → status=forced
-$S/delivery.sh status codex "$(pwd)"              # → no identities registered for this project
-```
-
-### Amazon Bedrock で起動する場合
-
-`spawn.sh` を直接は使わない。`codex-bedrock-spawn`（内部で spawn.sh を呼ぶ）を使う。
-確認・送信・片付けはサブスクの場合と同じコマンド。
-
-```bash
-S=~/.agents/skills/agmsg/scripts
-
-codex-bedrock-spawn <reviewer>                    # 起動。Bedrock 用のペインが開く
-$S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
-$S/send.sh <team> <self> <reviewer> "<依頼>"
-$S/despawn.sh <team> <self> <reviewer> --force    # 片付けは共通 → status=forced
-```
-
-**素の `spawn.sh` では Bedrock にならない。** monitor モードでは codex TUI が共有
-app-server へ `--remote` で繋がり、モデル解決と認証は app-server 側の設定で決まる。
-`--profile` は app-server が受け取らず、`--profile` 相当の環境変数も無いので、
-`CODEX_HOME` を Bedrock 用の一時 home へ向けるしかない。`codex-bedrock-spawn` は
-その home を用意し、`herdr pane split --env` で流し込んでから spawn する
-（`spawn.sh` の herdr パスは `--env` を渡さないので、この差し込みは自前で要る）。
-
-### 共通の注意
-
-**`--force` を最初から付ける。素の graceful を先に打ってはいけない。** graceful な
-despawn は actas ロックだけを土台にしているが、codex は `actas-claim` を一度も
-走らせないのでロックが常に `free`。graceful は `status=ok note=no-live-lock` を
-返して**何も片付けない**うえ、離脱の直前に placement レコードを消す。そのため
-続けて `--force` を打っても `no placement record` で失敗し、**二度と force できなく
-なる**（順序は一方通行）。
-
-spawn は codex の readiness を待たないので、送る前に bridge の生存を確認する。
-起動しっぱなしにすると、codex CLI が終わっても bridge だけが生き残り、
-`<reviewer>` 宛に送ったメッセージを黙って飲み込む。
-
-app-server はプロジェクトパスだけでキーされ、設定を見ずに再利用される。同じ
-プロジェクトでサブスク版と Bedrock 版を混ぜると、先に起動した側の app-server を
-後から起動した側が黙って再利用する。`codex-bedrock-spawn` と zsh の `codex` 関数は
-起動前に `codex-appserver-evict` で食い違う app-server を畳むので、**種類を切り替える
-ときは開いていた側の codex セッションが切れる**。
+スキルが入っていない環境では `~/.local/share/chezmoi/docs/agmsg-cheatsheet.md` を見る。
 
 ## リポジトリを変更する前に、他の作業と混ざらないか確認する
 
