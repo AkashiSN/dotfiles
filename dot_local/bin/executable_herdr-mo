@@ -18,6 +18,12 @@
 #   張り直したいだけのときに、要らない md を選ばせたくない。Ctrl-R はファイルを足さずに
 #   mo --target <group> --open だけを叩き、通知を投げ直す。
 #
+# Ctrl-G (無視設定のトグル) の理由:
+#   fd は既定で .gitignore などの無視設定に従うため、コミットしないが読みたい md
+#   (.superpowers/ や docs/superpowers/ に溜まるエージェントの作業ログ) が一覧に出ない。
+#   かといって常に全件にすると、.terraform/modules や node_modules の README が数百件
+#   流れ込むリポジトリがある。既定は無視設定に従い、要るときだけ Ctrl-G で外す。
+#
 # --layout=reverse を付ける理由:
 #   fzf の tab は toggle+down だが、既定レイアウトはプロンプトが下でリストが上向きに伸びる
 #   ため、カーソルの初期位置 (先頭項目) が既に最下段で down が効かない。結果 Tab を連打しても
@@ -50,6 +56,8 @@
 #   - 何も選ばずに Esc で抜けたときは何もしない (= popup がそのまま閉じる)。
 #   - Ctrl-R はファイルを選ばず、開いているグループのタブを開き直す (ポートフォワードが
 #     切れているときの張り直し)。
+#   - Ctrl-G は .gitignore などの無視設定を外した一覧と行き来する。今どちらかはプロンプト
+#     の [全件] で分かる。
 #
 # 入出力の約束:
 #   - 成功時は何も出さずに終わる。mo は即座に戻るので popup はすっと閉じ、表示は
@@ -113,12 +121,30 @@ cd "$root"
 group=$(basename -- "$root" | sed -e 's/[^A-Za-z0-9._-]\{1,\}/-/g' -e 's/^-\{1,\}//' -e 's/-\{1,\}$//')
 [ -n "$group" ] || group=default
 
+# 一覧に使う fd。Ctrl-G の切り替えでも同じコマンドを叩くので配列で持ち、fzf へ渡すときは
+# "${fd_md[*]}" で 1 本の文字列にする (fzf の reload / transform は sh -c で走るため、
+# シェル関数も配列も渡せない。どの要素にも空白が無いので単純な連結で足りる)。
 # -H は dotfiles リポジトリの隠しディレクトリ配下 (.claude/ 等) の md も拾うため。
-# fd は既定で .gitignore を尊重するので、生成物は自然に除外される。
-if ! list=$(fd --type f --hidden --exclude .git --extension md --extension markdown); then
+fd_md=(fd --type f --hidden --exclude .git --extension md --extension markdown)
+
+# 既定は fd の無視設定 (.gitignore など) に従い、Ctrl-G で外して全件に切り替える。
+prompt_kept="mo/${group}> "
+prompt_all="mo/${group} [全件]> "
+header_kept='Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す  Ctrl-G: 無視設定を外して全件'
+header_all='Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す  Ctrl-G: 無視設定ありへ戻す'
+
+if ! list=$("${fd_md[@]}"); then
   die "markdown の一覧に失敗しました (${root})"
 fi
 [ -n "$list" ] || die "markdown ファイルが見つかりません (${root})"
+
+# transform は押された時点で sh -c され、返した文字列が fzf のアクションとして実行される。
+# $FZF_PROMPT に今のプロンプトが入るので、それを状態にして通常一覧と全件を往復する
+# (fzf 自身はトグルの状態を持たないため)。
+toggle="case \"\$FZF_PROMPT\" in
+  *'[全件]'*) echo 'reload(${fd_md[*]})+change-prompt(${prompt_kept})+change-header(${header_kept})' ;;
+  *) echo 'reload(${fd_md[*]} --no-ignore)+change-prompt(${prompt_all})+change-header(${header_all})' ;;
+esac"
 
 # glow が無くてもファイル選択自体はできるようにフォールバックする
 if command -v glow >/dev/null 2>&1; then
@@ -131,8 +157,9 @@ fi
 # Esc / 該当なしで fzf が非ゼロ終了したときは、何もせず popup を閉じる
 if ! selection=$(printf '%s\n' "$list" |
   fzf --multi --expect=ctrl-r --layout=reverse \
-    --header 'Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す' \
-    --prompt "mo/${group}> " --preview "$preview" --preview-window 'right,60%'); then
+    --header "$header_kept" --prompt "$prompt_kept" \
+    --bind "ctrl-g:transform:$toggle" \
+    --preview "$preview" --preview-window 'right,60%'); then
   exit 0
 fi
 

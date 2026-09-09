@@ -80,7 +80,7 @@ popup では橋渡しスクリプト `~/.local/bin/herdr-mo` が**ファイル�
 
 | 起動方法 | 動作 |
 | --- | --- |
-| `<prefix> m` | herdr の popup で md を選び、`mo` へ渡す。**リポジトリごとのグループ**に入る（下記「`<prefix> m` の中身」）。選択 UI は `Tab` で複数選択（まとめて 1 つのグループへ入る）、`Ctrl-R` はファイルを選ばずにタブを開き直す |
+| `<prefix> m` | herdr の popup で md を選び、`mo` へ渡す。**リポジトリごとのグループ**に入る（下記「`<prefix> m` の中身」）。選択 UI は `Tab` で複数選択（まとめて 1 つのグループへ入る）、`Ctrl-R` はファイルを選ばずにタブを開き直す、`Ctrl-G` は `.gitignore` 対象も含めた一覧と行き来する |
 | `mo` | 前回セッションを復元してブラウザを開く（**ファイルは足せない**） |
 | `mo FILE.md ...` | ファイルを開く / 起動中のセッションへ足す |
 
@@ -89,10 +89,12 @@ popup では橋渡しスクリプト `~/.local/bin/herdr-mo` が**ファイル�
 chezmoi ソースは `dot_local/bin/executable_herdr-mo`。やっていることは 3 つだけ。
 
 1. `fd` で md を一覧する。範囲は **glow と揃えてあり、git リポジトリ内ならリポジトリ全体**、
-   外なら cwd 以下（popup はフォーカス中ペインの作業ディレクトリで開く）
+   外なら cwd 以下（popup はフォーカス中ペインの作業ディレクトリで開く）。既定では
+   `.gitignore` などの無視設定に従う（`Ctrl-G` で外せる。下の「`Ctrl-G`」）
 2. `fzf --multi` で選ばせる。プレビューは `glow`、`Tab` で複数選択、`Esc` で何もせず終了、
-   **`Ctrl-R` はファイルを選ばずにタブを開き直す**（下の「`--open` と `Ctrl-R`」）。
-   `Tab` / `Ctrl-R` は fzf のヘッダーにも出している。`Space` に割り当て直していないのは、
+   **`Ctrl-R` はファイルを選ばずにタブを開き直す**（下の「`--open` と `Ctrl-R`」）、
+   **`Ctrl-G` は無視設定を外した一覧と行き来する**（下の「`Ctrl-G`」）。
+   `Tab` / `Ctrl-R` / `Ctrl-G` は fzf のヘッダーにも出している。`Space` に割り当て直していないのは、
    fzf のスペース区切り AND 検索（`docs cheat` で両方を含む行に絞る）を潰さないため
 
 > **`--layout=reverse` を付けている理由（`Tab` 連打で複数選ぶため）**: fzf の `tab` は
@@ -105,6 +107,17 @@ chezmoi ソースは `dot_local/bin/executable_herdr-mo`。やっていること
 
 `mo` は自分でバックグラウンドへ回るので、**選び終わると popup は閉じ**、表示は手元 PC の
 ブラウザ側で続く。`$BROWSER` が無いときだけ警告を出して `[Enter]` で止まる（下の「落とし穴」）。
+
+**`Ctrl-G`（`.gitignore` 対象も出す）**: `fd` は既定で `.gitignore` などの無視設定に従うため、
+**コミットしないが読みたい md** — `.superpowers/` や `docs/superpowers/` に溜まるエージェントの
+作業ログ（spec / plan / task report）— が一覧に出ない。かといって常に全件にすると、
+`.terraform/modules` や `node_modules` の README が数百件流れ込むリポジトリがある。そこで
+**既定は無視設定に従い、要るときだけ `Ctrl-G` で外す**。もう一度押すと戻る。今どちらを見ているかは
+プロンプトの `[全件]` で分かる（`mo/<リポジトリ名> [全件]>`）。
+
+> 実装は fzf の `transform` アクション。fzf 自身はトグルの状態を持たないので、`$FZF_PROMPT`
+> （押された時点のプロンプト）に `[全件]` が入っているかを状態として使い、`reload` +
+> `change-prompt` + `change-header` を返している。
 
 **`--open` と `Ctrl-R`（ポートフォワードの張り直し）**: `mo` は**既存グループへファイルを
 足すだけのときブラウザを開かない**。開かないということは `$BROWSER`（= `portfwd-open`）が
