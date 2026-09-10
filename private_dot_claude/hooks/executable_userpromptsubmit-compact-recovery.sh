@@ -23,12 +23,12 @@ CTX="[COMPACTION RECOVERY] コンテキスト圧縮が発生した。作業を�
 
 STATE_FILE="$BASE/state/$SESSION_ID.md"
 if [[ -f "$STATE_FILE" ]]; then
-  CTX+=$'\n'"- state file \`${STATE_FILE}\` を Read で読み、作業状態を復元せよ"
-  CTX+=$'\n'"- Session Decisions(不採用にした案とその理由)と Recovery Notes を特に重視せよ"
-  CTX+=$'\n'"- Active Plan に plan / spec ファイルのパスがあれば Read で読み直せ"
-  CTX+=$'\n'"- Worker Topology に despawn 未了の相手が残っていないか確認せよ"
+	CTX+=$'\n'"- state file \`${STATE_FILE}\` を Read で読み、作業状態を復元せよ"
+	CTX+=$'\n'"- Session Decisions(不採用にした案とその理由)と Recovery Notes を特に重視せよ"
+	CTX+=$'\n'"- Active Plan に plan / spec ファイルのパスがあれば Read で読み直せ"
+	CTX+=$'\n'"- Worker Topology に despawn 未了の相手が残っていないか確認せよ"
 else
-  CTX+=$'\n'"- 圧縮前の state file は無い(/compact-prep 未実行)。作業状態はユーザーに確認せよ"
+	CTX+=$'\n'"- 圧縮前の state file は無い(/compact-prep 未実行)。作業状態はユーザーに確認せよ"
 fi
 
 CTX+=$'\n'"- TaskList で現在のタスク一覧を確認せよ"

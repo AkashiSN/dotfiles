@@ -23,24 +23,24 @@ BASE=6275
 SPAN=500
 
 is_valid_port() {
-  case ${1:-} in
-    '' | *[!0-9]*) return 1 ;;
-  esac
-  [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+	case ${1:-} in
+	'' | *[!0-9]*) return 1 ;;
+	esac
+	[ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
 }
 
 if [ -n "${MO_PORT:-}" ]; then
-  if is_valid_port "$MO_PORT"; then
-    printf '%s\n' "$MO_PORT"
-    exit 0
-  fi
-  printf 'mo-port: MO_PORT=%s は使えないので uid から決めます (1024-65535 の整数)\n' \
-    "$MO_PORT" >&2
+	if is_valid_port "$MO_PORT"; then
+		printf '%s\n' "$MO_PORT"
+		exit 0
+	fi
+	printf 'mo-port: MO_PORT=%s は使えないので uid から決めます (1024-65535 の整数)\n' \
+		"$MO_PORT" >&2
 fi
 
 uid=$(id -u)
 if [ "$uid" -ge 1000 ] && [ "$uid" -lt $((1000 + SPAN)) ]; then
-  printf '%s\n' "$((BASE + uid - 1000))"
+	printf '%s\n' "$((BASE + uid - 1000))"
 else
-  printf '%s\n' "$((BASE + uid % SPAN))"
+	printf '%s\n' "$((BASE + uid % SPAN))"
 fi

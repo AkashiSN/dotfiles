@@ -73,21 +73,21 @@ set -euo pipefail
 
 # TTY があれば読める時間を作る
 pause() {
-  if [ -t 0 ]; then
-    printf '\n[Enter] で元の画面に戻ります… ' >&2
-    read -r _ || true
-  fi
+	if [ -t 0 ]; then
+		printf '\n[Enter] で元の画面に戻ります… ' >&2
+		read -r _ || true
+	fi
 }
 
 die() {
-  printf 'herdr-mo: %s\n' "$*" >&2
-  pause
-  exit 1
+	printf 'herdr-mo: %s\n' "$*" >&2
+	pause
+	exit 1
 }
 
 for cmd in mo mo-port fzf fd; do
-  command -v "$cmd" >/dev/null 2>&1 ||
-    die "${cmd} コマンドが見つかりません (aqua 共有ストアへの導入が済んでいない可能性があります)"
+	command -v "$cmd" >/dev/null 2>&1 ||
+		die "${cmd} コマンドが見つかりません (aqua 共有ストアへの導入が済んでいない可能性があります)"
 done
 
 # ポートが他のユーザの mo に取られていないか確かめる。ss -ltnp は他人のプロセスを見せない
@@ -96,10 +96,10 @@ done
 # 自分のブラウザに出てしまうので、繋ぐ前に止める。
 # /proc が無い環境 (macOS) では空を返す。単独ユーザのマシンなので取り違えが起きない。
 port_owner_uid() {
-  local suffix
-  suffix=$(printf ':%04X' "$1")
-  awk -v suffix="$suffix" \
-    'FNR > 1 && $4 == "0A" && substr($2, length($2) - length(suffix) + 1) == suffix {
+	local suffix
+	suffix=$(printf ':%04X' "$1")
+	awk -v suffix="$suffix" \
+		'FNR > 1 && $4 == "0A" && substr($2, length($2) - length(suffix) + 1) == suffix {
        print $8
        exit
      }' /proc/net/tcp /proc/net/tcp6 2>/dev/null
@@ -108,7 +108,7 @@ port_owner_uid() {
 port=$(mo-port)
 owner=$(port_owner_uid "$port" || true)
 if [ -n "$owner" ] && [ "$owner" != "$(id -u)" ]; then
-  die "ポート ${port} は別のユーザ (uid ${owner}) の mo が使っています。
+	die "ポート ${port} は別のユーザ (uid ${owner}) の mo が使っています。
 そのまま繋ぐと相手が開いた md が自分のブラウザに出るので、ここでは開きません。
 ~/.env に MO_PORT=<空いているポート> を書いてずらしてください。"
 fi
@@ -134,7 +134,7 @@ header_kept='Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す  Ctrl-
 header_all='Tab: 複数選択  Ctrl-R: 選ばずにタブを開き直す  Ctrl-G: 無視設定ありへ戻す'
 
 if ! list=$("${fd_md[@]}"); then
-  die "markdown の一覧に失敗しました (${root})"
+	die "markdown の一覧に失敗しました (${root})"
 fi
 [ -n "$list" ] || die "markdown ファイルが見つかりません (${root})"
 
@@ -148,36 +148,36 @@ esac"
 
 # glow が無くてもファイル選択自体はできるようにフォールバックする
 if command -v glow >/dev/null 2>&1; then
-  # shellcheck disable=SC2016  # 展開するのは fzf のプレビュー用シェル。ここで展開してはいけない
-  preview='glow -w "${FZF_PREVIEW_COLUMNS:-80}" {}'
+	# shellcheck disable=SC2016  # 展開するのは fzf のプレビュー用シェル。ここで展開してはいけない
+	preview='glow -w "${FZF_PREVIEW_COLUMNS:-80}" {}'
 else
-  preview='cat {}'
+	preview='cat {}'
 fi
 
 # Esc / 該当なしで fzf が非ゼロ終了したときは、何もせず popup を閉じる
 if ! selection=$(printf '%s\n' "$list" |
-  fzf --multi --expect=ctrl-r --layout=reverse \
-    --header "$header_kept" --prompt "$prompt_kept" \
-    --bind "ctrl-g:transform:$toggle" \
-    --preview "$preview" --preview-window 'right,60%'); then
-  exit 0
+	fzf --multi --expect=ctrl-r --layout=reverse \
+		--header "$header_kept" --prompt "$prompt_kept" \
+		--bind "ctrl-g:transform:$toggle" \
+		--preview "$preview" --preview-window 'right,60%'); then
+	exit 0
 fi
 
 # --expect を付けると 1 行目は押されたキー (Enter なら空行) になり、2 行目以降が選択。
 key=${selection%%$'\n'*}
 chosen=${selection#*$'\n'}
 if [ "$chosen" = "$selection" ]; then
-  # 改行が無い = キー行しか無い (選択が空)
-  chosen=''
+	# 改行が無い = キー行しか無い (選択が空)
+	chosen=''
 fi
 
 # mapfile は bash 4 以降。macOS の /bin/bash は 3.2 なので read ループで読む。
 files=()
 if [ "$key" != "ctrl-r" ]; then
-  [ -n "$chosen" ] || exit 0
-  while IFS= read -r f; do
-    [ -n "$f" ] && files+=("$f")
-  done <<<"$chosen"
+	[ -n "$chosen" ] || exit 0
+	while IFS= read -r f; do
+		[ -n "$f" ] && files+=("$f")
+	done <<<"$chosen"
 fi
 
 # mo の出力はファイルへ逃がす。バックグラウンドへ回った mo が標準出力を掴んだままだと
@@ -188,17 +188,17 @@ trap 'rm -f "$out"' EXIT
 # ${files[@]+...} で包むのは、bash 3.2 が set -u のもとで空配列の "${files[@]}" を
 # 未定義変数として落とすため (Ctrl-R はファイルを選ばないので必ず空になる)。
 if ! mo --port "$port" --target "$group" --open ${files[@]+"${files[@]}"} >"$out" 2>&1; then
-  die "mo を起動できませんでした:
+	die "mo を起動できませんでした:
 $(head -20 "$out")"
 fi
 
 # shellcheck disable=SC2016  # メッセージ中の $BROWSER は変数名そのものを見せている
 if [ -z "${BROWSER:-}" ]; then
-  # mo の出力にはグループ URL もファイル URL も混ざるので、ホスト部だけ取って組み立てる
-  base=$(grep -m1 -oE 'https?://[^[:space:]/]+' "$out" || true)
-  printf 'herdr-mo: $BROWSER が未設定のため、手元 PC のブラウザは開きません。\n' >&2
-  printf '  mo 自体は起動しています: %s/%s\n' "${base:-http://localhost:$port}" "$group" >&2
-  printf '  popup は herdr サーバ起動時の環境を継承します。portfwd 対象のセッションで\n' >&2
-  printf '  `herdr server stop` → `herdr` と起動し直すと $BROWSER が渡ります。\n' >&2
-  pause
+	# mo の出力にはグループ URL もファイル URL も混ざるので、ホスト部だけ取って組み立てる
+	base=$(grep -m1 -oE 'https?://[^[:space:]/]+' "$out" || true)
+	printf 'herdr-mo: $BROWSER が未設定のため、手元 PC のブラウザは開きません。\n' >&2
+	printf '  mo 自体は起動しています: %s/%s\n' "${base:-http://localhost:$port}" "$group" >&2
+	printf '  popup は herdr サーバ起動時の環境を継承します。portfwd 対象のセッションで\n' >&2
+	printf '  `herdr server stop` → `herdr` と起動し直すと $BROWSER が渡ります。\n' >&2
+	pause
 fi

@@ -20,30 +20,30 @@ HOST="${LC_PORTFWD_HOST:-}"
 URL="${1:-}"
 
 if [ -z "$URL" ]; then
-    echo "portfwd-open: URL がありません" >&2
-    exit 2
+	echo "portfwd-open: URL がありません" >&2
+	exit 2
 fi
 
 if [ -z "$HOST" ]; then
-    echo "portfwd-open: LC_PORTFWD_HOST が空です。よくある原因は 2 つ:" >&2
-    echo "  1. ローカルの ssh config の対象 Host に SetEnv LC_PORTFWD_HOST=<alias> が無い" >&2
-    echo "     （SetEnv はマッチする最初の 1 行しか効かない）" >&2
-    echo "  2. このサーバの sshd が LC_* を AcceptEnv していない" >&2
-    echo "     確認: sshd -T | grep acceptenv" >&2
-    exit 1
+	echo "portfwd-open: LC_PORTFWD_HOST が空です。よくある原因は 2 つ:" >&2
+	echo "  1. ローカルの ssh config の対象 Host に SetEnv LC_PORTFWD_HOST=<alias> が無い" >&2
+	echo "     （SetEnv はマッチする最初の 1 行しか効かない）" >&2
+	echo "  2. このサーバの sshd が LC_* を AcceptEnv していない" >&2
+	echo "     確認: sshd -T | grep acceptenv" >&2
+	exit 1
 fi
 
 # Unix domain socket への POST は curl でしか行えない（bash の /dev/tcp は TCP 専用）。
 if ! command -v curl >/dev/null 2>&1; then
-    echo "portfwd-open: curl がありません。逆チャネルへの POST に必要です" >&2
-    exit 1
+	echo "portfwd-open: curl がありません。逆チャネルへの POST に必要です" >&2
+	exit 1
 fi
 
 if [ ! -S "$SOCK" ]; then
-    echo "portfwd-open: 逆チャネルのソケットがありません: ${SOCK}" >&2
-    echo "  ローカルの ssh config の RemoteForward がこのパスを指しているか確認してください:" >&2
-    echo "    RemoteForward ${SOCK} 127.0.0.1:55999" >&2
-    exit 1
+	echo "portfwd-open: 逆チャネルのソケットがありません: ${SOCK}" >&2
+	echo "  ローカルの ssh config の RemoteForward がこのパスを指しているか確認してください:" >&2
+	echo "    RemoteForward ${SOCK} 127.0.0.1:55999" >&2
+	exit 1
 fi
 
 # JSON を組み立てる（host/url は英数記号のみ想定。最低限のエスケープ: " と \ ）。
@@ -57,19 +57,19 @@ BODY=$(printf '{"host":"%s","url":"%s"}' "$(json_escape "$HOST")" "$(json_escape
 RESP_FILE=$(mktemp)
 trap 'rm -f "$RESP_FILE"' EXIT
 if ! STATUS=$(curl -sS --unix-socket "$SOCK" --max-time 5 -o "$RESP_FILE" -w '%{http_code}' -X POST \
-        -H 'Content-Type: application/json' \
-        --data "$BODY" \
-        "http://localhost/"); then
-    echo "portfwd-open: ${SOCK} への接続に失敗しました" >&2
-    echo "  sshd は listen していますが、ローカルの portfwd daemon が応答していません" >&2
-    [ -s "$RESP_FILE" ] && cat "$RESP_FILE" >&2
-    exit 1
+	-H 'Content-Type: application/json' \
+	--data "$BODY" \
+	"http://localhost/"); then
+	echo "portfwd-open: ${SOCK} への接続に失敗しました" >&2
+	echo "  sshd は listen していますが、ローカルの portfwd daemon が応答していません" >&2
+	[ -s "$RESP_FILE" ] && cat "$RESP_FILE" >&2
+	exit 1
 fi
 case "$STATUS" in
-    2??) ;;
-    *)
-        echo "portfwd-open: daemon が HTTP ${STATUS} を返しました" >&2
-        cat "$RESP_FILE" >&2
-        exit 1
-        ;;
+2??) ;;
+*)
+	echo "portfwd-open: daemon が HTTP ${STATUS} を返しました" >&2
+	cat "$RESP_FILE" >&2
+	exit 1
+	;;
 esac

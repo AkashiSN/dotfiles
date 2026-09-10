@@ -25,7 +25,10 @@ set -euo pipefail
 SKILL_DIR="$HOME/.agents/skills/agmsg"
 S="$SKILL_DIR/scripts"
 
-die() { printf 'codex-bedrock-spawn: %s\n' "$*" >&2; exit 1; }
+die() {
+	printf 'codex-bedrock-spawn: %s\n' "$*" >&2
+	exit 1
+}
 
 NAME=""
 TEAM=""
@@ -34,22 +37,44 @@ DIRECTION="right"
 PASS=()
 
 while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --team) TEAM="${2:-}"; shift 2 ;;
-    --project) PROJECT="${2:-}"; shift 2 ;;
-    --direction) DIRECTION="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    # spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
-    # みなすと `--fresh <name>` の <name> まで吸ってしまうので、ここは明示列挙する。
-    --boot-prompt|--split|--terminal|--ready-timeout|--model)
-      PASS+=("$1")
-      if [ "$#" -gt 1 ]; then PASS+=("$2"); shift; fi
-      shift
-      ;;
-    # 残りは値を取らないフラグと `--opt=value` 形式として素通しする。
-    -*) PASS+=("$1"); shift ;;
-    *) [ -n "$NAME" ] && die "名前は 1 つだけ指定する(余分: $1)"; NAME="$1"; shift ;;
-  esac
+	case "$1" in
+	--team)
+		TEAM="${2:-}"
+		shift 2
+		;;
+	--project)
+		PROJECT="${2:-}"
+		shift 2
+		;;
+	--direction)
+		DIRECTION="${2:-}"
+		shift 2
+		;;
+	-h | --help)
+		sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	# spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
+	# みなすと `--fresh <name>` の <name> まで吸ってしまうので、ここは明示列挙する。
+	--boot-prompt | --split | --terminal | --ready-timeout | --model)
+		PASS+=("$1")
+		if [ "$#" -gt 1 ]; then
+			PASS+=("$2")
+			shift
+		fi
+		shift
+		;;
+	# 残りは値を取らないフラグと `--opt=value` 形式として素通しする。
+	-*)
+		PASS+=("$1")
+		shift
+		;;
+	*)
+		[ -n "$NAME" ] && die "名前は 1 つだけ指定する(余分: $1)"
+		NAME="$1"
+		shift
+		;;
+	esac
 done
 
 [ -n "$NAME" ] || die "エージェント名を指定する。例: codex-bedrock-spawn reviewer"
@@ -64,8 +89,8 @@ command -v herdr >/dev/null 2>&1 || die "herdr が PATH に無い"
 # 手打ちと spawn の両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、
 # ペインの配置も spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
 if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
-  exec "$S/spawn.sh" codex "$NAME" --project "$PROJECT" \
-    ${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
+	exec "$S/spawn.sh" codex "$NAME" --project "$PROJECT" \
+		${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
 fi
 
 # Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。
@@ -73,16 +98,16 @@ PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
 
 # チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
 if [ -z "$TEAM" ]; then
-  TEAM="$("$S/whoami.sh" "$PROJECT" 2>/dev/null | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
-  case "$TEAM" in
-    "") die "チームを解決できない。--team で指定する" ;;
-    *,*) die "このプロジェクトは複数チームに属している($TEAM)。--team で指定する" ;;
-  esac
+	TEAM="$("$S/whoami.sh" "$PROJECT" 2>/dev/null | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
+	case "$TEAM" in
+	"") die "チームを解決できない。--team で指定する" ;;
+	*,*) die "このプロジェクトは複数チームに属している($TEAM)。--team で指定する" ;;
+	esac
 fi
 
 # herdr の JSON から 1 つの文字列フィールドを取り出す。端末制御シーケンスが混ざるので落とす。
 herdr_field() {
-  python3 -c '
+	python3 -c '
 import json, re, sys
 text = re.sub(r"\x1b\[[0-9;<=?]*[a-zA-Z]", "", sys.stdin.read()).strip()
 text = text[text.index("{"):text.rindex("}") + 1]
@@ -98,23 +123,23 @@ print(value)
 #    credential_process(aws-login)がログイン URL を描いて画面が崩れる。ここは人が居る対話ペイン
 #    なので、未認証ならその場でログインまで進む。
 if [ -x "$HOME/.local/bin/aws-auth-ensure" ]; then
-  "$HOME/.local/bin/aws-auth-ensure" "$PROFILE" "Bedrock" \
-    || die "Bedrock 用プロファイル $PROFILE が未認証のため spawn しない"
+	"$HOME/.local/bin/aws-auth-ensure" "$PROFILE" "Bedrock" ||
+		die "Bedrock 用プロファイル $PROFILE が未認証のため spawn しない"
 fi
 
 # 2) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。
-HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" \
-  || die "一時 home を用意できなかった"
+HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" ||
+	die "一時 home を用意できなかった"
 
 # 3) このプロジェクトを信頼させる。codex は信頼するまでプロジェクトローカルの config /
 #    hooks / exec policy を読まないので、agmsg が置く .codex/hooks.json(配信フック)が効かない。
 #    書くのは揮発する一時 home の config.toml だけで、素の ~/.codex/config.toml には触らない
 #    ——信頼するのは agmsg が立ち上げたこの codex に限る。
 case "$PROJECT" in
-  *'"'*|*\\*) die "パスに \" か \\ を含むプロジェクトは信頼設定を書けない: $PROJECT" ;;
+*'"'* | *\\*) die "パスに \" か \\ を含むプロジェクトは信頼設定を書けない: $PROJECT" ;;
 esac
 if ! grep -qF "[projects.\"$PROJECT\"]" "$HOME_DIR/config.toml"; then
-  cat >>"$HOME_DIR/config.toml" <<EOF
+	cat >>"$HOME_DIR/config.toml" <<EOF
 
 [projects."$PROJECT"]
 trust_level = "trusted"
@@ -129,19 +154,19 @@ fi
 # AWS_LOGIN_NO_INTERACTIVE は、走行中に期限が切れたときログイン URL をこのペインへ
 # 描かせないため。代わりに aws-login が herdr のタブへ委譲する(docs/aws-cheatsheet.md)。
 resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --cwd "$PROJECT" \
-  --env "CODEX_HOME=$HOME_DIR" \
-  --env "AWS_PROFILE=$PROFILE" \
-  --env "AWS_LOGIN_NO_INTERACTIVE=1" 2>&1)" \
-  || die "herdr pane split に失敗した: $resp"
-PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" \
-  || die "herdr pane split の応答から pane_id を読めなかった: $resp"
+	--env "CODEX_HOME=$HOME_DIR" \
+	--env "AWS_PROFILE=$PROFILE" \
+	--env "AWS_LOGIN_NO_INTERACTIVE=1" 2>&1)" ||
+	die "herdr pane split に失敗した: $resp"
+PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" ||
+	die "herdr pane split の応答から pane_id を読めなかった: $resp"
 
 # ここから先の失敗は、起動済みのペインと書きかけの placement レコードを残す。最後まで
 # 通ったときだけ trap を解いて残す。
 rollback() {
-  herdr pane close "$PANE" >/dev/null 2>&1 || true
-  [ -n "${rec:-}" ] && rm -f "$rec"
-  return 0
+	herdr pane close "$PANE" >/dev/null 2>&1 || true
+	[ -n "${rec:-}" ] && rm -f "$rec"
+	return 0
 }
 trap rollback EXIT
 
@@ -151,9 +176,9 @@ herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
 #    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
 #    env 無しのペインを作り直してしまうため。
 env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
-  "$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
-  --terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"} \
-  || die "spawn.sh に失敗した"
+	"$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
+	--terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"} ||
+	die "spawn.sh に失敗した"
 
 # 7) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
 #    これが無いと despawn --force が no placement record で失敗する。既存レコードは常に
@@ -163,7 +188,7 @@ env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
 . "$S/lib/actas-lock.sh"
 rec="$(agmsg_spawn_path "$TEAM" "$NAME")"
 mkdir -p "$(dirname "$rec")"
-printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" > "$rec"
+printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" >"$rec"
 
 trap - EXIT
 

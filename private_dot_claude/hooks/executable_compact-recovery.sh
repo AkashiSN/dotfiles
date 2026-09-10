@@ -21,7 +21,7 @@ mkdir -p "$BASE" 2>/dev/null && chmod 700 "$BASE" 2>/dev/null || true
 
 # 圧縮発生の marker。UserPromptSubmit 側が検出して context 注入 → 削除する。
 mkdir -p "$BASE/compacted" 2>/dev/null || true
-date +%s > "$BASE/compacted/$SESSION_ID" 2>/dev/null || true
+date +%s >"$BASE/compacted/$SESSION_ID" 2>/dev/null || true
 
 # 圧縮したので compact-prep 警告の cooldown を解除し、次に閾値を超えたら再び警告できるようにする。
 rm -f "$BASE/warned/$SESSION_ID" 2>/dev/null || true

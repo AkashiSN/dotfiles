@@ -31,7 +31,7 @@ rm -f "$WARN_MARKER" 2>/dev/null || true
 
 # cooldown marker。次に compact が起きるまで statusline は warn marker を書かない。
 mkdir -p "$BASE/warned" 2>/dev/null || true
-date +%s > "$BASE/warned/$SESSION_ID" 2>/dev/null || true
+date +%s >"$BASE/warned/$SESSION_ID" 2>/dev/null || true
 
 CTX="[COMPACT PREP REMINDER] context 使用率が ${CTX_PCT}% に達した。"
 CTX+=$'\n'"- 作業の区切りでユーザーに \`/compact-prep\` の実行を提案せよ。"

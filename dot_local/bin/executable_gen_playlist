@@ -11,63 +11,63 @@ extensions=("opus" "m4a")
 declare -a files
 
 function find_exclude_and_list() {
-    local current_dir=$1
-    local relative_path="${current_dir#$initial_dir}"
-    local found_exclude=false
+	local current_dir=$1
+	local relative_path="${current_dir#$initial_dir}"
+	local found_exclude=false
 
-    # 現在のディレクトリで .exclude を探す
-    if [[ -f "$current_dir/.exclude" ]]; then
-        # パスの深さ
-        depth=$(($(echo "$current_dir" | grep -o "/" | wc -l)+2))
-        declare -a album
-        # .excludeにリストされている以外のファイルについてループする
-        while IFS= read -r line; do
-            if [[ -z "$line" ]]; then
-                continue
-            fi
-            # ディレクトリの場合はそのディレクトリへ進む
-            if [[ -d "$current_dir/$line" ]]; then
-                find_exclude_and_list "$current_dir/$line"
-                continue
-            fi
-            # 対象としている拡張子か否か
-            if printf '%s\n' "${extensions[@]}" | grep -qx "${line##*.}"; then
-                album+=("${relative_path:+$relative_path/}$line")
-            fi
-        done < <(comm -23 <(ls "$current_dir" | sort) <(sort "$current_dir/.exclude"))
-        # トラック番号順にソート
-        files+=("$(printf "%s\n" "${album[@]}" | sort -t "/" -k ${depth}n)")
-        # .exclude ファイルが見つかった
-        found_exclude=true
-    else
-        # .exclude ファイルが見つからない場合、下のディレクトリを探す
-        for dir in "$current_dir"/*; do
-            if [[ -d "$dir" ]]; then
-                # 下のディレクトリへ進む
-                find_exclude_and_list "$dir"
-                if [[ "$?" == 0 ]]; then
-                    found_exclude=true
-                fi
-            fi
-        done
-    fi
+	# 現在のディレクトリで .exclude を探す
+	if [[ -f "$current_dir/.exclude" ]]; then
+		# パスの深さ
+		depth=$(($(echo "$current_dir" | grep -o "/" | wc -l) + 2))
+		declare -a album
+		# .excludeにリストされている以外のファイルについてループする
+		while IFS= read -r line; do
+			if [[ -z "$line" ]]; then
+				continue
+			fi
+			# ディレクトリの場合はそのディレクトリへ進む
+			if [[ -d "$current_dir/$line" ]]; then
+				find_exclude_and_list "$current_dir/$line"
+				continue
+			fi
+			# 対象としている拡張子か否か
+			if printf '%s\n' "${extensions[@]}" | grep -qx "${line##*.}"; then
+				album+=("${relative_path:+$relative_path/}$line")
+			fi
+		done < <(comm -23 <(ls "$current_dir" | sort) <(sort "$current_dir/.exclude"))
+		# トラック番号順にソート
+		files+=("$(printf "%s\n" "${album[@]}" | sort -t "/" -k ${depth}n)")
+		# .exclude ファイルが見つかった
+		found_exclude=true
+	else
+		# .exclude ファイルが見つからない場合、下のディレクトリを探す
+		for dir in "$current_dir"/*; do
+			if [[ -d "$dir" ]]; then
+				# 下のディレクトリへ進む
+				find_exclude_and_list "$dir"
+				if [[ "$?" == 0 ]]; then
+					found_exclude=true
+				fi
+			fi
+		done
+	fi
 
-    # ディレクトリ内のファイルを収集（.exclude が見つからなかった場合）
-    if ! $found_exclude; then
-        # パスの深さ
-        depth=$(($(echo "$current_dir" | grep -o "/" | wc -l)+2))
-        declare -a album
-        for file in "$current_dir"/*; do
-            if [[ -f "$file" ]]; then
-                if printf '%s\n' "${extensions[@]}" | grep -qx "${file##*.}"; then
-                    file="${file#$initial_dir}"
-                    album+=("$file")
-                fi
-            fi
-        done
-        # トラック番号順にソート
-        files+=("$(printf "%s\n" "${album[@]}" | sort -t "/" -k ${depth}n)")
-    fi
+	# ディレクトリ内のファイルを収集（.exclude が見つからなかった場合）
+	if ! $found_exclude; then
+		# パスの深さ
+		depth=$(($(echo "$current_dir" | grep -o "/" | wc -l) + 2))
+		declare -a album
+		for file in "$current_dir"/*; do
+			if [[ -f "$file" ]]; then
+				if printf '%s\n' "${extensions[@]}" | grep -qx "${file##*.}"; then
+					file="${file#$initial_dir}"
+					album+=("$file")
+				fi
+			fi
+		done
+		# トラック番号順にソート
+		files+=("$(printf "%s\n" "${album[@]}" | sort -t "/" -k ${depth}n)")
+	fi
 }
 
 # 引数から開始ディレクトリを取得（指定がない場合は現在のディレクトリ）

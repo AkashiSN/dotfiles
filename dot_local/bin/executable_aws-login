@@ -69,8 +69,8 @@ set -e
 # プロファイル名は必須。空のまま進むと "-signin" という別プロファイルを掴んでしまい、
 # 呼び出し元の不具合が「意図しないプロファイルでのログイン」として表面化する。
 if [[ -z $1 ]]; then
-    echo "aws-login: プロファイル名を指定してください（例: aws-login my-profile）" >&2
-    exit 1
+	echo "aws-login: プロファイル名を指定してください（例: aws-login my-profile）" >&2
+	exit 1
 fi
 
 # プロファイル名に"-signin"サフィックスを付与
@@ -123,65 +123,65 @@ ORPHAN_GRACE=180
 SELF_PID=$$
 
 mark_expired() {
-    : >"$EXPIRED_MARKER" 2>/dev/null || true
+	: >"$EXPIRED_MARKER" 2>/dev/null || true
 }
 
 clear_expired() {
-    rm -f "$EXPIRED_MARKER" 2>/dev/null || true
+	rm -f "$EXPIRED_MARKER" 2>/dev/null || true
 }
 
 # ISO8601 の時刻を epoch 秒へ。読めなければ何も出力せず非 0。
 # GNU date(Linux) は -d でそのまま読めるが、BSD date(macOS) は -j -f で書式を渡すうえ
 # %z が +0000 形式しか受け取らないため、末尾のオフセットを均してから渡す。
 to_epoch() {
-    local ts="$1"
-    date -d "$ts" +%s 2>/dev/null && return 0
-    ts="${ts%Z}"
-    case "$ts" in
-        *[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
-        *[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
-        *) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
-    esac
-    date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
+	local ts="$1"
+	date -d "$ts" +%s 2>/dev/null && return 0
+	ts="${ts%Z}"
+	case "$ts" in
+	*[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
+	*[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
+	*) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
+	esac
+	date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
 }
 
 # キャッシュが使えるならその内容を出力して 0 を返す。使えなければ 1。
 emit_cached_creds() {
-    local exp exp_epoch
-    [ -r "$CREDS_CACHE" ] || return 1
-    exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CREDS_CACHE")
-    [ -n "$exp" ] || return 1
-    exp_epoch=$(to_epoch "$exp") || return 1
-    [ -n "$exp_epoch" ] || return 1
-    [ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ] || return 1
-    cat "$CREDS_CACHE"
+	local exp exp_epoch
+	[ -r "$CREDS_CACHE" ] || return 1
+	exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CREDS_CACHE")
+	[ -n "$exp" ] || return 1
+	exp_epoch=$(to_epoch "$exp") || return 1
+	[ -n "$exp_epoch" ] || return 1
+	[ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ] || return 1
+	cat "$CREDS_CACHE"
 }
 
 # creds を出力しつつキャッシュを更新する。
 # 認証情報を平文で置くので、作成した瞬間から他ユーザに読めないよう umask で絞る。
 # 書き込みに失敗しても認証自体は成立しているので、出力を優先して握りつぶす。
 emit_creds() {
-    local tmp
-    printf '%s\n' "$1"
-    tmp="${CREDS_CACHE}.tmp.$$"
-    if (
-        umask 077
-        printf '%s\n' "$1" >"$tmp"
-    ) 2>/dev/null; then
-        mv -f "$tmp" "$CREDS_CACHE" 2>/dev/null || rm -f "$tmp"
-    fi
+	local tmp
+	printf '%s\n' "$1"
+	tmp="${CREDS_CACHE}.tmp.$$"
+	if (
+		umask 077
+		printf '%s\n' "$1" >"$tmp"
+	) 2>/dev/null; then
+		mv -f "$tmp" "$CREDS_CACHE" 2>/dev/null || rm -f "$tmp"
+	fi
 }
 
 # ここから下は aws CLI を起動する。キャッシュが使えるなら触らずに終える。
 if emit_cached_creds; then
-    clear_expired
-    exit 0
+	clear_expired
+	exit 0
 fi
 
 # "-signin"プロファイルが存在していない場合
 if ! aws configure list-profiles | grep "$AWS_PROFILE" >/dev/null 2>&1; then
-    # AWSリージョンを東京に設定
-    aws configure set region ap-northeast-1
+	# AWSリージョンを東京に設定
+	aws configure set region ap-northeast-1
 fi
 
 # キャッシュ済み認証情報が「実際に有効か」を STS で検証するヘルパー。
@@ -198,27 +198,27 @@ fi
 #       creds を出力済み（ログインはしない）
 #   1 : 未ログイン or 認証切れ。creds 未出力（呼び出し側はログインへ進む）
 emit_creds_if_valid() {
-    local creds sts_err
-    creds=$(aws configure export-credentials --format process 2>/dev/null) || return 1
-    [ -n "$creds" ] || return 1
-    # 抜け道: STS 検証を省略し、「設定があれば OK」で通す。
-    if [ -n "$AWS_LOGIN_SKIP_VERIFY" ]; then
-        emit_creds "$creds"
-        return 0
-    fi
-    if sts_err=$(aws sts get-caller-identity 2>&1 >/dev/null); then
-        emit_creds "$creds"
-        return 0
-    fi
-    # STS 失敗。到達不能などの一時エラーならログインせずキャッシュで続行する。
-    if printf '%s' "$sts_err" | grep -qiE 'could not connect|connect timeout|endpointconnectionerror|failed to establish|name resolution|getaddrinfo|name or service not known|network is unreachable|read timeout|connection (reset|aborted|refused)|temporarily unavailable|service unavailable|timed out'; then
-        printf >&2 '%s\n' "aws-login: STS 検証をスキップ（${AWS_PROFILE}: ネットワーク到達不可）。キャッシュ済み認証情報で続行します。"
-        # 検証できていないのでキャッシュには残さない。次回も同じ判断をやり直す。
-        printf '%s\n' "$creds"
-        return 2
-    fi
-    # ExpiredToken / InvalidClientTokenId / SSO トークン期限切れ 等 → 認証切れとみなす。
-    return 1
+	local creds sts_err
+	creds=$(aws configure export-credentials --format process 2>/dev/null) || return 1
+	[ -n "$creds" ] || return 1
+	# 抜け道: STS 検証を省略し、「設定があれば OK」で通す。
+	if [ -n "$AWS_LOGIN_SKIP_VERIFY" ]; then
+		emit_creds "$creds"
+		return 0
+	fi
+	if sts_err=$(aws sts get-caller-identity 2>&1 >/dev/null); then
+		emit_creds "$creds"
+		return 0
+	fi
+	# STS 失敗。到達不能などの一時エラーならログインせずキャッシュで続行する。
+	if printf '%s' "$sts_err" | grep -qiE 'could not connect|connect timeout|endpointconnectionerror|failed to establish|name resolution|getaddrinfo|name or service not known|network is unreachable|read timeout|connection (reset|aborted|refused)|temporarily unavailable|service unavailable|timed out'; then
+		printf >&2 '%s\n' "aws-login: STS 検証をスキップ（${AWS_PROFILE}: ネットワーク到達不可）。キャッシュ済み認証情報で続行します。"
+		# 検証できていないのでキャッシュには残さない。次回も同じ判断をやり直す。
+		printf '%s\n' "$creds"
+		return 2
+	fi
+	# ExpiredToken / InvalidClientTokenId / SSO トークン期限切れ 等 → 認証切れとみなす。
+	return 1
 }
 
 # portfwd 逆チャネルが使えるか判定する（docs/portfwd-cheatsheet.md）。
@@ -243,19 +243,19 @@ PORTFWD_HEALTH_TIMEOUT=5
 # 捨てるため、stderr へ出すとどこにも残らない（端末が無ければ捨てる。credential_process として
 # 呼ばれた場合がこれにあたる）。
 tty_notice() {
-    if { : >/dev/tty; } 2>/dev/null; then
-        printf 'aws-login: %s\n' "$1" >/dev/tty
-    fi
+	if { : >/dev/tty; } 2>/dev/null; then
+		printf 'aws-login: %s\n' "$1" >/dev/tty
+	fi
 }
 
 # 人へ必ず届けたいエラー。端末があればそちらへ、無ければ stderr へ出す
 # （両方に出すと端末で二重に見える）。
 notify_error() {
-    if { : >/dev/tty; } 2>/dev/null; then
-        tty_notice "$1"
-    else
-        printf 'aws-login: %s\n' "$1" >&2
-    fi
+	if { : >/dev/tty; } 2>/dev/null; then
+		tty_notice "$1"
+	else
+		printf 'aws-login: %s\n' "$1" >&2
+	fi
 }
 
 # ロックファイルを開いているプロセスの pid を列挙する（生の一覧。除外はしない）。
@@ -266,35 +266,35 @@ notify_error() {
 # 探し方は 2 つ持つ。lsof があれば mac / Linux どちらでも 1 回起動で済む。無い Linux では
 # /proc の fd シンボリックリンクを辿る（GNU find の -lname / -printf）。
 lock_holder_pids_raw() {
-    if command -v lsof >/dev/null 2>&1; then
-        lsof -t -- "$LOGIN_LOCK" 2>/dev/null
-        return 0
-    fi
-    [ -d /proc ] || return 0
-    find /proc -mindepth 3 -maxdepth 3 -path '/proc/[0-9]*/fd/*' \
-        -lname "$LOGIN_LOCK" -printf '%h\n' 2>/dev/null |
-        sed 's#^/proc/##; s#/fd$##'
+	if command -v lsof >/dev/null 2>&1; then
+		lsof -t -- "$LOGIN_LOCK" 2>/dev/null
+		return 0
+	fi
+	[ -d /proc ] || return 0
+	find /proc -mindepth 3 -maxdepth 3 -path '/proc/[0-9]*/fd/*' \
+		-lname "$LOGIN_LOCK" -printf '%h\n' 2>/dev/null |
+		sed 's#^/proc/##; s#/fd$##'
 }
 
 # pid の属性を 1 つ読む（ppid / pgid / etime）。ps 越しに読むので mac / Linux どちらでも同じ。
 # fd 200 は継がせない。継ぐと自分自身がロックの保持者として見つかり、しかも評価する頃には
 # 終わっているので、消えた pid を保持者として報告してしまう。
 proc_field() {
-    { ps -o "$2=" -p "$1" 2>/dev/null | tr -d ' '; } 200>&-
+	{ ps -o "$2=" -p "$1" 2>/dev/null | tr -d ' '; } 200>&-
 }
 
 # pid が ancestor 自身か、その子孫か。
 is_descendant() {
-    local pid="$1" ancestor="$2" depth=0
-    while [ "$depth" -lt 64 ]; do
-        [ "$pid" = "$ancestor" ] && return 0
-        case "$pid" in
-            '' | 0 | 1) return 1 ;;
-        esac
-        pid=$(proc_field "$pid" ppid)
-        depth=$((depth + 1))
-    done
-    return 1
+	local pid="$1" ancestor="$2" depth=0
+	while [ "$depth" -lt 64 ]; do
+		[ "$pid" = "$ancestor" ] && return 0
+		case "$pid" in
+		'' | 0 | 1) return 1 ;;
+		esac
+		pid=$(proc_field "$pid" ppid)
+		depth=$((depth + 1))
+	done
+	return 1
 }
 
 # そのうち自分の側を除いた pid。
@@ -302,14 +302,14 @@ is_descendant() {
 # サブシェル類は SELF_PID の子孫かどうかで落とす。プロセスグループで落とすと、同じジョブから
 # 起きた別の aws-login まで一緒に外れて、保持者を見失う。
 lock_open_pids() {
-    local pid found=""
-    for pid in $({ lock_holder_pids_raw; } 200>&-); do
-        # 見つけてから評価するまでに終わったプロセスは、もう握っていない。
-        kill -0 "$pid" 2>/dev/null || continue
-        is_descendant "$pid" "$SELF_PID" && continue
-        found="${found:+$found }$pid"
-    done
-    printf '%s' "$found"
+	local pid found=""
+	for pid in $({ lock_holder_pids_raw; } 200>&-); do
+		# 見つけてから評価するまでに終わったプロセスは、もう握っていない。
+		kill -0 "$pid" 2>/dev/null || continue
+		is_descendant "$pid" "$SELF_PID" && continue
+		found="${found:+$found }$pid"
+	done
+	printf '%s' "$found"
 }
 
 # 保持者が属するジョブ（プロセスグループ）を遡り、呼び出し元が失われていればその起点の pid を
@@ -319,32 +319,32 @@ lock_open_pids() {
 # 制御端末の有無では見分けられない。端末はセッション単位なので、同じ端末で別のアプリが
 # 動いていれば tty は残ったままになる。
 orphan_root() {
-    local pid="$1" depth=0 jobpg ppid ppg
-    jobpg=$(proc_field "$pid" pgid)
-    [ -n "$jobpg" ] || return 1
-    while [ "$depth" -lt 64 ]; do
-        ppid=$(proc_field "$pid" ppid)
-        [ -n "$ppid" ] || return 1
-        if [ "$ppid" = "1" ]; then
-            printf '%s' "$pid"
-            return 0
-        fi
-        ppg=$(proc_field "$ppid" pgid)
-        [ -n "$ppg" ] || return 1
-        # 親が別のジョブにいるなら、そこが生きた呼び出し元。
-        [ "$ppg" != "$jobpg" ] && return 1
-        pid="$ppid"
-        depth=$((depth + 1))
-    done
-    return 1
+	local pid="$1" depth=0 jobpg ppid ppg
+	jobpg=$(proc_field "$pid" pgid)
+	[ -n "$jobpg" ] || return 1
+	while [ "$depth" -lt 64 ]; do
+		ppid=$(proc_field "$pid" ppid)
+		[ -n "$ppid" ] || return 1
+		if [ "$ppid" = "1" ]; then
+			printf '%s' "$pid"
+			return 0
+		fi
+		ppg=$(proc_field "$ppid" pgid)
+		[ -n "$ppg" ] || return 1
+		# 親が別のジョブにいるなら、そこが生きた呼び出し元。
+		[ "$ppg" != "$jobpg" ] && return 1
+		pid="$ppid"
+		depth=$((depth + 1))
+	done
+	return 1
 }
 
 # プロセスの起動からの経過秒。ps の etime（[[dd-]hh:]mm:ss）を秒へ均す。
 proc_age_seconds() {
-    local e
-    e=$(proc_field "$1" etime)
-    [ -n "$e" ] || return 1
-    printf '%s' "$e" | awk -F'[-:]' '{
+	local e
+	e=$(proc_field "$1" etime)
+	[ -n "$e" ] || return 1
+	printf '%s' "$e" | awk -F'[-:]' '{
         if (NF == 4) { print ((($1 * 24 + $2) * 60) + $3) * 60 + $4 }
         else if (NF == 3) { print (($1 * 60) + $2) * 60 + $3 }
         else if (NF == 2) { print $1 * 60 + $2 }
@@ -354,29 +354,29 @@ proc_age_seconds() {
 
 # 引数の pid のうち 1 つでも生きていれば 0。
 any_alive() {
-    local pid
-    for pid in "$@"; do
-        kill -0 "$pid" 2>/dev/null && return 0
-    done
-    return 1
+	local pid
+	for pid in "$@"; do
+		kill -0 "$pid" 2>/dev/null && return 0
+	done
+	return 1
 }
 
 # ロック保持者の様子を 1 行で説明する。待っても無駄なのかどうかを先に伝える。
 describe_lock_holder() {
-    local pids pid root age
-    pids=$(lock_open_pids)
-    if [ -z "$pids" ]; then
-        printf '特定できないプロセス'
-        return
-    fi
-    for pid in $pids; do
-        root=$(orphan_root "$pid") || continue
-        age=$(proc_age_seconds "$root") || age=0
-        printf 'pid %s（呼び出し元を失った aws login。起動から %s 秒で、この先も空きません）' \
-            "$pids" "$age"
-        return
-    done
-    printf 'pid %s' "$pids"
+	local pids pid root age
+	pids=$(lock_open_pids)
+	if [ -z "$pids" ]; then
+		printf '特定できないプロセス'
+		return
+	fi
+	for pid in $pids; do
+		root=$(orphan_root "$pid") || continue
+		age=$(proc_age_seconds "$root") || age=0
+		printf 'pid %s（呼び出し元を失った aws login。起動から %s 秒で、この先も空きません）' \
+			"$pids" "$age"
+		return
+	done
+	printf 'pid %s' "$pids"
 }
 
 # 居座ったログインの掃除。呼び出し元を失ったままロックを握っている aws login を落とす。
@@ -386,38 +386,38 @@ describe_lock_holder() {
 # いることがあるため。localhost コールバックさえ戻れば aws login は自力で完了してトークン
 # キャッシュへ保存できるので、そこを横から落とすと操作が無駄になる。
 reap_orphan_lock_holders() {
-    local pids pid root age victims="" victim n=0
-    pids=$(lock_open_pids)
-    [ -n "$pids" ] || return 1
+	local pids pid root age victims="" victim n=0
+	pids=$(lock_open_pids)
+	[ -n "$pids" ] || return 1
 
-    for pid in $pids; do
-        root=$(orphan_root "$pid") || continue
-        age=$(proc_age_seconds "$root") || continue
-        [ "$age" -lt "$ORPHAN_GRACE" ] && continue
-        # 落とすのは起点とその配下だけ。同じロックを別のジョブも握っていたとき、
-        # そちらを巻き添えにしない。
-        for victim in $root $pids; do
-            is_descendant "$victim" "$root" || continue
-            case " $victims " in
-                *" $victim "*) continue ;;
-            esac
-            victims="${victims:+$victims }$victim"
-        done
-    done
-    [ -n "$victims" ] || return 1
+	for pid in $pids; do
+		root=$(orphan_root "$pid") || continue
+		age=$(proc_age_seconds "$root") || continue
+		[ "$age" -lt "$ORPHAN_GRACE" ] && continue
+		# 落とすのは起点とその配下だけ。同じロックを別のジョブも握っていたとき、
+		# そちらを巻き添えにしない。
+		for victim in $root $pids; do
+			is_descendant "$victim" "$root" || continue
+			case " $victims " in
+			*" $victim "*) continue ;;
+			esac
+			victims="${victims:+$victims }$victim"
+		done
+	done
+	[ -n "$victims" ] || return 1
 
-    tty_notice "呼び出し元を失った aws login（pid ${victims}）がログインロックを握ったままです。落として先へ進みます。"
-    # shellcheck disable=SC2086  # victims は pid の並びなので、単語分割がそのまま望む挙動
-    kill -TERM $victims 2>/dev/null || true
-    # ロックは開いている fd が全部閉じて初めて空くので、消えるまで少しだけ待つ。
-    # shellcheck disable=SC2086
-    while [ "$n" -lt 20 ] && any_alive $victims; do
-        sleep 0.1
-        n=$((n + 1))
-    done
-    # shellcheck disable=SC2086
-    kill -KILL $victims 2>/dev/null || true
-    return 0
+	tty_notice "呼び出し元を失った aws login（pid ${victims}）がログインロックを握ったままです。落として先へ進みます。"
+	# shellcheck disable=SC2086  # victims は pid の並びなので、単語分割がそのまま望む挙動
+	kill -TERM $victims 2>/dev/null || true
+	# ロックは開いている fd が全部閉じて初めて空くので、消えるまで少しだけ待つ。
+	# shellcheck disable=SC2086
+	while [ "$n" -lt 20 ] && any_alive $victims; do
+		sleep 0.1
+		n=$((n + 1))
+	done
+	# shellcheck disable=SC2086
+	kill -KILL $victims 2>/dev/null || true
+	return 0
 }
 
 # ログインロックを取る。取れたら 0、上限まで空かなければ 1。
@@ -425,68 +425,69 @@ reap_orphan_lock_holders() {
 # 待っている間も孤児を掃除する。待ち始めた時点では猶予の内側だった保持者が、待っている
 # うちに猶予を超えることがある。
 acquire_login_lock() {
-    local profile="$1" waited=0
-    flock -n 200 && return 0
-    reap_orphan_lock_holders && flock -n 200 && return 0
-    tty_notice "${profile} のログインロックを $(describe_lock_holder) が握っています。最大 ${LOGIN_LOCK_WAIT} 秒待ちます…"
-    while [ "$waited" -lt "$LOGIN_LOCK_WAIT" ]; do
-        flock -w "$LOCK_POLL_INTERVAL" 200 && return 0
-        waited=$((waited + LOCK_POLL_INTERVAL))
-        reap_orphan_lock_holders && flock -n 200 && return 0
-    done
-    return 1
+	local profile="$1" waited=0
+	flock -n 200 && return 0
+	reap_orphan_lock_holders && flock -n 200 && return 0
+	tty_notice "${profile} のログインロックを $(describe_lock_holder) が握っています。最大 ${LOGIN_LOCK_WAIT} 秒待ちます…"
+	while [ "$waited" -lt "$LOGIN_LOCK_WAIT" ]; do
+		flock -w "$LOCK_POLL_INTERVAL" 200 && return 0
+		waited=$((waited + LOCK_POLL_INTERVAL))
+		reap_orphan_lock_holders && flock -n 200 && return 0
+	done
+	return 1
 }
 
 portfwd_channel_available() {
-    if [ -z "${LC_PORTFWD_HOST:-}" ]; then
-        # 非 SSH（ローカル）では逆チャネルを使わないのが正常なので黙る。SSH セッションで
-        # 空なら、オプトインしていないか sshd が LC_* を AcceptEnv していない。
-        if [ -n "${SSH_CONNECTION:-}" ]; then
-            tty_notice "portfwd 逆チャネル: LC_PORTFWD_HOST が空。aws login --remote へフォールバックします。"
-        fi
-        return 1
-    fi
-    local sock="${PORTFWD_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/portfwd.sock}"
-    local body why
-    local rc=0
-    if [ ! -S "$sock" ]; then
-        tty_notice "portfwd 逆チャネルが使えません: ${sock} がありません。ローカルの ssh config の RemoteForward がこのパスを指していないか、bind に失敗しています。aws login --remote へフォールバックします。"
-        return 1
-    fi
-    # Unix domain socket へは curl でしか繋げない（bash の /dev/tcp は TCP 専用）。
-    if ! command -v curl >/dev/null 2>&1; then
-        tty_notice "portfwd 逆チャネルが使えません: curl がありません。aws login --remote へフォールバックします。"
-        return 1
-    fi
-    body=$(curl -sS --unix-socket "$sock" --max-time "$PORTFWD_HEALTH_TIMEOUT" \
-        http://localhost/health 2>/dev/null) || rc=$?
-    if printf '%s' "$body" | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'; then
-        return 0
-    fi
-    # 逆チャネルは使えない。ここで理由を出さないと --remote へ落ちた事実だけが残り、
-    # 原因がどこにも残らない。切り分けは docs/portfwd-cheatsheet.md のトラブルシューティングと対応する。
-    case "$rc" in
-        7)      why="${sock} へ接続できません。sshd は listen していますが転送先が閉じています" ;;
-        52|56)  why="${sock} が空応答です。listen はしているのでローカルの portfwd daemon が落ちています" ;;
-        28)     why="${sock} が ${PORTFWD_HEALTH_TIMEOUT} 秒以内に応答しません。ローカルの portfwd daemon が停止中か応答不能です" ;;
-        0)      why="${sock} の応答が portfwd daemon のものではありません" ;;
-        *)      why="${sock} の /health に失敗しました（終了コード ${rc}）" ;;
-    esac
-    tty_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
-    return 1
+	if [ -z "${LC_PORTFWD_HOST:-}" ]; then
+		# 非 SSH（ローカル）では逆チャネルを使わないのが正常なので黙る。SSH セッションで
+		# 空なら、オプトインしていないか sshd が LC_* を AcceptEnv していない。
+		if [ -n "${SSH_CONNECTION:-}" ]; then
+			tty_notice "portfwd 逆チャネル: LC_PORTFWD_HOST が空。aws login --remote へフォールバックします。"
+		fi
+		return 1
+	fi
+	local sock="${PORTFWD_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/portfwd.sock}"
+	local body why
+	local rc=0
+	if [ ! -S "$sock" ]; then
+		tty_notice "portfwd 逆チャネルが使えません: ${sock} がありません。ローカルの ssh config の RemoteForward がこのパスを指していないか、bind に失敗しています。aws login --remote へフォールバックします。"
+		return 1
+	fi
+	# Unix domain socket へは curl でしか繋げない（bash の /dev/tcp は TCP 専用）。
+	if ! command -v curl >/dev/null 2>&1; then
+		tty_notice "portfwd 逆チャネルが使えません: curl がありません。aws login --remote へフォールバックします。"
+		return 1
+	fi
+	body=$(curl -sS --unix-socket "$sock" --max-time "$PORTFWD_HEALTH_TIMEOUT" \
+		http://localhost/health 2>/dev/null) || rc=$?
+	if printf '%s' "$body" | grep -q '"service"[[:space:]]*:[[:space:]]*"portfwd"'; then
+		return 0
+	fi
+	# 逆チャネルは使えない。ここで理由を出さないと --remote へ落ちた事実だけが残り、
+	# 原因がどこにも残らない。切り分けは docs/portfwd-cheatsheet.md のトラブルシューティングと対応する。
+	case "$rc" in
+	7) why="${sock} へ接続できません。sshd は listen していますが転送先が閉じています" ;;
+	52 | 56) why="${sock} が空応答です。listen はしているのでローカルの portfwd daemon が落ちています" ;;
+	28) why="${sock} が ${PORTFWD_HEALTH_TIMEOUT} 秒以内に応答しません。ローカルの portfwd daemon が停止中か応答不能です" ;;
+	0) why="${sock} の応答が portfwd daemon のものではありません" ;;
+	*) why="${sock} の /health に失敗しました（終了コード ${rc}）" ;;
+	esac
+	tty_notice "portfwd 逆チャネルが使えません: ${why}。aws login --remote へフォールバックします。"
+	return 1
 }
 
 # 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。
 # 設定の有無ではなく STS の応答で判定するため、期限切れ/権限喪失はここを通過して
 # 下のログインフローへ進む。
-rc=0; emit_creds_if_valid || rc=$?
+rc=0
+emit_creds_if_valid || rc=$?
 if [ "$rc" -eq 0 ]; then
-    clear_expired
-    exit 0
+	clear_expired
+	exit 0
 fi
 # rc=2 は STS 到達不能。有効かどうか確かめられていないので marker は触らない。
 if [ "$rc" -ne 1 ]; then
-    exit 0
+	exit 0
 fi
 
 # --- 委譲: herdr の別タブでログインしてもらう ------------------------------
@@ -509,131 +510,132 @@ HANDOFF_COOLDOWN=60
 
 # 既に認証タブが開いている、または閉じた直後か。
 handoff_recent() {
-    local marker="$1" pane_id last now
-    [ -r "$marker" ] || return 1
-    read -r pane_id last <"$marker" || return 1
-    if [ -n "$pane_id" ] && herdr pane get "$pane_id" >/dev/null 2>&1; then
-        return 0
-    fi
-    now=$(date +%s)
-    [ -n "$last" ] && [ $((now - last)) -lt "$HANDOFF_COOLDOWN" ]
+	local marker="$1" pane_id last now
+	[ -r "$marker" ] || return 1
+	read -r pane_id last <"$marker" || return 1
+	if [ -n "$pane_id" ] && herdr pane get "$pane_id" >/dev/null 2>&1; then
+		return 0
+	fi
+	now=$(date +%s)
+	[ -n "$last" ] && [ $((now - last)) -lt "$HANDOFF_COOLDOWN" ]
 }
 
 # 認証タブを開いて aws-auth-ensure を走らせる。
 open_auth_tab() {
-    local profile="$1" marker="$2" out pane_id
-    # herdr CLI は結果を JSON で標準出力へ書く。credential_process の標準出力は creds 専用
-    # なので、必ず捕まえて漏らさない。
-    out=$(herdr tab create --label "AWS login: ${profile}" --focus 2>/dev/null) || return 1
-    pane_id=$(printf '%s' "$out" |
-        sed -n 's/.*"pane_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-    [ -n "$pane_id" ] || return 1
-    printf '%s %s\n' "$pane_id" "$(date +%s)" >"$marker" 2>/dev/null || true
-    # pane run はコマンドを「そのペインへの入力」として送る。起きたばかりのシェルが
-    # プロンプトを出すまで少し待つ。
-    sleep 0.5
-    herdr pane run "$pane_id" aws-auth-ensure "$profile" >/dev/null 2>&1 || return 1
-    herdr notification show "AWS 認証が切れています" \
-        --body "${profile} の認証が切れました。開いたタブでログインしてください。" \
-        --position top-right --sound request >/dev/null 2>&1 || true
+	local profile="$1" marker="$2" out pane_id
+	# herdr CLI は結果を JSON で標準出力へ書く。credential_process の標準出力は creds 専用
+	# なので、必ず捕まえて漏らさない。
+	out=$(herdr tab create --label "AWS login: ${profile}" --focus 2>/dev/null) || return 1
+	pane_id=$(printf '%s' "$out" |
+		sed -n 's/.*"pane_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+	[ -n "$pane_id" ] || return 1
+	printf '%s %s\n' "$pane_id" "$(date +%s)" >"$marker" 2>/dev/null || true
+	# pane run はコマンドを「そのペインへの入力」として送る。起きたばかりのシェルが
+	# プロンプトを出すまで少し待つ。
+	sleep 0.5
+	herdr pane run "$pane_id" aws-auth-ensure "$profile" >/dev/null 2>&1 || return 1
+	herdr notification show "AWS 認証が切れています" \
+		--body "${profile} の認証が切れました。開いたタブでログインしてください。" \
+		--position top-right --sound request >/dev/null 2>&1 || true
 }
 
 # herdr へ委譲できたら 0、できなければ 1。
 handoff_to_herdr() {
-    local profile="$1" lock marker
-    [ "${HERDR_ENV:-}" = "1" ] || return 1
-    [ -n "${HERDR_SOCKET_PATH:-}" ] && [ -S "$HERDR_SOCKET_PATH" ] || return 1
-    command -v herdr >/dev/null 2>&1 || return 1
-    # pane run はコマンドを入力として送るので、シェルのメタ文字を含む名前は渡さない。
-    case "$profile" in
-        *[!A-Za-z0-9._-]* | "") return 1 ;;
-    esac
+	local profile="$1" lock marker
+	[ "${HERDR_ENV:-}" = "1" ] || return 1
+	[ -n "${HERDR_SOCKET_PATH:-}" ] && [ -S "$HERDR_SOCKET_PATH" ] || return 1
+	command -v herdr >/dev/null 2>&1 || return 1
+	# pane run はコマンドを入力として送るので、シェルのメタ文字を含む名前は渡さない。
+	case "$profile" in
+	*[!A-Za-z0-9._-]* | "") return 1 ;;
+	esac
 
-    lock="$HOME/.aws/.aws-login-${profile}.handoff.lock"
-    marker="$HOME/.aws/.aws-login-${profile}.handoff"
-    (
-        # 1 回の署名で何度も呼ばれるので、同時に走っても 1 タブに収める。
-        flock -n 9 || exit 0
-        if handoff_recent "$marker"; then
-            exit 0
-        fi
-        open_auth_tab "$profile" "$marker"
-    ) 9>"$lock"
+	lock="$HOME/.aws/.aws-login-${profile}.handoff.lock"
+	marker="$HOME/.aws/.aws-login-${profile}.handoff"
+	(
+		# 1 回の署名で何度も呼ばれるので、同時に走っても 1 タブに収める。
+		flock -n 9 || exit 0
+		if handoff_recent "$marker"; then
+			exit 0
+		fi
+		open_auth_tab "$profile" "$marker"
+	) 9>"$lock"
 }
 
 # 対話ログインを禁じられているなら、ここではログインしない。
 # credential_process は TUI アプリの子プロセス（MCP サーバ等）からも呼ばれ、そこでの
 # ログイン URL は画面の中へ割り込んで表示を壊す。
 if [ -n "${AWS_LOGIN_NO_INTERACTIVE:-}" ]; then
-    mark_expired
-    if handoff_to_herdr "$1"; then
-        echo "aws-login: ${1} は未認証です。herdr の \"AWS login: ${1}\" タブで認証してください。" >&2
-    else
-        echo "aws-login: ${1} は未認証です（AWS_LOGIN_NO_INTERACTIVE のため対話ログインしません）。" >&2
-        echo "           端末で aws-auth-ensure ${1} を実行してください。" >&2
-    fi
-    exit 1
+	mark_expired
+	if handoff_to_herdr "$1"; then
+		echo "aws-login: ${1} は未認証です。herdr の \"AWS login: ${1}\" タブで認証してください。" >&2
+	else
+		echo "aws-login: ${1} は未認証です（AWS_LOGIN_NO_INTERACTIVE のため対話ログインしません）。" >&2
+		echo "           端末で aws-auth-ensure ${1} を実行してください。" >&2
+	fi
+	exit 1
 fi
 
 # 認証情報の取得に失敗 → flockで排他制御してログイン
 (
-    # まず待たずに試す。取れなければ「誰が握っているのか」を出してから待ち、居座っている
-    # 孤児は落として奪う。黙って 60 秒固まると、原因がロック待ちであることすら分からない。
-    if ! acquire_login_lock "$1"; then
-        notify_error "${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
-        exit 1
-    fi
-    # ロック取得後に再チェック（待っている間に別プロセスがログイン済みかもしれない）。
-    # ここでも STS で実際に有効かを確認するが、creds の出力は最後の 1 箇所に集約するため
-    # ここでは抑制し、判定結果（多重ログイン回避）だけを使う。
-    rc=0; emit_creds_if_valid >/dev/null 2>&1 || rc=$?
-    if [ "$rc" -ne 1 ]; then
-        exit 0
-    fi
+	# まず待たずに試す。取れなければ「誰が握っているのか」を出してから待ち、居座っている
+	# 孤児は落として奪う。黙って 60 秒固まると、原因がロック待ちであることすら分からない。
+	if ! acquire_login_lock "$1"; then
+		notify_error "${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
+		exit 1
+	fi
+	# ロック取得後に再チェック（待っている間に別プロセスがログイン済みかもしれない）。
+	# ここでも STS で実際に有効かを確認するが、creds の出力は最後の 1 箇所に集約するため
+	# ここでは抑制し、判定結果（多重ログイン回避）だけを使う。
+	rc=0
+	emit_creds_if_valid >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -ne 1 ]; then
+		exit 0
+	fi
 
-    # ローカル / SSH で認証方式を切り替える
-    # （各分岐の詳細はファイル冒頭「SSH 先での挙動」を参照）。
-    # portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（到達性確認の二重実行を避ける）。
-    portfwd_ok=""
-    if portfwd_channel_available; then portfwd_ok=1; fi
+	# ローカル / SSH で認証方式を切り替える
+	# （各分岐の詳細はファイル冒頭「SSH 先での挙動」を参照）。
+	# portfwd 逆チャネルの判定は 1 回だけ行いキャッシュする（到達性確認の二重実行を避ける）。
+	portfwd_ok=""
+	if portfwd_channel_available; then portfwd_ok=1; fi
 
-    if [[ -n $portfwd_ok ]]; then
-        # portfwd 逆チャネルあり。$BROWSER=portfwd-open がローカルのブラウザを開き、
-        # localhost コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
-        if { : >/dev/tty; } 2>/dev/null; then
-            aws login </dev/tty >/dev/tty 2>&1
-        else
-            aws login
-        fi
-    elif [[ -n $BROWSER && $BROWSER != portfwd-open && $BROWSER != */portfwd-open ]]; then
-        # VSCode Remote 等、$BROWSER 経由でローカルのブラウザを開ける環境。
-        # ポートフォワードで localhost コールバックも戻るので --remote は付けない。
-        #
-        # portfwd-open だけは除外する。.zshenv は LC_PORTFWD_HOST があるだけで $BROWSER を
-        # portfwd-open に向けるので、逆チャネルが死んでいてもここへ落ちてくる。そのまま
-        # コールバック方式で進むと portfwd-open が非ゼロ終了して認証が完結しないため、
-        # 下の --remote へ流す。
-        #
-        # VSCode の $BROWSER ヘルパ（browser.sh → 同梱 node で server-cli.js を実行）は
-        # 内部で url.parse() を使っており、Node が DEP0169 の DeprecationWarning を
-        # stderr に出す。ログインには無害なノイズなので、ヘルパを起動するこの分岐に限って
-        # --no-deprecation で黙らせる（既存の $NODE_OPTIONS は保持する）。
-        node_opts="${NODE_OPTIONS:+$NODE_OPTIONS }--no-deprecation"
-        if { : >/dev/tty; } 2>/dev/null; then
-            NODE_OPTIONS="$node_opts" aws login </dev/tty >/dev/tty 2>&1
-        else
-            NODE_OPTIONS="$node_opts" aws login
-        fi
-    elif [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
-        # SSH。URL 表示＋コード貼り付け方式で、制御端末へ直結する。
-        aws login --remote </dev/tty >/dev/tty 2>&1
-    elif [[ -n $SSH_CONNECTION ]]; then
-        aws login --remote
-    else
-        # ローカル。ブラウザでの認証（従来どおり）。
-        unset DISPLAY
-        aws login
-    fi
+	if [[ -n $portfwd_ok ]]; then
+		# portfwd 逆チャネルあり。$BROWSER=portfwd-open がローカルのブラウザを開き、
+		# localhost コールバックは SOCKS5 リレー経由で SSH 先の loopback へ戻る。
+		if { : >/dev/tty; } 2>/dev/null; then
+			aws login </dev/tty >/dev/tty 2>&1
+		else
+			aws login
+		fi
+	elif [[ -n $BROWSER && $BROWSER != portfwd-open && $BROWSER != */portfwd-open ]]; then
+		# VSCode Remote 等、$BROWSER 経由でローカルのブラウザを開ける環境。
+		# ポートフォワードで localhost コールバックも戻るので --remote は付けない。
+		#
+		# portfwd-open だけは除外する。.zshenv は LC_PORTFWD_HOST があるだけで $BROWSER を
+		# portfwd-open に向けるので、逆チャネルが死んでいてもここへ落ちてくる。そのまま
+		# コールバック方式で進むと portfwd-open が非ゼロ終了して認証が完結しないため、
+		# 下の --remote へ流す。
+		#
+		# VSCode の $BROWSER ヘルパ（browser.sh → 同梱 node で server-cli.js を実行）は
+		# 内部で url.parse() を使っており、Node が DEP0169 の DeprecationWarning を
+		# stderr に出す。ログインには無害なノイズなので、ヘルパを起動するこの分岐に限って
+		# --no-deprecation で黙らせる（既存の $NODE_OPTIONS は保持する）。
+		node_opts="${NODE_OPTIONS:+$NODE_OPTIONS }--no-deprecation"
+		if { : >/dev/tty; } 2>/dev/null; then
+			NODE_OPTIONS="$node_opts" aws login </dev/tty >/dev/tty 2>&1
+		else
+			NODE_OPTIONS="$node_opts" aws login
+		fi
+	elif [[ -n $SSH_CONNECTION ]] && { : >/dev/tty; } 2>/dev/null; then
+		# SSH。URL 表示＋コード貼り付け方式で、制御端末へ直結する。
+		aws login --remote </dev/tty >/dev/tty 2>&1
+	elif [[ -n $SSH_CONNECTION ]]; then
+		aws login --remote
+	else
+		# ローカル。ブラウザでの認証（従来どおり）。
+		unset DISPLAY
+		aws login
+	fi
 ) 200>"$LOGIN_LOCK"
 
 # ログイン直後（または上のロック内で別プロセスがログイン済みと判明した）creds を出力する。
@@ -643,9 +645,9 @@ fi
 # ログインできたものとして先へ進む）。
 creds=$(aws configure export-credentials --format process) || creds=""
 if [ -z "$creds" ]; then
-    mark_expired
-    notify_error "${1} の認証情報を取得できませんでした。ログインが完了していません。"
-    exit 1
+	mark_expired
+	notify_error "${1} の認証情報を取得できませんでした。ログインが完了していません。"
+	exit 1
 fi
 emit_creds "$creds"
 clear_expired

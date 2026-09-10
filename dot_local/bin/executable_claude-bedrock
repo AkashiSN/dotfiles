@@ -15,12 +15,12 @@
 set -euo pipefail
 
 CLAUDE=$(command -v claude) || {
-  echo "claude-bedrock: PATH に claude が見つかりません" >&2
-  exit 1
+	echo "claude-bedrock: PATH に claude が見つかりません" >&2
+	exit 1
 }
 
 if [ -n "${SSH_CONNECTION:-}" ] && [ $# -eq 0 ]; then
-  set -- --remote-control
+	set -- --remote-control
 fi
 
 exec "$HOME/.local/bin/claude-bedrock-wrapper" "$CLAUDE" "$@"

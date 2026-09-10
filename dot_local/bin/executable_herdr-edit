@@ -24,12 +24,12 @@ set -euo pipefail
 
 # エラーを stderr へ出し、TTY があれば読める時間を作ってから終了する
 die() {
-  printf 'herdr-edit: %s\n' "$*" >&2
-  if [ -t 0 ]; then
-    printf '\n[Enter] で元の画面に戻ります… ' >&2
-    read -r _ || true
-  fi
-  exit 1
+	printf 'herdr-edit: %s\n' "$*" >&2
+	if [ -t 0 ]; then
+		printf '\n[Enter] で元の画面に戻ります… ' >&2
+		read -r _ || true
+	fi
+	exit 1
 }
 
 # 開くファイルが無ければ何もしない（yazi でカーソルも選択も無いケース）
@@ -39,7 +39,7 @@ command -v herdr >/dev/null 2>&1 || die 'herdr コマンドが見つかりませ
 
 # herdr に届くか確認する。届かない理由（サーバ未起動 / protocol 不一致）をそのまま見せる
 if ! probe=$(herdr tab list 2>&1); then
-  die "herdr セッションに接続できません:
+	die "herdr セッションに接続できません:
 ${probe}"
 fi
 
@@ -47,7 +47,7 @@ fi
 dir=$(dirname -- "$1")
 label=$(basename -- "$1")
 if ! created=$(herdr tab create --focus --cwd "$dir" --label "$label" 2>&1); then
-  die "新規タブを作成できませんでした:
+	die "新規タブを作成できませんでした:
 ${created}"
 fi
 
@@ -57,6 +57,6 @@ ${created}"
 
 # 作成したタブのペインで nvim を起動する
 if ! ran=$(herdr pane run "$pane_id" nvim "$@" 2>&1); then
-  die "nvim を起動できませんでした:
+	die "nvim を起動できませんでした:
 ${ran}"
 fi

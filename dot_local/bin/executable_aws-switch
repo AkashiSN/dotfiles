@@ -37,20 +37,20 @@ unset AWS_SESSION_TOKEN
 
 # プロファイル名の取得
 if [[ -z $1 ]]; then
-    # 引数なしの場合、pecoでプロファイルを選択（signinを除外）
-    #
-    # peco をキャンセル（Ctrl+C / ESC / 候補を絞り込めないまま Enter）したときの終了コードは
-    # 0 になることがあり、set -e では中断を検知できない。選択結果が空かどうかで判定する。
-    # 空のまま進むと aws-login に空文字を渡し、"-signin" プロファイルで意図しないログインを
-    # 試みたうえ .env の AWS_PROFILE 行まで壊れる。
-    AWS_PROFILE=$(aws configure list-profiles | grep -v -E "signin" | peco --select-1 --query "$LBUFFER") || true
-    if [[ -z $AWS_PROFILE ]]; then
-        echo "Profile selection cancelled. Nothing changed." >&2
-        exit 1
-    fi
+	# 引数なしの場合、pecoでプロファイルを選択（signinを除外）
+	#
+	# peco をキャンセル（Ctrl+C / ESC / 候補を絞り込めないまま Enter）したときの終了コードは
+	# 0 になることがあり、set -e では中断を検知できない。選択結果が空かどうかで判定する。
+	# 空のまま進むと aws-login に空文字を渡し、"-signin" プロファイルで意図しないログインを
+	# 試みたうえ .env の AWS_PROFILE 行まで壊れる。
+	AWS_PROFILE=$(aws configure list-profiles | grep -v -E "signin" | peco --select-1 --query "$LBUFFER") || true
+	if [[ -z $AWS_PROFILE ]]; then
+		echo "Profile selection cancelled. Nothing changed." >&2
+		exit 1
+	fi
 else
-    # 引数でプロファイル名が指定された場合
-    AWS_PROFILE=$1
+	# 引数でプロファイル名が指定された場合
+	AWS_PROFILE=$1
 fi
 
 export AWS_PROFILE
@@ -64,7 +64,6 @@ PREV_PROFILE=$(sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=[\"']?
 # AWS を含む他の変数（CODEX_BEDROCK_AWS_PROFILE 等）を巻き込まないため。
 sed -i -E '/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=/d' $HOME/.env
 
-
 # ロール名の決定
 # 1. 第2引数で明示的に指定された場合はそれを使用
 # 2. プロファイルにassume_role_name属性がある場合はそれを使用
@@ -77,48 +76,48 @@ sed -i -E '/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=/d' $HOME/.env
 # （AWS CLI 標準キーではないので CLI からは無視される。書いても素通しで保持される）
 ASSUME_ROLE_NAME="${2:-}"
 if [[ -z $ASSUME_ROLE_NAME ]]; then
-    # AWS_PROFILE は上で export 済みなので、その（ベース）プロファイルから読む
-    ASSUME_ROLE_NAME=$(aws configure get assume_role_name 2>/dev/null || echo "")
+	# AWS_PROFILE は上で export 済みなので、その（ベース）プロファイルから読む
+	ASSUME_ROLE_NAME=$(aws configure get assume_role_name 2>/dev/null || echo "")
 fi
 
 # 注意: 分岐しても呼ぶのは同じ `aws-login ${AWS_PROFILE}`。ASSUME_ROLE_NAME は
 # 「ブラウザでどのロールを選べばよいか」を画面に出すための目印で、実際のロール選択は
 # `aws login` のブラウザ認証側で行う（このスクリプトがロールを直接渡すわけではない）。
 if [[ -n $ASSUME_ROLE_NAME ]]; then
-    echo ""
-    echo "========================================="
-    echo "Assume Role Mode"
-    echo "========================================="
-    echo "Role name: ${ASSUME_ROLE_NAME}"
-    echo ""
-    echo "IMPORTANT: You must select the role above when authenticating in the browser."
-    echo "You need to log in as this role, not as a user."
-    echo "========================================="
-    echo ""
+	echo ""
+	echo "========================================="
+	echo "Assume Role Mode"
+	echo "========================================="
+	echo "Role name: ${ASSUME_ROLE_NAME}"
+	echo ""
+	echo "IMPORTANT: You must select the role above when authenticating in the browser."
+	echo "You need to log in as this role, not as a user."
+	echo "========================================="
+	echo ""
 
-    echo "Executing aws-login command for authentication..."
-    if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
-        echo "Authentication successful."
-    else
-        echo "Authentication failed."
-        exit 1
-    fi
+	echo "Executing aws-login command for authentication..."
+	if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
+		echo "Authentication successful."
+	else
+		echo "Authentication failed."
+		exit 1
+	fi
 
-    echo "export AWS_PROFILE=${AWS_PROFILE}" >> $HOME/.env
-    echo "Successful profile switch to ${AWS_PROFILE}."
+	echo "export AWS_PROFILE=${AWS_PROFILE}" >>$HOME/.env
+	echo "Successful profile switch to ${AWS_PROFILE}."
 else
-    echo "Logging in with user permissions."
+	echo "Logging in with user permissions."
 
-    echo "Executing aws-login command for authentication..."
-    if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
-        echo "Authentication successful."
-    else
-        echo "Authentication failed."
-        exit 1
-    fi
+	echo "Executing aws-login command for authentication..."
+	if aws-login ${AWS_PROFILE} >/dev/null 2>&1; then
+		echo "Authentication successful."
+	else
+		echo "Authentication failed."
+		exit 1
+	fi
 
-    echo "export AWS_PROFILE=${AWS_PROFILE}" >> $HOME/.env
-    echo "Successful profile switch to ${AWS_PROFILE}."
+	echo "export AWS_PROFILE=${AWS_PROFILE}" >>$HOME/.env
+	echo "Successful profile switch to ${AWS_PROFILE}."
 fi
 
 # 切り替え元に残った .expired marker を落とす。
@@ -127,5 +126,5 @@ fi
 # もう使っていないプロファイルの警告が Claude Code の statusLine に残り続ける。
 # まだ必要なプロファイルなら、次の credential_process 呼び出しで置き直される。
 if [[ -n $PREV_PROFILE && $PREV_PROFILE != "$AWS_PROFILE" ]]; then
-    rm -f "$HOME/.aws/.aws-login-${PREV_PROFILE}.expired" 2>/dev/null || true
+	rm -f "$HOME/.aws/.aws-login-${PREV_PROFILE}.expired" 2>/dev/null || true
 fi

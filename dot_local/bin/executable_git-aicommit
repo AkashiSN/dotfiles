@@ -13,12 +13,21 @@ lang="${AI_GIT_LANG:-ja}"
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--detail) detail=1 ;;
-		--lang) shift; lang="${1:?--lang requires an argument}" ;;
-		--ja) lang=ja ;;
-		--en) lang=en ;;
-		-h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-		*) echo "git-aicommit: unknown option: $1" >&2; exit 1 ;;
+	--detail) detail=1 ;;
+	--lang)
+		shift
+		lang="${1:?--lang requires an argument}"
+		;;
+	--ja) lang=ja ;;
+	--en) lang=en ;;
+	-h | --help)
+		sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	*)
+		echo "git-aicommit: unknown option: $1" >&2
+		exit 1
+		;;
 	esac
 	shift
 done
@@ -30,9 +39,12 @@ if git diff --cached --quiet; then
 fi
 
 case "$lang" in
-	en) langname="English" ;;
-	ja) langname="Japanese" ;;
-	*)  echo "git-aicommit: unsupported language: $lang (ja|en)" >&2; exit 1 ;;
+en) langname="English" ;;
+ja) langname="Japanese" ;;
+*)
+	echo "git-aicommit: unsupported language: $lang (ja|en)" >&2
+	exit 1
+	;;
 esac
 
 diff=$(git diff --cached)

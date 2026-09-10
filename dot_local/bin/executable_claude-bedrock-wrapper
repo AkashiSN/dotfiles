@@ -27,8 +27,8 @@
 set -euo pipefail
 
 die() {
-  echo "claude-bedrock-wrapper: $1" >&2
-  exit 1
+	echo "claude-bedrock-wrapper: $1" >&2
+	exit 1
 }
 
 [ $# -gt 0 ] || die "使い方: claude-bedrock-wrapper <claude 実行ファイル> [args...]"
@@ -41,8 +41,8 @@ export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
 
 AUTH_ENSURE="$HOME/.local/bin/aws-auth-ensure"
 if [ -x "$AUTH_ENSURE" ]; then
-  "$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock" ||
-    die "Bedrock 用プロファイル ${AWS_PROFILE} が未認証のため起動しません。"
+	"$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock" ||
+		die "Bedrock 用プロファイル ${AWS_PROFILE} が未認証のため起動しません。"
 fi
 
 # 子プロセス (MCP サーバ等) から credential_process が呼ばれても、画面の中にログイン URL を

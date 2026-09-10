@@ -37,8 +37,8 @@ aqua_root="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}"
 mo_bin="$aqua_root/bin/mo"
 
 die() {
-  echo "mo: $1" >&2
-  exit 1
+	echo "mo: $1" >&2
+	exit 1
 }
 
 [ -x "$mo_bin" ] || die "${mo_bin} が見つかりません(aqua 共有ストアへの導入が済んでいない可能性があります)"

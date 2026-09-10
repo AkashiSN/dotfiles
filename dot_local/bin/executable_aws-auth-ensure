@@ -40,12 +40,12 @@ export AQUA_GLOBAL_CONFIG="${AQUA_GLOBAL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.confi
 CREDS_CACHE_MIN_REMAINING=120
 
 note() {
-    printf '%s: %s\n' "$PROG" "$1" >&2
+	printf '%s: %s\n' "$PROG" "$1" >&2
 }
 
 if [ $# -lt 1 ] || [ -z "$1" ]; then
-    note "使い方: $PROG <プロファイル> [用途]"
-    exit 2
+	note "使い方: $PROG <プロファイル> [用途]"
+	exit 2
 fi
 PROFILE="$1"
 LABEL="${2:-}"
@@ -61,57 +61,57 @@ command -v aws >/dev/null 2>&1 || exit 0
 # GNU date(Linux) は -d でそのまま読めるが、BSD date(macOS) は -j -f で書式を渡すうえ
 # %z が +0000 形式しか受け取らないため、末尾のオフセットを均してから渡す。
 to_epoch() {
-    local ts="$1"
-    date -d "$ts" +%s 2>/dev/null && return 0
-    ts="${ts%Z}"
-    case "$ts" in
-        *[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
-        *[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
-        *) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
-    esac
-    date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
+	local ts="$1"
+	date -d "$ts" +%s 2>/dev/null && return 0
+	ts="${ts%Z}"
+	case "$ts" in
+	*[+-][0-9][0-9]:[0-9][0-9]) ts="${ts%:*}${ts##*:}" ;; # +00:00 -> +0000
+	*[+-][0-9][0-9][0-9][0-9]) ;;                         # すでに +0000
+	*) ts="${ts}+0000" ;;                                 # Z / オフセット無しは UTC
+	esac
+	date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null
 }
 
 # aws-login が残した creds キャッシュに、まだ使える余裕があるか。
 cache_fresh() {
-    local cache="$HOME/.aws/.aws-login-${PROFILE}.creds.json" exp exp_epoch
-    [ -r "$cache" ] || return 1
-    exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cache")
-    [ -n "$exp" ] || return 1
-    exp_epoch=$(to_epoch "$exp") || return 1
-    [ -n "$exp_epoch" ] || return 1
-    [ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ]
+	local cache="$HOME/.aws/.aws-login-${PROFILE}.creds.json" exp exp_epoch
+	[ -r "$cache" ] || return 1
+	exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cache")
+	[ -n "$exp" ] || return 1
+	exp_epoch=$(to_epoch "$exp") || return 1
+	[ -n "$exp_epoch" ] || return 1
+	[ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ]
 }
 
 # -signin セッションでいま STS が通るか。呼び出し元が持ち込んだ認証情報や既定プロファイル、
 # EC2 インスタンスロールを拾わないよう断ってから叩く。
 session_valid() {
-    env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
-        AWS_PROFILE="${PROFILE}-signin" \
-        AWS_EC2_METADATA_DISABLED=true \
-        aws sts get-caller-identity >/dev/null 2>&1
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		AWS_PROFILE="${PROFILE}-signin" \
+		AWS_EC2_METADATA_DISABLED=true \
+		aws sts get-caller-identity >/dev/null 2>&1
 }
 
 if cache_fresh || session_valid; then
-    # 認証切れ marker が残っていれば消す (別経路で入り直したときのため)。
-    # 置くのは aws-login、読むのは Claude Code の statusLine。
-    rm -f "$HOME/.aws/.aws-login-${PROFILE}.expired" 2>/dev/null || true
-    exit 0
+	# 認証切れ marker が残っていれば消す (別経路で入り直したときのため)。
+	# 置くのは aws-login、読むのは Claude Code の statusLine。
+	rm -f "$HOME/.aws/.aws-login-${PROFILE}.expired" 2>/dev/null || true
+	exit 0
 fi
 
 # 対話ログインへ進んでよいか。AWS_LOGIN_NO_INTERACTIVE は「この配下でログイン UI を出すな」
 # の意なので、ここでも従う。
 if [ -n "${AWS_LOGIN_NO_INTERACTIVE:-}" ] || [ ! -t 0 ] || ! { : >/dev/tty; } 2>/dev/null; then
-    note "${WHO} が未認証です。aws-login ${PROFILE} を実行してください。"
-    exit 1
+	note "${WHO} が未認証です。aws-login ${PROFILE} を実行してください。"
+	exit 1
 fi
 
 note "${WHO} が未認証です。ログインします…"
 # aws-login の標準出力は creds の JSON 専用。ログインの進捗と URL は /dev/tty へ出るので、
 # 標準出力は捨てて画面に JSON を吐かせない。
 if aws-login "$PROFILE" >/dev/null; then
-    note "${PROFILE} にログインしました。"
-    exit 0
+	note "${PROFILE} にログインしました。"
+	exit 0
 fi
 
 note "${PROFILE} のログインに失敗しました。"
