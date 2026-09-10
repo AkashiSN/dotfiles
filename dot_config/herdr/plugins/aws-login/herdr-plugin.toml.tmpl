@@ -1,0 +1,25 @@
+# AWS の認証切れを前面の popup で復旧するための herdr プラグイン。
+#
+# TUI アプリ（Claude Code）の中で認証切れを踏むと、その場でログイン UI を出せない。aws-login は
+# ここで宣言した popup を開き、そちらで aws-auth-handoff に認証させる。認証が済めばコマンドが
+# 終了し、popup も一緒に消える。
+#
+# 登録は aws-login が委譲の直前に plugin.link で貼り直す（冪等）。plugins.json はマニフェストの
+# 内容をキャッシュするので、このファイルを直したら貼り直すまで反映されない。
+#
+# 関連: dot_local/bin/executable_aws-login / executable_aws-auth-handoff / docs/herdr-cheatsheet.md
+id = "aws-login"
+name = "aws-login"
+version = "1.0.0"
+min_herdr_version = "0.8.2"
+description = "AWS の認証切れを前面の popup で復旧する"
+platforms = ["darwin", "linux"]
+
+# placement = "popup" のときだけ width / height が効く。認証 URL が折り返さずに読める幅を取る。
+[[panes]]
+id = "auth"
+title = "AWS login"
+placement = "popup"
+width = "80%"
+height = "50%"
+command = ["{{ .chezmoi.homeDir }}/.local/bin/aws-auth-handoff"]

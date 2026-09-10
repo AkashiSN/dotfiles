@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""herdr-api <method> [params-json] - herdr の socket API へ 1 リクエスト投げる。
+
+何のためにあるか:
+  herdr の CLI (`herdr tab` / `herdr pane` ...) は socket API の一部しか露出していない。
+  plugin 系 (`plugin.link` / `plugin.pane.open` / `popup.close`) には CLI が無いので、
+  ここから直接投げる。
+
+プロトコル:
+  Unix domain socket ($HERDR_SOCKET_PATH) へ 1 行 1 JSON。
+  リクエスト {"id","method","params"} → レスポンス {"id","result"} か {"id","error":{"code","message"}}。
+  ハンドシェイクは無い。
+
+出力:
+  成功 → result を JSON で標準出力へ。終了コード 0
+  失敗 → "<code>: <message>" を標準エラーへ。終了コード 1（使い方の誤りは 2）
+
+関連: aws-login / aws-auth-handoff / docs/herdr-cheatsheet.md
+"""
+
+import json
+import os
+import socket
+import sys
+import uuid
+
+# 応答を待つ上限[秒]。API はどれも即答するので、固まったら諦めて呼び出し元を進ませる。
+TIMEOUT = 5
+
+
+def main() -> int:
+    if not 2 <= len(sys.argv) <= 3:
+        print("使い方: herdr-api <method> [params-json]", file=sys.stderr)
+        return 2
+    method = sys.argv[1]
+    try:
+        params = json.loads(sys.argv[2]) if len(sys.argv) == 3 else {}
+    except ValueError as e:
+        print(f"params が JSON ではありません: {e}", file=sys.stderr)
+        return 2
+
+    path = os.environ.get("HERDR_SOCKET_PATH")
+    if not path:
+        print("HERDR_SOCKET_PATH が未設定です（herdr の中で実行してください）", file=sys.stderr)
+        return 1
+
+    request = {"id": f"api:{uuid.uuid4().hex[:8]}", "method": method, "params": params}
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(TIMEOUT)
+            sock.connect(path)
+            sock.sendall((json.dumps(request) + "\n").encode())
+            buf = b""
+            while b"\n" not in buf:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+    except OSError as e:
+        print(f"{path} と通信できません: {e}", file=sys.stderr)
+        return 1
+
+    line = buf.split(b"\n", 1)[0]
+    if not line.strip():
+        print("応答が空です", file=sys.stderr)
+        return 1
+    try:
+        response = json.loads(line)
+    except ValueError as e:
+        print(f"応答が JSON ではありません: {e}", file=sys.stderr)
+        return 1
+
+    if "error" in response:
+        err = response["error"]
+        print(f"{err.get('code', 'error')}: {err.get('message', '')}", file=sys.stderr)
+        return 1
+    print(json.dumps(response.get("result", {}), ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

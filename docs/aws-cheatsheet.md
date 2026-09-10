@@ -78,6 +78,93 @@ MCP サーバーのように起動時へ署名が集中する利用者は接続�
 復旧できる。`aws-logout` はトークンを破棄してもキャッシュの `Expiration` を縮められないため、
 ログアウト時にファイルごと消している。
 
+### aws-login のログ
+
+`aws-login` は「どう判断したか」を `~/.aws/.aws-login.log`（600、全プロファイル共通、1 行 1 件、
+512KB を超えたら古い側から捨てる）へ残す。**認証情報そのものは書かない。**
+
+```
+2026-09-10T12:59:28+0900 pid=581754 ppid=581730 profile=<profile> event=refresh-fail detail="..."
+2026-09-10T12:59:28+0900 pid=581754 ppid=581730 profile=<profile> event=no-interactive detail="handoff=none"
+```
+
+| event | 意味 |
+| --- | --- |
+| `cache-hit` | 認証情報キャッシュが生きていたので `aws` CLI を起動しなかった（`detail` に残り秒数） |
+| `refresh-ok` / `refresh-fail` | `export-credentials` が通ったか。失敗時は `detail` に理由 |
+| `refresh-retry-ok` | 1 回失敗したあと、待って試し直したら通った（`detail` に何回目か） |
+| `refresh-empty` | 成功したのに中身が空だった |
+| `sts-expired` | `get-caller-identity` が認証エラー。**本当に期限切れ** |
+| `sts-unreachable` | ネットワーク到達不能。判定できないのでキャッシュで続行した |
+| `no-interactive` | 対話ログインを禁じられていて失敗終了した。`detail` の `handoff=` が委譲先（`herdr-popup` / `herdr-tab` / `pending`（既に開いている）/ `skipped`（人手が要らないので開かなかった）/ `none`） |
+| `transient-grace-exceeded` | 「更新できないがセッションは生きている」が 3 分続いたので、見送りをやめて委譲した |
+| `refresh-wait` | 他のプロセスが更新中だったので待った |
+| `refresh-shared` | 待っている間に他のプロセスが更新を終えたので、その結果を返した（自分は更新していない） |
+| `refresh-lock-timeout` | 更新のロックが 20 秒空かなかったので、ロック無しで更新した |
+| `lock-busy` / `login-start` / `login-skipped` / `login-ok` / `login-fail` | ログインの排他と結果 |
+
+`pid` と時刻を残すのが肝で、**同じプロファイルを使う複数プロセスが同じ時刻に更新を掛けて
+片方だけ失敗した**、という重なりはこれでしか見えない。
+
+「よく認証が切れる」を追うときは、まず `refresh-fail` と `sts-expired` を見分ける。前者は更新の
+失敗（一時エラーを含む）、後者はセッションが本当に終わっている。
+
+```sh
+grep -E 'refresh-fail|sts-expired|no-interactive' ~/.aws/.aws-login.log | tail -20
+```
+
+`refresh-shared` の件数は「直列化しなければ競合していた回数」、`refresh-retry-ok` の件数は
+「リトライで救った回数」にあたる。前者が多ければそのプロファイルを同時に使うプロセスが多く、
+後者が多ければ更新そのものが一時的に弾かれている。
+
+```sh
+grep -c 'event=refresh-shared' ~/.aws/.aws-login.log
+grep -c 'event=refresh-retry-ok' ~/.aws/.aws-login.log
+```
+
+### 更新が一瞬だけ弾かれることがある
+
+`CreateOAuth2Token` が `The provided authorization grant is invalid, expired, revoked, or malformed`
+を返しても、**数秒後には同じ refresh token で通る**ことがある（実測 2 件。うち 1 件は同時実行が
+無い状態で起きた）。1 回目の失敗で認証切れとして扱うと、通るはずの認証のために人を呼び出して
+しまうので、`aws-login` は**待って試し直す**（`refresh-retry-ok`）。
+
+リトライは `export-credentials` の失敗だけが対象で、**待つのは 2 秒 × 2 回**（実測で一時的な失敗が
+3〜4 秒続いたため）。エラーが「セッションが切れた」とはっきり言っているとき
+（`session has expired` / `Token has expired` / `reauthenticate`）や、STS が認証エラーを返したとき
+（`sts-expired`）は、待っても通らないのでリトライしない。
+
+### 人手が要らないなら popup もタブも開かない
+
+更新に失敗しても、`<profile>-signin` で `sts get-caller-identity` が通るなら**ログインセッションは
+生きている**。人がブラウザで入り直しても何も変わらないので、`aws-login` は**委譲を見送る**
+（`handoff=skipped`）。`.expired` marker も置かないので statusLine も警告しない。次の呼び出しで
+復帰する。
+
+これが無いと、通るはずの認証のために popup が開いて人が何もしないうちに消える、という無駄な
+割り込みになる（実際に起きた）。
+
+ただし「セッションは生きているのに creds が取れない」が **3 分**続いたら、別の異常なので見送りを
+やめて委譲する（`transient-grace-exceeded`）。判定には
+`~/.aws/.aws-login-<profile>.transient` に残した最初の見送り時刻を使い、認証情報が取れた時点で
+消す。
+
+### 認証情報の更新は 1 プロファイル 1 本に絞られる
+
+creds キャッシュはプロファイル単位の共有ファイルなので、期限が近づくと**そのプロファイルを使う
+全プロセスが一斉に更新へ進む**。更新は refresh token を 1 回使い切りで差し替えるため、同時に
+踏むと片方が弾かれ、セッションが生きていても「認証切れ」として見えてしまう。
+
+そこで `aws-login` は更新を `~/.aws/.aws-login-<profile>.refresh.lock` で直列化する。**ロックを
+取った後にキャッシュを見直す**のが要点で、待っている間に他のプロセスが更新を終えていれば、その
+結果を返して自分は更新しない（`refresh-shared`）。ロックが 20 秒空かないときは諦めてロック無しで
+更新する（`refresh-lock-timeout`）—— ロックの取り合いがそのまま認証切れになるのを避けるため。
+
+ログインの排他（`~/.aws/.aws-login-<profile>.lock`、最大 60 秒待ち）とは別のロックで、人が
+ブラウザで認証している間に他プロセスの更新が止まることはない。
+
+### 認証情報キャッシュを消す
+
 キャッシュが壊れている・空・`Expiration` が無いときは通常経路へ落ちるので、消して困ることは
 無い。挙動を疑ったら消してよい。
 
@@ -236,23 +323,38 @@ AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`�
 
 | 何が起きるか | どこで見えるか |
 | --- | --- |
-| herdr セッション内なら、`AWS login: <profile>` というタブを開いて `aws-auth-ensure` を走らせ、そこへフォーカスを移す。あわせて herdr の通知を出す | herdr のタブ |
-| `~/.aws/.aws-login-<profile>.expired` を置く | Claude Code の statusLine が `⚠ AWS 未認証: <profile>` と出す（statusLine は Claude Code にしか無いので、codex で気づく手掛かりはタブだけ） |
+| herdr セッション内なら、`AWS login` の popup を前面に開いて `aws-auth-handoff` を走らせる。あわせて herdr の通知を出す | herdr の popup |
+| popup が開けなければ `AWS login: <profile>` タブへフォールバックし、同じものを走らせる | herdr のタブ |
+| `~/.aws/.aws-login-<profile>.expired` を置く | Claude Code の statusLine が `⚠ AWS 未認証: <profile>` と出す（statusLine は Claude Code にしか無いので、codex で気づく手掛かりは popup だけ） |
 
 呼び出し元には待たせず失敗を返す。MCP の接続タイムアウトは 30 秒しかなく、人の認証を待って
 ブロックする方が体験が悪いため。**認証が通れば次の呼び出しで復帰する**（`credential_process` の
 失敗は botocore に負のキャッシュとして残らない）。
 
-開いたタブは herdr サーバが起こすので `AWS_LOGIN_NO_INTERACTIVE` を継承せず、ふつうの端末として
+委譲先で走る `aws-auth-handoff` は、**認証が済んだら自分の居場所を片付ける**。popup は中の
+コマンドが終了すれば閉じ、タブなら `$HERDR_TAB_ID` を見て自分で閉じる。失敗したときだけ理由を
+出して残る。委譲先を残さないのが肝で、認証タブが残っていると下の抑止に当たって**次の失効で
+誰にも気づかれないまま失敗し続ける**。
+
+委譲先は herdr サーバが起こすので `AWS_LOGIN_NO_INTERACTIVE` を継承せず、ふつうの端末として
 上のログイン分岐（portfwd 逆チャネル / `$BROWSER` / `--remote`）がそのまま働く。**どの方式で
-ログインするかを新しく判断しなくて済むのが、タブへ委譲する一番の利点。**
+ログインするかを新しく判断しなくて済むのが、委譲の一番の利点。**
 
-`credential_process` は 1 回の署名で何度も呼ばれるので、タブが湧かないよう抑えてある。
+popup は herdr のプラグインとして宣言する（`dot_config/herdr/plugins/aws-login/`）。CLI から
+開く口が無いので `herdr-api` で socket API を直接叩き、登録は委譲の直前に `plugin.link` で
+貼り直す（冪等。[herdr-cheatsheet.md](herdr-cheatsheet.md#プラグイン-popupherdr-api)）。
 
-- `~/.aws/.aws-login-<profile>.handoff` に `<pane_id> <epoch>` を残し、そのペインがまだ開いて
-  いれば新しく開かない
-- ペインが閉じていても 60 秒は開き直さない（ユーザが閉じたのに湧き続けるのを防ぐ）
+認証したいプロファイルは popup へ `AWS_LOGIN_PROFILE` として渡す。popup のプロセスは **herdr
+サーバの環境**を継承し、そこの `AWS_PROFILE` は認証したいものとは無関係な値なので、それに任せると
+別のプロファイルでログインしてしまう。
+
+`credential_process` は 1 回の署名で何度も呼ばれるので、委譲先が湧かないよう抑えてある。
+
+- `~/.aws/.aws-login-<profile>.handoff` に `<pane_id または -> <epoch>` を残し、そのペインが
+  まだ開いていれば新しく開かない（popup は pane_id が返らないので時刻だけを見る）
+- 閉じていても 60 秒は開き直さない（ユーザが閉じたのに湧き続けるのを防ぐ）
 - 同時呼び出しは `flock` で 1 つに絞る
+- **抑止したときも通知は出す。** 委譲先が開いたまま放置されているだけかもしれないため
 
 `.expired` は認証が通った時点で `aws-login` / `aws-auth-ensure` が消す。取り残される経路は
 2 つあり、それぞれ別の担当が拾う。
@@ -268,7 +370,7 @@ statusLine の警告は `~/.aws/.aws-login-*.expired` を glob して並べる�
 置き直される。
 
 `AWS_LOGIN_NO_INTERACTIVE` が唯一のゲートなので、**herdr のペインで普通に `aws s3 ls` を叩いて
-期限切れになった場合は今までどおりその場でログインする**。タブは湧かない。
+期限切れになった場合はその場でログインする**。popup もタブも湧かない。
 
 期限切れではなく**別タブで `aws-logout` した**ときも同じ経路に乗る
 （[走行中のアプリを置いてログアウトしたとき](#走行中のアプリを置いてログアウトしたとき)）。
@@ -303,12 +405,13 @@ aws-logout --all        # すべての -signin プロファイルを掃除
 
 - Bedrock 呼び出しが認証エラーになる。`AWS_LOGIN_NO_INTERACTIVE=1` が効いているので、
   TUI の中にログイン URL は描かれない
-- `AWS login: <profile>` タブが開き、statusLine に `⚠ AWS 未認証: <profile>` が出る
-- そのタブでログインし直せば、**Claude Code を起動し直さずに**次の呼び出しから復帰する
+- `AWS login` の popup が前面に開き、statusLine に `⚠ AWS 未認証: <profile>` が出る
+- その popup でログインし直せば、**Claude Code を起動し直さずに**次の呼び出しから復帰する
+  （認証が済めば popup は自分で閉じる）
 
 ただし `~/.env` の行は戻らない。走っているプロセスは自分の環境変数を持っているので影響を
 受けないが、この後に起動するシェルはプロファイル無指定（既定）になる。作業を続けるなら
-タブでのログインで終わらせず、`aws-switch <profile>` まで打って `~/.env` を戻しておく。
+委譲先でのログインで終わらせず、`aws-switch <profile>` まで打って `~/.env` を戻しておく。
 
 ## ~/.aws/config の構成と制約
 

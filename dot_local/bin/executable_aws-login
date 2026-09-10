@@ -21,6 +21,9 @@
 #      （落とすまでに ORPHAN_GRACE の猶予を置く。下の「居座ったログインの掃除」を参照）
 #   - get-caller-identity は IAM 権限不要なので、失敗＝トークンが無効/期限切れ を意味する。
 #     AWS_LOGIN_SKIP_VERIFY=1 で STS 検証を省略し、「設定があれば OK」で通すこともできる。
+#   5. どう判断したかを `~/.aws/.aws-login.log` へ 1 行ずつ残す（認証情報は書かない）。
+#      認証情報の更新は 15 分ごとに走り、そこを複数プロセスが同時に踏むため、pid と時刻が
+#      無いと「本当に期限切れだったのか、更新の競合や一時エラーだったのか」を切り分けられない。
 #   - AWS_LOGIN_NO_INTERACTIVE=1 が立っているときは、未認証でもログインへ進まずエラーで
 #     終わる（/dev/tty へは何も書かない）。TUI アプリ（Claude Code）は子プロセスへこれを
 #     継承させ、画面の中にログイン URL が割り込んで描かれるのを防ぐ。起動前の認証は
@@ -111,6 +114,27 @@ EXPIRED_MARKER="$HOME/.aws/.aws-login-${1}.expired"
 LOGIN_LOCK="$HOME/.aws/.aws-login-${1}.lock"
 # ロックが空くのを待つ上限。
 LOGIN_LOCK_WAIT=60
+
+# 認証情報の更新の排他ロック。ログインロックとは別に持つ。creds キャッシュはプロファイル単位の
+# 共有ファイルなので、期限が近づくとそのプロファイルを使う全プロセスが一斉に更新へ進む。更新は
+# refresh token を 1 回使い切りで差し替えるため、同時に踏むと片方が弾かれ、セッションが生きて
+# いても「認証切れ」として見える。
+REFRESH_LOCK="$HOME/.aws/.aws-login-${1}.refresh.lock"
+# 更新のロックが空くのを待つ上限[秒]。更新は export-credentials と STS の 2 回で 2 秒ほど。
+REFRESH_LOCK_WAIT=20
+
+# 更新が失敗したときに試し直す回数と、その前に待つ秒数。
+# 同じ refresh token が一瞬だけ弾かれ、数秒後には通ることがある（CreateOAuth2Token が
+# "authorization grant is invalid" を返す）。実測ではこの状態が 3〜4 秒続いたので、その窓を
+# 越えられるだけ試す。credential_process は SDK に待たされている経路なので、これ以上は伸ばさない。
+REFRESH_RETRY=2
+REFRESH_RETRY_WAIT=2
+
+# 「更新できなかったが、ログインセッションはまだ生きている」状態が続いたとき、これを超えたら
+# 人に見せる[秒]。セッションが生きているなら人がブラウザで入り直す必要は無いので、ふつうは
+# 委譲を見送る。ただしいつまでも creds が取れないなら別の異常なので、黙り続けない。
+TRANSIENT_MARKER="$HOME/.aws/.aws-login-${1}.transient"
+TRANSIENT_GRACE=180
 # 待っている間に保持者を見直す間隔[秒]。待ち始めた時点では猶予の内側だった孤児が、
 # 待っているうちに猶予を超えることがあるので、上限まで一息に寝ない。
 LOCK_POLL_INTERVAL=2
@@ -122,12 +146,95 @@ ORPHAN_GRACE=180
 # ここで一度だけ確定させる。
 SELF_PID=$$
 
+# 判断の記録。認証情報の更新は 15 分ごとに走り、そこを同時に踏むプロセスが複数あるため、
+# 「誰がいつ何と判断したか」が無いと切り分けられない。プロファイルごとではなく 1 本にまとめる
+# のは、別プロファイルの更新と並んで初めて同時刻の重なりが見えるため。
+#
+# 認証情報そのものは書かない。creds は emit_creds だけが扱い、ここへは渡さない。
+AWS_LOGIN_LOG="$HOME/.aws/.aws-login.log"
+# これを超えたら古い側を捨てる。参照するのは事象が起きた直後だけなので、直近が残れば足りる。
+AWS_LOGIN_LOG_MAX_BYTES=524288
+# 記録に添えるプロファイル名。関数の中では $1 が引数になるので、ここで押さえておく。
+LOG_PROFILE="$1"
+# 認証情報の更新に失敗したときの理由の受け皿。stdout は creds 専用なので、stderr は
+# 混ぜずに別で受ける。終了時に必ず片付ける。
+REFRESH_ERR_FILE="$HOME/.aws/.aws-login-${1}.stderr.$$"
+trap 'rm -f "$REFRESH_ERR_FILE" 2>/dev/null || true' EXIT
+
+# コマンドの stderr を 1 行へ潰して長さを切る。
+log_detail() {
+	printf '%s' "$1" | tr '\n\t' '  ' | cut -c1-200
+}
+
+# <イベント> [詳細] を 1 行で残す。書けなくても認証は続ける。
+log_event() {
+	local size tmp
+	if [ -f "$AWS_LOGIN_LOG" ]; then
+		size=$(wc -c <"$AWS_LOGIN_LOG" 2>/dev/null) || size=0
+		if [ "${size:-0}" -gt "$AWS_LOGIN_LOG_MAX_BYTES" ]; then
+			tmp="${AWS_LOGIN_LOG}.tmp.$$"
+			if tail -c $((AWS_LOGIN_LOG_MAX_BYTES / 2)) "$AWS_LOGIN_LOG" >"$tmp" 2>/dev/null; then
+				mv -f "$tmp" "$AWS_LOGIN_LOG" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+			else
+				rm -f "$tmp" 2>/dev/null
+			fi
+		fi
+	else
+		# 他ユーザに読ませない権限で作ってから追記する。
+		(
+			umask 077
+			: >"$AWS_LOGIN_LOG"
+		) 2>/dev/null || true
+	fi
+	printf '%s pid=%s ppid=%s profile=%s event=%s%s\n' \
+		"$(date +%Y-%m-%dT%H:%M:%S%z)" "$SELF_PID" "$PPID" "$LOG_PROFILE" "$1" \
+		"${2:+ detail=\"$2\"}" >>"$AWS_LOGIN_LOG" 2>/dev/null || true
+}
+
 mark_expired() {
 	: >"$EXPIRED_MARKER" 2>/dev/null || true
 }
 
 clear_expired() {
-	rm -f "$EXPIRED_MARKER" 2>/dev/null || true
+	rm -f "$EXPIRED_MARKER" "$TRANSIENT_MARKER" 2>/dev/null || true
+}
+
+# -signin のログインセッションがまだ通るか。呼び出し元が持ち込んだ認証情報や EC2 インスタンス
+# ロールを拾わないよう断ってから叩く（AWS_PROFILE は既に -signin に固定済み）。
+signin_session_alive() {
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		AWS_EC2_METADATA_DISABLED=true \
+		aws sts get-caller-identity >/dev/null 2>&1
+}
+
+# 人がブラウザで入り直す必要があるか。あれば 0、無ければ 1。
+#
+# 更新に失敗しても、ログインセッションが生きているなら人にできることは無い（更新が一時的に
+# 弾かれただけで、次の呼び出しで直る）。そこで委譲を見送る。ここで popup を開くと、人が何も
+# しないうちに消える無駄な割り込みになる。
+#
+# ただし「セッションは生きているのに creds が取れない」が続くなら別の異常なので、猶予を超えたら
+# 人に見せる。
+human_login_needed() {
+	local first now
+	if ! signin_session_alive; then
+		rm -f "$TRANSIENT_MARKER" 2>/dev/null || true
+		return 0
+	fi
+	now=$(date +%s)
+	first=$(cat "$TRANSIENT_MARKER" 2>/dev/null) || first=""
+	case "$first" in
+	'' | *[!0-9]*)
+		printf '%s\n' "$now" >"$TRANSIENT_MARKER" 2>/dev/null || true
+		return 1
+		;;
+	esac
+	if [ $((now - first)) -gt "$TRANSIENT_GRACE" ]; then
+		log_event transient-grace-exceeded "since=$((now - first))s"
+		rm -f "$TRANSIENT_MARKER" 2>/dev/null || true
+		return 0
+	fi
+	return 1
 }
 
 # ISO8601 の時刻を epoch 秒へ。読めなければ何も出力せず非 0。
@@ -147,13 +254,15 @@ to_epoch() {
 
 # キャッシュが使えるならその内容を出力して 0 を返す。使えなければ 1。
 emit_cached_creds() {
-	local exp exp_epoch
+	local exp exp_epoch remaining
 	[ -r "$CREDS_CACHE" ] || return 1
 	exp=$(sed -n 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CREDS_CACHE")
 	[ -n "$exp" ] || return 1
 	exp_epoch=$(to_epoch "$exp") || return 1
 	[ -n "$exp_epoch" ] || return 1
-	[ $((exp_epoch - $(date +%s))) -gt "$CREDS_CACHE_MIN_REMAINING" ] || return 1
+	remaining=$((exp_epoch - $(date +%s)))
+	[ "$remaining" -gt "$CREDS_CACHE_MIN_REMAINING" ] || return 1
+	log_event cache-hit "remaining=${remaining}s"
 	cat "$CREDS_CACHE"
 }
 
@@ -185,7 +294,10 @@ if ! aws configure list-profiles | grep "$AWS_PROFILE" >/dev/null 2>&1; then
 fi
 
 # キャッシュ済み認証情報が「実際に有効か」を STS で検証するヘルパー。
-#   - export-credentials でローカルキャッシュから creds を取り出す（ネットワーク不要）。
+#   - export-credentials で creds を取り出す。ログインセッションのアクセストークンは寿命が
+#     短く、切れていればここで refresh token を使った更新が走る（ネットワークを使う）。
+#     更新は 1 回ごとに refresh token を差し替えるので、同じプロファイルを使う複数プロセスが
+#     同時に踏むと片方が失敗しうる。失敗の理由は log_event で残す。
 #   - 取り出せたら aws sts get-caller-identity で実際に通るかを確認する。
 #     credential_process の stdout は creds 出力専用なので STS の出力は捨て、stderr だけを
 #     拾ってエラー種別を判定する。AWS_PROFILE は -signin に固定済みで、signin プロファイルは
@@ -198,9 +310,35 @@ fi
 #       creds を出力済み（ログインはしない）
 #   1 : 未ログイン or 認証切れ。creds 未出力（呼び出し側はログインへ進む）
 emit_creds_if_valid() {
-	local creds sts_err
-	creds=$(aws configure export-credentials --format process 2>/dev/null) || return 1
-	[ -n "$creds" ] || return 1
+	local creds refresh_err sts_err attempt=0
+	# export-credentials の stderr は捨てずに拾う。ここは「ローカルキャッシュを読むだけ」では
+	# なく、アクセストークンが切れていればネットワーク越しの更新を含む。失敗の理由を残さないと、
+	# 更新の競合・一時エラー・セッション満了のどれなのかが後から分からなくなる。
+	#
+	# 失敗しても即座に認証切れとは決めず、いちど待って試し直す。1 回目の失敗も記録に残す。
+	while :; do
+		if creds=$(aws configure export-credentials --format process 2>"$REFRESH_ERR_FILE"); then
+			[ -n "$creds" ] || {
+				log_event refresh-empty
+				return 1
+			}
+			if [ "$attempt" -gt 0 ]; then
+				log_event refresh-retry-ok "attempt=$((attempt + 1))"
+			else
+				log_event refresh-ok
+			fi
+			break
+		fi
+		refresh_err=$(cat "$REFRESH_ERR_FILE" 2>/dev/null) || refresh_err=""
+		log_event refresh-fail "$(log_detail "$refresh_err")"
+		# セッションが終わっているとはっきり言われているなら、待っても通らない。
+		case "$refresh_err" in
+		*"session has expired"* | *"Token has expired"* | *"reauthenticate"*) return 1 ;;
+		esac
+		[ "$attempt" -lt "$REFRESH_RETRY" ] || return 1
+		attempt=$((attempt + 1))
+		sleep "$REFRESH_RETRY_WAIT"
+	done
 	# 抜け道: STS 検証を省略し、「設定があれば OK」で通す。
 	if [ -n "$AWS_LOGIN_SKIP_VERIFY" ]; then
 		emit_creds "$creds"
@@ -213,12 +351,43 @@ emit_creds_if_valid() {
 	# STS 失敗。到達不能などの一時エラーならログインせずキャッシュで続行する。
 	if printf '%s' "$sts_err" | grep -qiE 'could not connect|connect timeout|endpointconnectionerror|failed to establish|name resolution|getaddrinfo|name or service not known|network is unreachable|read timeout|connection (reset|aborted|refused)|temporarily unavailable|service unavailable|timed out'; then
 		printf >&2 '%s\n' "aws-login: STS 検証をスキップ（${AWS_PROFILE}: ネットワーク到達不可）。キャッシュ済み認証情報で続行します。"
+		log_event sts-unreachable "$(log_detail "$sts_err")"
 		# 検証できていないのでキャッシュには残さない。次回も同じ判断をやり直す。
 		printf '%s\n' "$creds"
 		return 2
 	fi
 	# ExpiredToken / InvalidClientTokenId / SSO トークン期限切れ 等 → 認証切れとみなす。
+	log_event sts-expired "$(log_detail "$sts_err")"
 	return 1
+}
+
+# 更新を直列化して emit_creds_if_valid を呼ぶ。戻り値はそのまま通す。
+#
+# 要点は「ロックを取った後にキャッシュを見直す」こと。待っている間に他のプロセスが更新を
+# 終えていればその結果を返し、自分は更新しない。rotate 済みの refresh token を掴んで弾かれる
+# のを防ぐ。
+#
+# ロックが空かないときは諦めてロック無しで更新する。ここで止めると、ロックの取り合いが
+# そのまま認証切れになってしまう。
+refresh_serialized() {
+	(
+		local rc=0
+		if ! flock -n 8; then
+			if flock -w "$REFRESH_LOCK_WAIT" 8; then
+				log_event refresh-wait
+			else
+				log_event refresh-lock-timeout
+				emit_creds_if_valid || rc=$?
+				exit "$rc"
+			fi
+		fi
+		if emit_cached_creds; then
+			log_event refresh-shared
+			exit 0
+		fi
+		emit_creds_if_valid || rc=$?
+		exit "$rc"
+	) 8>"$REFRESH_LOCK"
 }
 
 # portfwd 逆チャネルが使えるか判定する（docs/portfwd-cheatsheet.md）。
@@ -478,9 +647,9 @@ portfwd_channel_available() {
 
 # 既存セッションが「実際に有効か」を検証し、有効ならその creds を出力して終了する。
 # 設定の有無ではなく STS の応答で判定するため、期限切れ/権限喪失はここを通過して
-# 下のログインフローへ進む。
+# 下のログインフローへ進む。更新は refresh_serialized で 1 プロファイル 1 本に絞る。
 rc=0
-emit_creds_if_valid || rc=$?
+refresh_serialized || rc=$?
 if [ "$rc" -eq 0 ]; then
 	clear_expired
 	exit 0
@@ -505,10 +674,21 @@ fi
 # 待ってブロックする方が体験が悪い。認証が通れば次の呼び出しで復帰する（credential_process
 # の失敗は botocore にキャッシュされない）。
 
-# 認証タブを開き直すまでの間隔。ユーザがタブを閉じたときに湧き続けるのを防ぐ。
+# 委譲先を開き直すまでの間隔。ユーザが閉じたときに湧き続けるのを防ぐ。
 HANDOFF_COOLDOWN=60
 
-# 既に認証タブが開いている、または閉じた直後か。
+# popup を宣言している herdr プラグインの置き場所（chezmoi が配る）。
+HERDR_PLUGIN_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/plugins/aws-login"
+
+# 認証が必要だと人へ知らせる。委譲先を開けたかどうかに関わらず必ず出す。開き直しを抑止した
+# ときに黙ると、委譲先が残ったまま誰も気づかない状態が続く。
+notify_auth_needed() {
+	herdr notification show "AWS 認証が切れています" \
+		--body "${1} の認証が切れました。${2}でログインしてください。" \
+		--position top-right --sound request >/dev/null 2>&1 || true
+}
+
+# 既に委譲先が開いている、または閉じた直後か。
 handoff_recent() {
 	local marker="$1" pane_id last now
 	[ -r "$marker" ] || return 1
@@ -520,7 +700,36 @@ handoff_recent() {
 	[ -n "$last" ] && [ $((now - last)) -lt "$HANDOFF_COOLDOWN" ]
 }
 
-# 認証タブを開いて aws-auth-ensure を走らせる。
+# 前面の popup を開いて aws-auth-handoff を走らせる。開けたら 0。
+#
+# popup は herdr のプラグイン pane としてしか開けず、この API に CLI が無いので herdr-api から
+# 直接叩く。plugin.link は毎回貼り直す（冪等）。plugins.json はマニフェストの内容をキャッシュ
+# するので、これを apply 時ではなくここでやることで、herdr サーバが後から上がった環境でも
+# 自力で復旧できる。
+#
+# 認証したいプロファイルは env で渡す。popup のプロセスは herdr サーバの環境を継承し、そこの
+# AWS_PROFILE は無関係な値なので、それに任せると別のプロファイルでログインしてしまう。
+open_auth_popup() {
+	local profile="$1" marker="$2" err
+	command -v herdr-api >/dev/null 2>&1 || return 1
+	[ -f "$HERDR_PLUGIN_DIR/herdr-plugin.toml" ] || return 1
+	herdr-api plugin.link \
+		"{\"path\":\"${HERDR_PLUGIN_DIR}\",\"enabled\":true}" >/dev/null 2>&1 || return 1
+	if ! err=$(herdr-api plugin.pane.open \
+		"{\"plugin_id\":\"aws-login\",\"entrypoint\":\"auth\",\"placement\":\"popup\",\"focus\":true,\"env\":{\"AWS_LOGIN_PROFILE\":\"${profile}\"}}" \
+		2>&1 >/dev/null); then
+		# 既に popup が出ている。自分が出したものなら委譲は済んでいる。他のプラグインの
+		# popup なら、こちらの求めが埋もれるのでタブへ回す。
+		case "$err" in
+		*"popup already open"*) handoff_recent "$marker" && return 0 ;;
+		esac
+		return 1
+	fi
+	# popup は pane_id を返さないので、開いた時刻だけ残してクールダウンに使う。
+	printf '%s %s\n' - "$(date +%s)" >"$marker" 2>/dev/null || true
+}
+
+# 認証タブを開いて aws-auth-handoff を走らせる。popup が開けないときのフォールバック。
 open_auth_tab() {
 	local profile="$1" marker="$2" out pane_id
 	# herdr CLI は結果を JSON で標準出力へ書く。credential_process の標準出力は creds 専用
@@ -533,13 +742,11 @@ open_auth_tab() {
 	# pane run はコマンドを「そのペインへの入力」として送る。起きたばかりのシェルが
 	# プロンプトを出すまで少し待つ。
 	sleep 0.5
-	herdr pane run "$pane_id" aws-auth-ensure "$profile" >/dev/null 2>&1 || return 1
-	herdr notification show "AWS 認証が切れています" \
-		--body "${profile} の認証が切れました。開いたタブでログインしてください。" \
-		--position top-right --sound request >/dev/null 2>&1 || true
+	herdr pane run "$pane_id" aws-auth-handoff "$profile" >/dev/null 2>&1 || return 1
 }
 
-# herdr へ委譲できたら 0、できなければ 1。
+# herdr へ委譲する。戻り値で委譲先が分かる。
+#   0 = popup / 3 = タブ / 4 = 既に委譲済み（開き直していない） / 1 = 委譲できなかった
 handoff_to_herdr() {
 	local profile="$1" lock marker
 	[ "${HERDR_ENV:-}" = "1" ] || return 1
@@ -553,12 +760,21 @@ handoff_to_herdr() {
 	lock="$HOME/.aws/.aws-login-${profile}.handoff.lock"
 	marker="$HOME/.aws/.aws-login-${profile}.handoff"
 	(
-		# 1 回の署名で何度も呼ばれるので、同時に走っても 1 タブに収める。
-		flock -n 9 || exit 0
+		# 1 回の署名で何度も呼ばれるので、同時に走っても委譲先は 1 つに収める。
+		flock -n 9 || exit 4
 		if handoff_recent "$marker"; then
+			notify_auth_needed "$profile" "開いている popup かタブ"
+			exit 4
+		fi
+		if open_auth_popup "$profile" "$marker"; then
+			notify_auth_needed "$profile" "前面に出た popup"
 			exit 0
 		fi
-		open_auth_tab "$profile" "$marker"
+		if open_auth_tab "$profile" "$marker"; then
+			notify_auth_needed "$profile" "開いたタブ"
+			exit 3
+		fi
+		exit 1
 	) 9>"$lock"
 }
 
@@ -566,13 +782,34 @@ handoff_to_herdr() {
 # credential_process は TUI アプリの子プロセス（MCP サーバ等）からも呼ばれ、そこでの
 # ログイン URL は画面の中へ割り込んで表示を壊す。
 if [ -n "${AWS_LOGIN_NO_INTERACTIVE:-}" ]; then
+	# 人にできることが無いなら誰も呼ばない。marker も置かない（statusLine に警告を出させない）。
+	if ! human_login_needed; then
+		log_event no-interactive "handoff=skipped"
+		echo "aws-login: ${1} の認証情報を一時的に更新できませんでした。セッションは有効なので、次の呼び出しで復帰します。" >&2
+		exit 1
+	fi
 	mark_expired
-	if handoff_to_herdr "$1"; then
+	handoff_rc=0
+	handoff_to_herdr "$1" || handoff_rc=$?
+	case "$handoff_rc" in
+	0)
+		log_event no-interactive "handoff=herdr-popup"
+		echo "aws-login: ${1} は未認証です。前面に出た \"AWS login\" の popup で認証してください。" >&2
+		;;
+	3)
+		log_event no-interactive "handoff=herdr-tab"
 		echo "aws-login: ${1} は未認証です。herdr の \"AWS login: ${1}\" タブで認証してください。" >&2
-	else
+		;;
+	4)
+		log_event no-interactive "handoff=pending"
+		echo "aws-login: ${1} は未認証です。既に開いている \"AWS login\" の popup かタブで認証してください。" >&2
+		;;
+	*)
+		log_event no-interactive "handoff=none"
 		echo "aws-login: ${1} は未認証です（AWS_LOGIN_NO_INTERACTIVE のため対話ログインしません）。" >&2
 		echo "           端末で aws-auth-ensure ${1} を実行してください。" >&2
-	fi
+		;;
+	esac
 	exit 1
 fi
 
@@ -581,6 +818,7 @@ fi
 	# まず待たずに試す。取れなければ「誰が握っているのか」を出してから待ち、居座っている
 	# 孤児は落として奪う。黙って 60 秒固まると、原因がロック待ちであることすら分からない。
 	if ! acquire_login_lock "$1"; then
+		log_event lock-busy
 		notify_error "${1} のログインロックが ${LOGIN_LOCK_WAIT} 秒待っても空きません。握っているのは $(describe_lock_holder) です。"
 		exit 1
 	fi
@@ -590,8 +828,11 @@ fi
 	rc=0
 	emit_creds_if_valid >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 1 ]; then
+		# 待っている間に別プロセスがログインを済ませていた。
+		log_event login-skipped "rc=$rc"
 		exit 0
 	fi
+	log_event login-start
 
 	# ローカル / SSH で認証方式を切り替える
 	# （各分岐の詳細はファイル冒頭「SSH 先での挙動」を参照）。
@@ -646,8 +887,10 @@ fi
 creds=$(aws configure export-credentials --format process) || creds=""
 if [ -z "$creds" ]; then
 	mark_expired
+	log_event login-fail
 	notify_error "${1} の認証情報を取得できませんでした。ログインが完了していません。"
 	exit 1
 fi
+log_event login-ok
 emit_creds "$creds"
 clear_expired

@@ -1,0 +1,65 @@
+#!/bin/bash
+# aws-auth-handoff [<プロファイル>] - 委譲先（herdr の popup か認証タブ）の中で認証を済ませ、
+# 済んだら自分の居場所を片付ける。
+#
+# 何のためにあるか:
+#   TUI アプリ（Claude Code）の中で認証切れを踏むと、その場でログイン UI を出せない。
+#   aws-login は herdr の popup（無理ならタブ）へ人を連れて行き、そこでこれを走らせる。
+#
+#   委譲先を残さないのが肝。認証タブが残っていると、aws-login は次の失効で「もう開いている」
+#   と判定して委譲そのものを抑止するため、誰も気づけないまま失敗し続ける。
+#
+#   - popup で走っているとき: 認証が済んだら終了するだけでよい（コマンドの終了で popup は
+#     閉じる）。
+#   - タブで走っているとき: $HERDR_TAB_ID が渡るので、自分でそのタブを閉じる。
+#   - 失敗したとき: どちらも閉じない。理由を読ませて、人が閉じるまで残す。
+#
+# プロファイルは引数、無ければ $AWS_LOGIN_PROFILE。**$AWS_PROFILE へは落とさない。**
+# popup のプロセスは herdr サーバの環境を継承し、そこの $AWS_PROFILE は認証したい
+# プロファイルとは無関係な値（実測で 3 種類が並んだ）。取り違えると別のプロファイルで
+# ログインしてしまう。
+#
+# 終了コード: 0 = 認証済み / 1 = 未認証のまま / 2 = 使い方の誤り
+#
+# 関連: aws-login / aws-auth-ensure / herdr-api / docs/aws-cheatsheet.md
+#       docs/herdr-cheatsheet.md
+set -uo pipefail
+
+PROG=aws-auth-handoff
+
+# 対話シェルを経由せず herdr サーバから起動されるため PATH を自前で通す。
+export PATH="$HOME/.local/bin:${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${AQUA_GLOBAL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml}"
+
+PROFILE="${1:-${AWS_LOGIN_PROFILE:-}}"
+if [ -z "$PROFILE" ]; then
+	printf '%s: 使い方: %s <プロファイル>（または AWS_LOGIN_PROFILE を渡す）\n' "$PROG" "$PROG" >&2
+	exit 2
+fi
+
+if ! command -v aws-auth-ensure >/dev/null 2>&1; then
+	printf '%s: aws-auth-ensure が見つかりません。\n' "$PROG" >&2
+	exit 1
+fi
+
+printf '%s: %s の認証を始めます。ブラウザが開いたらログインしてください。\n\n' "$PROG" "$PROFILE"
+
+if aws-auth-ensure "$PROFILE"; then
+	printf '\n%s: %s の認証が済みました。この画面を閉じます。\n' "$PROG" "$PROFILE"
+	# タブで走っているなら自分で閉じる。popup は終了すれば消えるので何もしない。
+	if [ -n "${HERDR_TAB_ID:-}" ] && command -v herdr >/dev/null 2>&1; then
+		sleep 1
+		herdr tab close "$HERDR_TAB_ID" >/dev/null 2>&1 || true
+	fi
+	exit 0
+fi
+
+printf '\n%s: %s の認証が済んでいません。上の理由を確認してください。\n' "$PROG" "$PROFILE" >&2
+printf '%s: もう一度試すなら aws-auth-ensure %s を実行してください。\n' "$PROG" "$PROFILE" >&2
+# 失敗の理由を読ませるため、端末があるときだけ待つ。
+if [ -t 0 ]; then
+	printf '\n何かキーを押すと閉じます… '
+	read -r -n 1 _ 2>/dev/null || true
+	printf '\n'
+fi
+exit 1

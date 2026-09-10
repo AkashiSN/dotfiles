@@ -358,21 +358,42 @@ neo-tree の Git タブから diffview へ（`docs/nvim-cheatsheet.md`）。フ�
 
 ---
 
-## 走行中の claude が AWS 認証切れを踏むと `AWS login:` タブが開く
+## 走行中の claude が AWS 認証切れを踏むと `AWS login` の popup が開く
 
 herdr は再接続してもエージェントを起動し直さないので、走り続けている `claude`（`claude-bedrock`
-で起動したもの）の AWS 認証が期限切れになることがある。このとき **`AWS login: <profile>` という
-タブが自動で開き、フォーカスがそこへ移る**（herdr の通知も出る）。開いたタブで `aws-auth-ensure` が
-走るので、案内に従ってログインすればよい。
+で起動したもの）の AWS 認証が期限切れになることがある。このとき **`AWS login` の popup が前面に
+開く**（herdr の通知も出る）。中で `aws-auth-handoff` が走るので、案内に従ってブラウザで
+ログインすればよい。
 
-- **claude を起動し直す必要はない。** 認証が通れば次のツール呼び出しから復帰する。
-- タブは 1 枚しか開かない。閉じてから 60 秒は開き直さない。
-- 認証が済んだら、そのタブは `<prefix> x` で閉じてよい。
-- 期限切れは Claude Code の statusLine にも `⚠ AWS 未認証: <profile>` として出る。
+- **認証が済むと popup は自動で消える。** popup は中のコマンドが終了したときだけ閉じるので、
+  認証が通ればそのまま閉じる。**失敗したときだけ**理由を出して残る
+- **claude を起動し直す必要はない。** 認証が通れば claude のリトライで復帰する
+- popup が開けないとき（通常のワークスペース表示でない・他のプラグインの popup が出ている・
+  herdr が古い）は **`AWS login: <profile>` タブへフォールバック**する。**そのタブも認証が済めば
+  自動で閉じる**
+- 委譲先は 1 つしか開かない。閉じてから 60 秒は開き直さない。ただし**既に開いているときも通知は
+  出す**（開いたまま放置されて気づかれないのを防ぐため）
+- 期限切れは Claude Code の statusLine にも `⚠ AWS 未認証: <profile>` として出る
 
 これが起きるのは `AWS_LOGIN_NO_INTERACTIVE` が立っている配下だけ。**ペインで普通に `aws s3 ls` を
-叩いて期限切れになった場合は、そのペインでそのままログインが走る**（タブは開かない）。仕組みは
-[aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)。
+叩いて期限切れになった場合は、そのペインでそのままログインが走る**（popup もタブも開かない）。
+仕組みは [aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)。
+
+### プラグイン popup（`herdr-api`）
+
+popup の中身は herdr のプラグインとして宣言する。
+`~/.config/herdr/plugins/aws-login/herdr-plugin.toml`（chezmoi が配る）がそれで、登録は
+`aws-login` が委譲の直前に `plugin.link` で貼り直す（herdr サーバが後から上がった環境でも
+自力で直るようにするため）。`plugins.json` はマニフェストの内容をキャッシュするので、toml を
+直したら貼り直すまで反映されない。
+
+`plugin.*` は herdr の CLI に無いので、socket（`$HERDR_SOCKET_PATH`）へ 1 行 1 JSON の
+リクエストを投げるだけの薄いクライアント `herdr-api` を経由する。
+
+```sh
+herdr-api plugin.list '{}'          # 登録されているプラグイン
+herdr-api session.snapshot '{}'     # 生のセッション状態
+```
 
 ---
 
