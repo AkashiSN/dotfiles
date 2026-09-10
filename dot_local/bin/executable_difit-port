@@ -1,0 +1,48 @@
+#!/bin/bash
+# difit-port - このユーザが使う difit のポートを 1 行で返す
+#
+# なぜ要るか:
+#   difit は呼ぶたびに自分のサーバを立てる。既定の 4966 が埋まっていれば繰り上げて空きを
+#   探すので他人のサーバへぶら下がることは無いが、複数ユーザがいるホストで全員が 4966 から
+#   始めると自分のポートが毎回変わる。ブラウザに出す URL が固定できず、開き直したいときに
+#   どれが自分のものか分からない。uid からユーザごとに別のポートを決めて、これを避ける。
+#   同じ理由でポートを分けている mo と同じ考え方(mo-port)。
+#
+# 決め方:
+#   DIFIT_PORT があればそれを使う (衝突したときや、意図して別のポートを使いたいときの
+#   逃げ道。~/.env に書けば direnv が読む)。無ければ 4966 + (uid - 1000)。4966 は difit
+#   自身の既定ポートで、mo の 6275..6774 と重ならない 4966..5465 の帯に収まる。Linux の
+#   一般ユーザは uid 1000 番台なのでこの中で一意になる。範囲外の uid (macOS の 501 等) は
+#   剰余で畳む。
+#
+# 使う側:
+#   - difit ラッパー (~/.local/bin/difit) が --port として渡す
+#   - herdr-difit はここを呼ばない。difit へ --port を 2 回渡すと既定の 4966 に落ちるため、
+#     ポートを渡す役はラッパー 1 箇所に寄せている (理由はそちら)
+set -euo pipefail
+
+BASE=4966
+SPAN=500
+
+is_valid_port() {
+	case ${1:-} in
+	'' | *[!0-9]*) return 1 ;;
+	esac
+	[ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+}
+
+if [ -n "${DIFIT_PORT:-}" ]; then
+	if is_valid_port "$DIFIT_PORT"; then
+		printf '%s\n' "$DIFIT_PORT"
+		exit 0
+	fi
+	printf 'difit-port: DIFIT_PORT=%s は使えないので uid から決めます (1024-65535 の整数)\n' \
+		"$DIFIT_PORT" >&2
+fi
+
+uid=$(id -u)
+if [ "$uid" -ge 1000 ] && [ "$uid" -lt $((1000 + SPAN)) ]; then
+	printf '%s\n' "$((BASE + uid - 1000))"
+else
+	printf '%s\n' "$((BASE + uid % SPAN))"
+fi

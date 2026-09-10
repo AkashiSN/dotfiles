@@ -1,7 +1,11 @@
 # gitui チートシート
 
 ターミナルの git TUI [gitui](https://github.com/gitui-org/gitui) の起動・キーバインド・設定挙動のリファレンス。
-herdr の popup から差分確認・ステージング・コミットに使う。
+herdr の popup（**`<prefix> shift+d`**）から差分確認・ステージング・コミットに使う。
+
+> 差分を**行コメント付きでレビュー**したいときは `<prefix> d` の difit
+> （ブラウザで開く。[difit チートシート](difit-cheatsheet.md)）。gitui は端末内で
+> サッと見る / コミットまで持っていく側。
 
 - **導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `gitui-org/gitui`）
 - **テーマ**: `~/.config/gitui/theme.ron`（chezmoi ソース = `dot_config/gitui/theme.ron`）

@@ -1,0 +1,236 @@
+#!/bin/bash
+# herdr-difit - 見たい差分を fzf で選び、difit (ブラウザ版 diff ビューア) へ渡す
+#
+# 実際に行うこと:
+#   1. 未コミットの 3 通り (. / staged / working) と、そのリポジトリのコミット履歴を一覧する
+#   2. fzf で選ばせる (Tab で 2 つ選ぶとその 2 コミット間の差分、プレビューは git diff/show)
+#   3. difit をバックグラウンドで起動し、返ってきた URL を $BROWSER (= portfwd-open) へ渡す。
+#      手元 PC の portfwd が中継してローカルのブラウザが開く
+#
+# difit を直に popup で動かさない理由:
+#   difit は前面に留まってサーバを持つ。herdr の popup はセッションモーダルなので、そのまま
+#   動かすとブラウザで差分を読んでいる間ずっとペインが触れない。--background は自分をサーバ
+#   として切り離して JSON ({"port":..,"url":..,"pid":..}) を返すので、popup はすっと閉じる。
+#
+# --no-open を付けて自分でブラウザを呼ぶ理由:
+#   実際に listen したポートを URL として受け取ってから開きたい。difit は希望ポートが埋まって
+#   いると繰り上げるため、difit-port が決めた値とずれることがある。JSON の url が唯一の正解。
+#
+# --port を渡さない理由:
+#   ポートを渡す役は difit ラッパー (~/.local/bin/difit) 1 箇所に寄せている。difit へ --port を
+#   2 回渡すと後勝ちにならず既定の 4966 に落ちる (エラーも出ない) ため、ここでは足さない。
+#   ラッパーをフルパスで呼ぶのは、popup の PATH に ~/.local/bin がある保証が無く、素の difit
+#   (npm global の実体) を掴むとポートが既定に戻ってしまうため。
+#
+# 前回のインスタンスを落とす理由:
+#   difit は呼ぶたびに別のサーバを立てる。mo のように 1 つのサーバへ足していく作りではない
+#   ので、放っておくと node のプロセスが選んだ回数ぶん残り、ポートも繰り上がっていく。
+#   直前に自分が起動したものを state file から落として、ユーザごとに常に 1 つ・同じポートに保つ。
+#
+# Ctrl-R (fzf の --expect) の理由:
+#   ブラウザのタブを閉じた後や、ポートフォワードのリレーが畳まれた後に開き直したいだけの
+#   ときに、要らない差分を選ばせたくない。Ctrl-R は今動いている difit の URL を $BROWSER へ
+#   投げ直すだけで、サーバは立て直さない (開いていたコメントもそのまま残る)。
+#
+# 未追跡ファイルについて:
+#   difit は既定で git の意味論に従うため、まだ `git add` していないファイルは . / working の
+#   差分に出てこない。エージェントが新規作成したファイルを読み落とすのが痛いので、この 2 つを
+#   選んだときだけ --include-untracked を付ける (コミットを選んだときは意味が無いので付けない)。
+#
+# 使用方法:
+#   herdr-difit
+#   - herdr の popup (<prefix> d) から起動される。popup はフォーカス中ペインの作業ディレクトリ
+#     で開くので、エージェントを動かしているリポジトリのまま一覧が出る。
+#   - Tab で 2 つ選ぶと範囲比較になる。一覧は新しい順なので、上に選んだ方が比較の起点
+#     (difit <新しい方> <古い方>)。未コミットの 3 つは範囲比較に混ぜられない。
+#   - 何も選ばずに Esc で抜けたときは何もしない (= popup がそのまま閉じる)。
+#
+# 入出力の約束:
+#   - 成功時は何も出さずに終わる。difit はすぐ切り離されるので popup はすっと閉じ、表示は
+#     手元 PC のブラウザ側で続く。
+#   - エラーと警告は stderr に出し、TTY があれば Enter 待ちで読める時間を作る
+#     (止めないと popup が閉じてしまい理由を読めない)。
+#   - **$BROWSER が空のときは警告する。** popup は herdr サーバ起動時の環境を継承するため、
+#     portfwd 非対象のセッションでサーバを起動していると difit は立つのにブラウザが開かない。
+#     一瞬で popup が閉じると原因不明になるので、その場で理由と URL を出す。
+#
+# 関連: difit / difit-port / docs/difit-cheatsheet.md
+set -euo pipefail
+
+# TTY があれば読める時間を作る
+pause() {
+	if [ -t 0 ]; then
+		printf '\n[Enter] で元の画面に戻ります… ' >&2
+		read -r _ || true
+	fi
+}
+
+die() {
+	printf 'herdr-difit: %s\n' "$*" >&2
+	pause
+	exit 1
+}
+
+difit_bin="$HOME/.local/bin/difit"
+[ -x "$difit_bin" ] ||
+	die "${difit_bin} が見つかりません (chezmoi apply が済んでいない可能性があります)"
+
+for cmd in fzf git; do
+	command -v "$cmd" >/dev/null 2>&1 ||
+		die "${cmd} コマンドが見つかりません (aqua 共有ストアへの導入が済んでいない可能性があります)"
+done
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) ||
+	die "git リポジトリの中ではありません ($PWD)。difit は git の差分を見るツールなので、
+リポジトリのペインから開いてください。"
+cd "$root"
+repo=$(basename -- "$root")
+
+# 起動した difit の pid と URL を残す場所。ユーザごとに 1 つ (= ポートも 1 つ) に保つため、
+# リポジトリ別には分けない。再起動で消える場所に置く (そのとき difit も死んでいる)。
+state_dir="${XDG_RUNTIME_DIR:-}"
+[ -n "$state_dir" ] && [ -d "$state_dir" ] || state_dir="${TMPDIR:-/tmp}"
+state="$state_dir/herdr-difit.state"
+
+# state file の pid が本当に difit か確かめる。pid は使い回されるので、古い state を信じて
+# 無関係のプロセスへ kill を送らないようにする。argv で見るのは /proc が無い環境でも同じ
+# 判定にするため (codex-appserver-evict と同じ書き方)。
+is_difit() {
+	local args
+	args=$(ps -p "$1" -o args= 2>/dev/null) || return 1
+	[ -n "$args" ] || return 1
+	case $args in
+	*difit*) return 0 ;;
+	esac
+	return 1
+}
+
+read_state() {
+	state_pid=''
+	state_url=''
+	[ -f "$state" ] || return 0
+	read -r state_pid state_url <"$state" 2>/dev/null || true
+}
+
+# URL を手元 PC のブラウザへ渡す。$BROWSER は env.sh が portfwd-open を入れる。
+# shellcheck disable=SC2016  # メッセージ中の $BROWSER は変数名そのものを見せている
+open_url() {
+	local url=$1
+	if [ -n "${BROWSER:-}" ]; then
+		"$BROWSER" "$url" || die "ブラウザへ URL を渡せませんでした (${BROWSER})
+difit 自体は起動しています: ${url}"
+		return 0
+	fi
+	printf 'herdr-difit: $BROWSER が未設定のため、手元 PC のブラウザは開きません。\n' >&2
+	printf '  difit 自体は起動しています: %s\n' "$url" >&2
+	printf '  popup は herdr サーバ起動時の環境を継承します。portfwd 対象のセッションで\n' >&2
+	printf '  `herdr server stop` → `herdr` と起動し直すと $BROWSER が渡ります。\n' >&2
+	pause
+}
+
+# 未コミットの 3 通り。difit の予約語をそのまま 1 列目に置き、選択後は 1 列目だけを使う
+# (コミット行も %h が 1 列目なので、一覧全体で「1 列目 = difit へ渡す引数」に揃う)。
+specials=(
+	'.        未コミット全部 (staged + working)'
+	'staged   ステージ済みだけ'
+	'working  未ステージだけ'
+)
+
+# 一覧に色を付けない (--ansi を使わない) 理由: fzf の {1} は表示文字列ではなく元の行から
+# 切り出すため、色付きにすると 1 列目に ANSI エスケープが混ざって difit へ渡せなくなる。
+header='Tab: 2 つ選んで範囲比較  Ctrl-R: 選ばずに今の difit を開き直す'
+
+if ! selection=$({
+	printf '%s\n' "${specials[@]}"
+	git log --format='%h  %ad  %s' --date=short 2>/dev/null || true
+} | fzf --multi --expect=ctrl-r --layout=reverse \
+	--header "$header" --prompt "difit/${repo}> " \
+	--preview 'case {1} in
+	  .) git diff HEAD --stat --patch --color=always ;;
+	  staged) git diff --cached --stat --patch --color=always ;;
+	  working) git diff --stat --patch --color=always ;;
+	  *) git show --stat --patch --color=always {1} ;;
+	esac' \
+	--preview-window 'right,60%'); then
+	# Esc / 該当なしで fzf が非ゼロ終了したときは、何もせず popup を閉じる
+	exit 0
+fi
+
+# --expect を付けると 1 行目は押されたキー (Enter なら空行) になり、2 行目以降が選択。
+key=${selection%%$'\n'*}
+chosen=${selection#*$'\n'}
+if [ "$chosen" = "$selection" ]; then
+	# 改行が無い = キー行しか無い (選択が空)
+	chosen=''
+fi
+
+if [ "$key" = ctrl-r ]; then
+	read_state
+	if [ -z "$state_url" ] || [ -z "$state_pid" ] || ! is_difit "$state_pid"; then
+		die "開き直せる difit がありません。まず差分を選んで起動してください。"
+	fi
+	open_url "$state_url"
+	exit 0
+fi
+
+[ -n "$chosen" ] || exit 0
+
+# mapfile は bash 4 以降。macOS の /bin/bash は 3.2 なので read ループで読む。
+targets=()
+while IFS= read -r line; do
+	[ -n "$line" ] || continue
+	targets+=("${line%% *}")
+done <<<"$chosen"
+
+case ${#targets[@]} in
+1) ;;
+2)
+	for t in "${targets[@]}"; do
+		case $t in
+		. | staged | working)
+			die "未コミットの差分 (${t}) は範囲比較に混ぜられません。
+2 つ選ぶときはコミットを 2 つ選んでください。"
+			;;
+		esac
+	done
+	;;
+*)
+	die "選べるのは 1 つ (その差分) か 2 つ (コミット間の差分) までです (${#targets[@]} 個選ばれています)。"
+	;;
+esac
+
+# 未追跡ファイルは既定で差分に出ない。未コミットを見たいときだけ含める。
+extra=()
+case ${targets[0]} in
+. | working) extra+=(--include-untracked) ;;
+esac
+
+# 直前に自分が起動した difit を落として、ユーザごとに 1 つ・同じポートに保つ。
+read_state
+if [ -n "$state_pid" ] && is_difit "$state_pid"; then
+	kill "$state_pid" 2>/dev/null || true
+	# ポートが空くのを待つ。空かないまま起動しても difit は繰り上げるだけなので待ちきりで進む。
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		kill -0 "$state_pid" 2>/dev/null || break
+		sleep 0.2
+	done
+fi
+
+# difit の出力はファイルへ逃がす。バックグラウンドへ回った difit が標準出力を掴んだままだと
+# コマンド置換 ($(...)) はパイプが閉じるまで戻らず、popup が固まる。
+out=$(mktemp)
+trap 'rm -f "$out"' EXIT
+
+if ! "$difit_bin" --background --no-open ${extra[@]+"${extra[@]}"} "${targets[@]}" >"$out" 2>&1; then
+	die "difit を起動できませんでした:
+$(head -20 "$out")"
+fi
+
+url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$out" | head -1)
+pid=$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$out" | head -1)
+[ -n "$url" ] || die "difit の起動結果から URL を読めませんでした:
+$(head -20 "$out")"
+
+printf '%s %s\n' "$pid" "$url" >"$state"
+
+open_url "$url"

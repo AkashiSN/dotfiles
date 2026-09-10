@@ -24,6 +24,9 @@ fnm use default
 # npm グローバル CLI（mason 管理外で PATH に置きたい CLI）。追加はここに 1 つずつ。
 # npm install -g は冪等（同一指定なら何もしない / 新しければ更新）。
 NPM_GLOBALS=""
+# ブラウザで差分を読む diff ビューア (herdr の <prefix> d から herdr-difit 経由で起動)。
+# aqua には無く npm 配布のみ。node 21 以上を要求する (fnm の LTS が 24 系なので満たせる)。
+NPM_GLOBALS="$NPM_GLOBALS difit@5.0.12"
 # 例: NPM_GLOBALS="$NPM_GLOBALS prettier"
 # 例: NPM_GLOBALS="$NPM_GLOBALS @anthropic-ai/claude-code"
 

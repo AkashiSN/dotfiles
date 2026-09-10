@@ -82,7 +82,9 @@ name = "catppuccin"  # ← 設定
 # open_worktree = ""    # optional, unset by default
 # remove_worktree = ""  # optional, unset by default; opens confirmation
 # rename_workspace = "prefix+shift+w"
-# close_workspace = "prefix+shift+d"
+# ← 設定: 既定は prefix+shift+d だが、そこは gitui (下の [[keys.command]]) に譲る。
+# 「閉じる」つながりで detach (prefix+q) の隣に置く。
+close_workspace = "prefix+shift+q"  # ← 設定
 # previous_workspace = "" # optional, unset by default
 # next_workspace = ""     # optional, unset by default
 # previous_agent = ""     # optional, unset by default
@@ -142,8 +144,23 @@ name = "catppuccin"  # ← 設定
 # description は上の雛形(= `herdr --default-config`)に載っていないが実在する任意項目で、
 # ヘルプ(prefix+?)の一覧に出るラベルになる。省略すると全部が "custom command" と表示され
 # 区別が付かないので必ず書く。ヘルプは `/` で絞り込めるため、英語の短いラベルにしておく。
+# 差分も markdown と同じく出す先で 2 つに分ける: 腰を据えて読む・コメントを付けるなら
+# ブラウザ(difit)、ステージやコミットまで手を動かすなら端末内(gitui)。d / shift+d で並べる。
+#
+# difit は前面に留まってサーバを持つので、popup でそのまま動かすと差分を読んでいる間ずっと
+# ペインが触れない。橋渡しスクリプト herdr-difit (fzf で差分を選ぶ → difit --background →
+# URL を $BROWSER へ) を挟んで、選び終わったら popup が閉じるようにする。popup の /bin/sh に
+# ~/.local/bin がある保証は無いので $HOME 絶対パスで呼ぶ (herdr-mo と同じ理由)。
 [[keys.command]]
-key = "prefix+d"     # ← 設定: diff
+key = "prefix+d"     # ← 設定: diff (ブラウザ)
+type = "popup"
+command = "$HOME/.local/bin/herdr-difit"
+description = "difit (code review in browser)"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "prefix+shift+d"  # ← 設定: diff (端末内)
 type = "popup"
 command = "gitui"
 description = "gitui (git diff / commit)"

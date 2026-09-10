@@ -80,8 +80,9 @@ echo "$HERDR_WORKSPACE_ID / $HERDR_TAB_ID / $HERDR_PANE_ID"   # 例: w2Q / w2Q:t
 | `herdr config reset-keys` | `config.toml` をバックアップしてカスタムキーを除去 |
 
 > `reset-keys` は `[keys]` / `[keys.indexed]` / `[[keys.command]]`（`<prefix> d` / `<prefix> f` の
-> popup を含む）をまとめて除去する。誤って実行しても `chezmoi apply` で chezmoi ソース側の
-> `config.toml` を再展開すれば復元できる。
+> popup を含む）をまとめて除去する。`close_workspace` を退避させた設定も落ちるので、
+> `<prefix> shift+d` は既定の「ワークスペースを閉じる」へ戻る。誤って実行しても
+> `chezmoi apply` で chezmoi ソース側の `config.toml` を再展開すれば復元できる。
 
 ---
 
@@ -102,7 +103,7 @@ flowchart LR
   pfx -- "g" --> nav
   pfx -- "r" --> rsz
   pfx -- "[" --> cpy
-  pfx -- "d / f / m / shift+m" --> pop
+  pfx -- "d / shift+d / f / m / shift+m" --> pop
 ```
 
 > この図は**モード間の行き来**だけを示す。各モードの中で効くキーは下の表を見ること。
@@ -116,7 +117,7 @@ flowchart LR
 | **navigate（goto）** | `<prefix> g` | `Esc` / `Enter` | `↑`/`↓` で space、`h`/`j`/`k`/`l` でペイン（`←`/`→` は常に左右ペイン）。`[keys]` の `navigate_*` が**このモード中だけ** `focus_pane_*` より優先される |
 | **リサイズ** | `<prefix> r` | `Esc` | `h`/`l` で幅、`j`/`k` で高さ |
 | **コピー** | `<prefix> [` | `q` / `Esc` | `h/j/k/l`・`w/b/e`・`{`/`}`・`PageUp/Down`・`Ctrl-b`/`Ctrl-f`・`Ctrl-u`/`Ctrl-d` で移動。`/` `?` で検索し `n` `N` で送る。`v`/`Space` で選択、`y`/`Enter` でコピー |
-| **popup** | `<prefix> d` / `f` / `m` / `shift+m` | 中のコマンドの終了（`q`。`m` はファイルを選び終わった時点） | **全ての入力が中のアプリへ行く**。herdr のキーは一切効かない |
+| **popup** | `<prefix> d` / `shift+d` / `f` / `m` / `shift+m` | 中のコマンドの終了（`q`。`d` と `m` は選び終わった時点） | **全ての入力が中のアプリへ行く**。herdr のキーは一切効かない |
 
 > コピーモードは**ペインを止めない**（出力は流れ続ける）。マウスのドラッグ選択なら
 > コピーモードに入らずにコピーできる。
@@ -167,7 +168,7 @@ flowchart LR
 | `<prefix> g` | goto ピッカー（navigate モードに入る） | navigation |
 | `<prefix> shift+n` | 新規ワークスペース | workspaces / tabs |
 | `<prefix> shift+w` | ワークスペース名変更 | workspaces / tabs |
-| `<prefix> shift+d` | ワークスペースを閉じる | workspaces / tabs |
+| `<prefix> shift+q` | ワークスペースを閉じる（既定は `<prefix> shift+d` だが、そこは gitui の popup に譲って退避させている） | workspaces / tabs |
 | `<prefix> shift+g` | 新規 git worktree | workspaces / tabs |
 | `<prefix> c` | 新規タブ | workspaces / tabs |
 | `<prefix> shift+t` | タブ名変更 | workspaces / tabs |
@@ -205,21 +206,41 @@ flowchart LR
 
 | キー | 動作 |
 | --- | --- |
-| `<prefix> d` | gitui を popup で開く（差分確認・hunk 単位のステージング・コミット） |
+| `<prefix> d` | 見たい差分を選んで `difit` に渡す（**ブラウザ**で開く。行にコメントを付けながら腰を据えてレビューするとき。選択 UI は `Tab` で 2 つ選ぶと範囲比較、`Ctrl-R` は選ばずにタブを開き直す） |
+| `<prefix> shift+d` | gitui を popup で開く（**端末内**の差分確認・hunk 単位のステージング・コミット） |
 | `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。テキストファイルは `Enter` で `$EDITOR`(=nvim)） |
 | `<prefix> m` | md を選んで `mo` に渡す（**ブラウザ**で開く。mermaid・全文検索・保存即反映が要るとき。選択 UI は `Tab` で複数選択、`Ctrl-R` は選ばずにタブを開き直す、`Ctrl-G` は `.gitignore` 対象も出す） |
 | `<prefix> shift+m` | glow を popup で開く（**端末内**の markdown ビューア。ペインを見ながらざっと読む用） |
 
 **閉じ方**: popup は**中のコマンドが終了したときだけ**閉じる（gitui / yazi / glow とも `q`）。
 popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
-`<prefix> m`（mo）だけは例外的に**ファイルを選び終わると自動で閉じる** — 中で動くのは選択 UI だけで、
-表示そのものはブラウザへ出るため（`Esc` で何も選ばずに閉じてもよい）。詳細は
+`<prefix> d`（difit）と `<prefix> m`（mo）だけは例外的に**選び終わると自動で閉じる** — 中で動くのは
+選択 UI だけで、表示そのものはブラウザへ出るため（`Esc` で何も選ばずに閉じてもよい）。詳細は
+[difit チートシート](difit-cheatsheet.md) と
 [Markdown プレビュー チートシート](markdown-preview-cheatsheet.md)。
 
 `<prefix> m` の一覧は既定で `.gitignore` などの**無視設定に従う**ので、`.superpowers/` や
 `docs/superpowers/` に溜まるエージェントの作業ログは出ない。**`Ctrl-G`** で無視設定を外した一覧と
 行き来できる（もう一度押すと戻る。今どちらかはプロンプトの `[全件]` で分かる）。常に全件にしないのは、
 `.terraform/modules` や `node_modules` の README を数百件抱えるリポジトリがあるため。
+
+**difit 側（`<prefix> d`）の中身**: popup で動くのは `~/.local/bin/herdr-difit`（chezmoi ソース =
+`dot_local/bin/executable_herdr-difit`）で、未コミットの 3 通り（`.` = staged + working / `staged` /
+`working`）と `git log` を `fzf` に流し、選ばれたものを `difit` へ渡す橋渡し。プレビューは
+`git diff` / `git show`。**`Tab` で 2 つ選ぶとその 2 コミット間の差分**になる（一覧は新しい順なので、
+上に選んだ方が比較の起点 = `difit <新しい方> <古い方>`）。未コミットの 3 つは範囲比較に混ぜられない。
+`Esc` で何もせず終了、**`Ctrl-R` は差分を選ばずに今動いている difit のタブを開き直す**
+（ポートフォワードが切れたときの張り直し。サーバは立て直さないので付けたコメントも残る）。
+
+difit を popup で直に動かさないのは、difit が前面に留まってサーバを持つため（セッションモーダルな
+popup を占有すると、ブラウザで差分を読んでいる間ずっとペインが触れない）。`--background` で
+切り離し、返ってきた JSON の URL を `$BROWSER` へ渡している。**difit は呼ぶたびに別のサーバを
+立てる**（`mo` のように 1 つのサーバへ足していく作りではない）ので、`herdr-difit` は直前に自分が
+起動したものを落として、常に 1 つ・同じポートに保つ。ポートの決め方と手動での使い方は
+[difit チートシート](difit-cheatsheet.md)。
+
+未追跡ファイルは git の既定では差分に出ないため、`.` と `working` を選んだときだけ
+`--include-untracked` を付けている（エージェントが作った新規ファイルを読み落とさないように）。
 
 **yazi 内のキー（popup 内で押す）**: `Enter` は従来どおり popup の**内側**で `$EDITOR`(=nvim) を開く（サッと見る用）。
 一方 `e` はカーソル中のファイルを **herdr の新規タブ**で起動した nvim で開く（腰を据えて編集する用）。

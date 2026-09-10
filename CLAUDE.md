@@ -43,6 +43,7 @@
 | `dot_local/bin/executable_herdr-mo` / `executable_mo` / `executable_mo-port`（markdown プレビュー） | `docs/markdown-preview-cheatsheet.md` |
 | `dot_config/ghostty/config` | `docs/ghostty-cheatsheet.md` |
 | `dot_config/gitui/theme.ron` | `docs/gitui-cheatsheet.md` |
+| `dot_local/bin/executable_herdr-difit` / `executable_difit` / `executable_difit-port` / `dot_config/herdr/config.toml`（`<prefix> d` / `shift+d`） / `.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl`（`NPM_GLOBALS` の difit） | `docs/difit-cheatsheet.md`（起動キーの使い分けは `docs/herdr-cheatsheet.md` / `docs/gitui-cheatsheet.md` も） |
 | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/zsh/rc.d/**` / `dot_config/shell/**` / `dot_bashrc` / `dot_bash_profile` | `docs/zsh-cheatsheet.md` |
 | `dot_local/bin/executable_git-aicommit` / `executable_gh-pr-aicreate`（git/gh の AI alias 含む） / `private_dot_claude/hooks/executable_pr-refresh-check.sh`（PR 更新確認フック） / `executable_block-session-url.sh`（セッション URL 混入ブロック） / `.chezmoiscripts/run_onchange_after_42-claude-managed-settings.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl`（attribution・hooks） | `docs/ai-git-cheatsheet.md` |
 | `dot_local/bin/executable_codex-bedrock` / `executable_codex-bedrock-spawn` / `executable_codex-appserver-evict` / `dot_codex/private_bedrock.config.toml`（codex の Bedrock 起動） / `executable_claude-bedrock` / `executable_claude-bedrock-wrapper`（Claude Code の Bedrock 起動） | `docs/zsh-cheatsheet.md` |

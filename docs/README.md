@@ -8,6 +8,7 @@
 | tmux | [tmux-cheatsheet.md](tmux-cheatsheet.md) | `dot_tmux.conf` |
 | herdr（AI エージェント多重化） | [herdr-cheatsheet.md](herdr-cheatsheet.md) | `dot_config/herdr/config.toml` |
 | gitui（git TUI） | [gitui-cheatsheet.md](gitui-cheatsheet.md) | `dot_config/gitui/theme.ron` |
+| difit（差分をブラウザでレビュー） | [difit-cheatsheet.md](difit-cheatsheet.md) | `dot_local/bin/herdr-difit` / `difit` / `difit-port` / `dot_config/herdr/config.toml` / `.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl` |
 | Markdown プレビュー（glow / mo） | [markdown-preview-cheatsheet.md](markdown-preview-cheatsheet.md) | `dot_config/herdr/config.toml` / `dot_local/bin/herdr-mo` / `mo` / `mo-port` / `dot_config/aquaproj-aqua/aqua.yaml` |
 | Ghostty | [ghostty-cheatsheet.md](ghostty-cheatsheet.md) | `dot_config/ghostty/config` |
 | zsh / bash | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/` / `dot_bashrc` |

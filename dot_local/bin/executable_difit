@@ -1,0 +1,63 @@
+#!/bin/bash
+# difit [args...] - difit(ブラウザ版 diff ビューア)を必ずユーザごとのポートで起動する
+#
+# なぜ要るか:
+#   difit は呼ぶたびに自分のサーバを立て、既定の 4966 が埋まっていれば繰り上げる。埋まって
+#   いるたびに自分のポートが変わると、ブラウザへ出す URL が固定できない。
+#   ポートの決め方は difit-port(DIFIT_PORT があればそれを優先)。
+#
+# なぜ zsh 関数ではなくスクリプトか:
+#   herdr の popup や非対話 zsh のようにシェルの rc を経由しない起動経路には関数が届かない
+#   ため。mo / claude-bedrock / codex-bedrock と同じ理由(詳細は docs/zsh-cheatsheet.md の
+#   「関数」節)。
+#
+# なぜ npm global の実体をフルパスで呼ぶか:
+#   このスクリプト自身が ~/.local/bin/difit として PATH に乗り、~/.local/bin は PATH 上で
+#   fnm の shim より前にある。`command difit` は関数・エイリアスだけを飛ばして PATH 探索は
+#   続けるため、素の difit のつもりで呼んでもこのスクリプト自身に戻ってきて無限再帰する。
+#   参照先を $FNM_DIR/aliases/default 配下にするのは、PATH に乗る fnm の実体
+#   (fnm_multishells/<pid>_<epoch>/...) がシェルセッションごとに変わり、rc を経由しない
+#   起動経路では存在しないため。
+#
+# --port を足すのは呼び出し側が指定していないときだけ:
+#   difit へ --port を 2 回渡すと、後勝ちにならず既定の 4966 に落ちる(エラーも出ない)。
+#   `difit --port 5000` と明示した人を黙って 4966 へ流さないよう、既に指定があれば足さない。
+#
+# 関連: difit-port / herdr-difit / docs/difit-cheatsheet.md
+set -euo pipefail
+
+# 呼び出し元が env.sh を読んでいるとは限らないので、difit-port の解決に要る PATH は自前で通す。
+export PATH="$HOME/.local/bin:$PATH"
+
+fnm_dir="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
+difit_bin="$fnm_dir/aliases/default/bin/difit"
+
+die() {
+	echo "difit: $1" >&2
+	exit 1
+}
+
+[ -x "$difit_bin" ] ||
+	die "${difit_bin} が見つかりません(npm global への導入が済んでいない可能性があります。chezmoi apply で入ります)"
+
+# 呼び出し側が --port を指定しているか調べる。-- 以降は difit への引数ではないので見ない。
+has_port=false
+for arg in "$@"; do
+	case $arg in
+	--) break ;;
+	--port | --port=*) has_port=true ;;
+	esac
+done
+
+if [ "$has_port" = true ]; then
+	exec "$difit_bin" "$@"
+fi
+
+command -v difit-port >/dev/null 2>&1 || die "difit-port コマンドが見つかりません"
+
+# port=$(difit-port) を exec と同じ行に埋め込まないこと: set -e はコマンド置換の失敗を
+# 引数位置では捕まえないため、埋め込むと difit-port が失敗しても --port "" のまま exec
+# へ進んでしまう。代入を独立した行にすることで set -e を効かせる。
+port=$(difit-port)
+
+exec "$difit_bin" --port "$port" "$@"
