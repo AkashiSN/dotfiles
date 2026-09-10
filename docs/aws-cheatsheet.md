@@ -58,6 +58,7 @@ touch ~/.env                  # 無ければ作成（aws-switch が追記する�
 | `aws-login <profile>` | 認証本体。`credential_process` として AWS CLI から自動で呼ばれる |
 | `aws-logout [profile]` / `aws-logout --all` | セッションと `-signin` プロファイルを破棄し、`.env` の `AWS_PROFILE` 行と認証情報キャッシュを削除 |
 | `aws-auth-ensure <profile> [用途]` | そのプロファイルがいま認証済みかを確かめ、未認証なら認証する。TUI アプリを起動する前に通す |
+| `aws-auth-ensure --wait [profile]` | 走り続けているアプリの中から呼ぶモード。委譲先へ任せて認証が通るまで待つ。Claude Code の `awsAuthRefresh` がこれを使う（**効くのは起動時だけ**。[--wait](#--wait走行中の入り直し)） |
 
 ### aws-login の認証情報キャッシュ
 
@@ -311,6 +312,36 @@ AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`�
 いま通しているのは Bedrock の起動経路（[zsh-cheatsheet.md](zsh-cheatsheet.md#bedrock-起動で使う-aws-プロファイル)）。
 `claude-bedrock-wrapper` と `codex-bedrock` は Bedrock 用プロファイルが未認証ならアプリを起動しない。
 `codex-bedrock-spawn` はペインを作る前に通す（spawn 先の codex は `codex-bedrock` を通らないため）。
+
+#### --wait（走行中の入り直し）
+
+```sh
+aws-auth-ensure --wait            # プロファイルは AWS_PROFILE から取る
+aws-auth-ensure --wait <profile>  # 明示することもできる
+```
+
+起動前ではなく、**すでに走っているアプリの中から**呼ぶモード。Claude Code の `awsAuthRefresh`
+設定がここを引数なしで呼ぶ（`~/.claude/settings.json`。所有しているのは
+`private_dot_claude/modify_settings.json.tmpl`）。
+
+認証パネルの中で走るので、ログイン UI をこのプロセスで出すことはできない。そこでログインは
+下の[委譲](#走行中に認証が切れたとき)に任せ、ここでは**認証が通るまで待つ**。呼び出し元は
+その間ブロックされるため、通ればアプリを起動し直さずに続きから復帰できる。
+
+**ただし Claude Code が `awsAuthRefresh` を呼ぶのは AWS クライアントを組むときだけ**（実測）。
+起動時には通るが、**走り続けている最中に 403 を踏んでもここへは戻ってこない**。走行中の復帰を
+実際に担っているのは下の[委譲](#走行中に認証が切れたとき)と Claude Code 自身のリトライ。
+
+| | |
+| --- | --- |
+| 待つ上限 | 170 秒（Claude Code 側の打ち切りが 180 秒なので、自分から先に終えて案内を残す） |
+| 通ったかの見方 | creds キャッシュを 3 秒おき、`sts get-caller-identity` を 15 秒おき |
+| 進捗の出し先 | 標準出力（Claude Code は標準出力を認証パネル、標準エラーをエラー表示へ回す） |
+| herdr が無いとき | 端末で打つべきコマンドを案内したうえで、同じだけ待つ |
+
+プロファイルを省略したときに `AWS_PROFILE` を使うのは、**SDK が資格情報を解決するときに見るのと
+同じ値だから**。アプリが実際に困っているプロファイルと必ず一致するので、別プロファイルの委譲先で
+ログインして「入り直したのに直らない」という取り違えが起きない。
 
 ### 走行中に認証が切れたとき
 

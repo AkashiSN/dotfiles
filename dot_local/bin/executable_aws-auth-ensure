@@ -1,6 +1,6 @@
 #!/bin/bash
-# aws-auth-ensure <プロファイル> [用途] - そのプロファイルがいま認証済みかを確かめ、
-# 未認証なら認証する。
+# aws-auth-ensure [--wait] [<プロファイル>] [用途] - そのプロファイルがいま認証済みかを
+# 確かめ、未認証なら認証する。
 #
 # 何のためにあるか:
 #   AWS CLI/SDK は認証情報が要るまで credential_process (= aws-login) を呼ばないので、
@@ -22,6 +22,16 @@
 #   - 端末が無い (VS Code 拡張ホスト / agmsg の spawn) か AWS_LOGIN_NO_INTERACTIVE が
 #     立っていれば、打つべきコマンドを案内して非ゼロ終了する
 #
+# --wait: 走り続けているアプリの中から呼ばれるモード。
+#   Claude Code の awsAuthRefresh 設定がここを引数なしで呼ぶ (~/.claude/settings.json、
+#   private_dot_claude/modify_settings.json.tmpl)。認証パネルの中で走るため、ログイン UI を
+#   このプロセスで出すことはできない。そこでログインは aws-login の委譲 (herdr の popup、
+#   無理ならタブ) に任せ、ここでは認証が通るまで待つ。呼び出し元はこの間ブロックされるので、
+#   通ればアプリを起動し直さずに復帰する。
+#   プロファイルを省略すると AWS_PROFILE を使う。SDK が資格情報を解決するときに見るのと同じ
+#   値なので、アプリが実際に困っているプロファイルと必ず一致する。
+#   進捗は標準出力へ出す (Claude Code は標準出力を認証パネル、標準エラーをエラー表示へ回す)。
+#
 # 終了コード: 0 = 認証済み / 1 = 未認証のまま / 2 = 使い方の誤り
 # 呼び出し側は、そのプロファイルが無いと動かないなら 1 で止め、無くても縮退運転できるなら
 # 警告にとどめる、と使い分ける。
@@ -39,16 +49,42 @@ export AQUA_GLOBAL_CONFIG="${AQUA_GLOBAL_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.confi
 # 期限までこれだけ残っていればキャッシュを認証済みとみなす (aws-login と同じ値)。
 CREDS_CACHE_MIN_REMAINING=120
 
+# --wait が認証を待つ上限[秒]。Claude Code は awsAuthRefresh を 180 秒で SIGTERM するので、
+# 自分から先に終えて案内を残せるところで切る。
+WAIT_TIMEOUT=170
+# 認証が通ったかを見る間隔[秒]。creds キャッシュはファイルを読むだけなので毎回見てよい。
+WAIT_POLL=3
+# STS で確かめ直す間隔[秒]。creds キャッシュを書かない経路 (手打ちの aws login) で入り直した
+# ときは、そちらでしか気づけない。
+WAIT_STS_INTERVAL=15
+# 待っていることを伝え直す間隔[秒]。
+WAIT_NOTE_INTERVAL=30
+
 note() {
 	printf '%s: %s\n' "$PROG" "$1" >&2
 }
 
-if [ $# -lt 1 ] || [ -z "$1" ]; then
-	note "使い方: $PROG <プロファイル> [用途]"
+# 人へ届けたい進捗。--wait の呼び出し元は標準出力を認証パネルへ回すので、エラーではない話は
+# こちらへ出す。
+say() {
+	printf '%s: %s\n' "$PROG" "$1"
+}
+
+WAIT=""
+if [ "${1:-}" = "--wait" ]; then
+	WAIT=1
+	shift
+fi
+PROFILE="${1:-}"
+LABEL="${2:-}"
+# --wait は引数なしで呼ばれる。SDK が資格情報を解決するときに見るのと同じ値を既定にする。
+if [ -z "$PROFILE" ] && [ -n "$WAIT" ]; then
+	PROFILE="${AWS_PROFILE:-}"
+fi
+if [ -z "$PROFILE" ]; then
+	note "使い方: $PROG [--wait] <プロファイル> [用途]"
 	exit 2
 fi
-PROFILE="$1"
-LABEL="${2:-}"
 # メッセージ中の「どのプロファイルか」。用途があれば添える。
 WHO="$PROFILE"
 [ -z "$LABEL" ] || WHO="$PROFILE ($LABEL)"
@@ -92,11 +128,60 @@ session_valid() {
 		aws sts get-caller-identity >/dev/null 2>&1
 }
 
-if cache_fresh || session_valid; then
-	# 認証切れ marker が残っていれば消す (別経路で入り直したときのため)。
-	# 置くのは aws-login、読むのは Claude Code の statusLine。
+# 認証切れ marker を消す (別経路で入り直したときのため)。
+# 置くのは aws-login、読むのは Claude Code の statusLine。
+clear_expired() {
 	rm -f "$HOME/.aws/.aws-login-${PROFILE}.expired" 2>/dev/null || true
+}
+
+# 認証を人へ渡し、通るまで待つ。
+#
+# ログイン UI をこのプロセスで出すことはできないので、AWS_LOGIN_NO_INTERACTIVE を立てた
+# aws-login を 1 回だけ呼び、herdr の popup (無理ならタブ) への委譲と .expired marker に任せる。
+# 標準出力は creds 専用なので捨て、人向けの案内だけを拾って標準出力へ流し直す。
+# herdr が無い環境ではその案内 (端末で打つコマンド) を出したうえで、同じだけ待つ。
+delegate_and_wait() {
+	local guidance now deadline next_sts next_note
+	guidance=$(AWS_LOGIN_NO_INTERACTIVE=1 aws-login "$PROFILE" 2>&1 >/dev/null) || true
+	[ -z "$guidance" ] || printf '%s\n' "$guidance"
+	say "${WHO} の認証を待っています (最大 ${WAIT_TIMEOUT} 秒)。"
+
+	now=$(date +%s)
+	deadline=$((now + WAIT_TIMEOUT))
+	next_sts=$((now + WAIT_STS_INTERVAL))
+	next_note=$((now + WAIT_NOTE_INTERVAL))
+	while :; do
+		sleep "$WAIT_POLL"
+		now=$(date +%s)
+		cache_fresh && break
+		if [ "$now" -ge "$next_sts" ]; then
+			next_sts=$((now + WAIT_STS_INTERVAL))
+			session_valid && break
+		fi
+		if [ "$now" -ge "$deadline" ]; then
+			note "${WHO} は未認証のままです。端末で aws-auth-ensure ${PROFILE} を実行してください。"
+			return 1
+		fi
+		if [ "$now" -ge "$next_note" ]; then
+			next_note=$((now + WAIT_NOTE_INTERVAL))
+			say "…認証を待っています (残り $((deadline - now)) 秒)。"
+		fi
+	done
+
+	clear_expired
+	say "${PROFILE} の認証を確認しました。"
+}
+
+if cache_fresh || session_valid; then
+	clear_expired
 	exit 0
+fi
+
+# 走り続けているアプリの中から呼ばれている。ここでログインを促す相手は目の前の端末ではなく、
+# 別のタブに居る人になる。
+if [ -n "$WAIT" ]; then
+	delegate_and_wait && exit 0
+	exit 1
 fi
 
 # 対話ログインへ進んでよいか。AWS_LOGIN_NO_INTERACTIVE は「この配下でログイン UI を出すな」

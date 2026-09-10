@@ -31,6 +31,7 @@ MANAGED=$(cat <<'JSON'
     "sessionUrl": false
   },
   "autoUpdatesChannel": "latest",
+  "awsAuthRefresh": "[ -x \"{{ .chezmoi.homeDir }}/.local/bin/aws-auth-ensure\" ] || exit 0; \"{{ .chezmoi.homeDir }}/.local/bin/aws-auth-ensure\" --wait",
   "enabledPlugins": {
     "code-simplifier@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,

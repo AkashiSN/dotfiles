@@ -75,7 +75,9 @@ if [ -x "$AUTH_ENSURE" ]; then
 fi
 
 # 子プロセス (MCP サーバ等) から credential_process が呼ばれても、画面の中にログイン URL を
-# 描かせない。期限が切れたら認証エラーになるので、起動し直して上の確認を通す。
+# 描かせない。走行中に期限が切れたときは、Claude Code の awsAuthRefresh 設定
+# (private_dot_claude/modify_settings.json.tmpl) が aws-auth-ensure --wait を呼び、herdr の
+# popup でのログインを待ってからそのまま続ける。
 export AWS_LOGIN_NO_INTERACTIVE=1
 
 export CLAUDE_CODE_USE_BEDROCK=1
