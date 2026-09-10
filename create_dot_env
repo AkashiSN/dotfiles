@@ -1,4 +1,14 @@
 # global env
+#
+# direnv (~/.envrc の `dotenv`) が読み込む。書き換えは次のプロンプトから効く。
+# create_ なので、既に ~/.env がある場合は配られない (秘密情報を含むため chezmoi apply で
+# 上書きしない)。既存の ~/.env には自分で足す。
+
+# claude-bedrock / codex-bedrock が使う AWS プロファイル。既定値はハードコードしていないので、
+# Bedrock で動かすなら書く (未設定なら aws-switch が書く AWS_PROFILE に従い、それも無ければ
+# 起動しない)。docs/zsh-cheatsheet.md の「bedrock 起動で使う AWS プロファイル」。
+# export CLAUDE_CODE_BEDROCK_AWS_PROFILE=<profile>
+# export CODEX_BEDROCK_AWS_PROFILE=<profile>
 
 # mo (ブラウザ版 markdown ビューア) のポートを固定したいときに設定する。既定は
 # ~/.local/bin/mo-port が uid から決める。複数ユーザのホストで他の人と被ったときや、

@@ -93,8 +93,11 @@ if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
 		${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
 fi
 
-# Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。
-PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+# Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。既定はハードコード
+# しない(codex-bedrock と同じ解決順)。
+PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+[ -n "$PROFILE" ] ||
+	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択する"
 
 # チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
 if [ -z "$TEAM" ]; then

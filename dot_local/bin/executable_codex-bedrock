@@ -1,32 +1,37 @@
 #!/usr/bin/env bash
-# codex 単体を Amazon Bedrock で起動する。通常の `codex` はサブスク(OpenAI ログイン)のまま。
+# codex を Amazon Bedrock で起動する。対話 zsh の `codex` も同じ経路を通る
+# (50-functions.zsh の関数)。素のバイナリ(OpenAI サブスク)を使いたいときは `command codex`、
+# 恒久的に戻すなら ~/.config/zsh/no-codex-bedrock を置く。
 #
 # Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は runtime コマンド専用で
 # `codex app-server` が受け取らず、agmsg monitor モードでは TUI が共有 app-server に
 # `--remote` で繋ぐため、モデル解決と認証は app-server 側の設定で決まるからだ(TUI の表示だけ
 # Bedrock provider になり、実際はサブスク側で走る)。代わりに CODEX_HOME をプロジェクトごとの
-# 一時 home へ向け、その `config.toml` を「素の config + bedrock オーバレイ」にする。
+# 一時 home へ向け、その config.toml を「素の config + bedrock オーバレイ」にする。
 # CODEX_HOME は子プロセスへ継承されるので app-server にも同じ設定が乗る。
 #
-# 使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)。その
-# credential_process = aws-login が認証を担うため追加ログインは不要。Bedrock は SigV4 認証で
-# auth.json を見ないので、一時 home に資格情報は置かない。
+# 使う AWS プロファイルは CODEX_BEDROCK_AWS_PROFILE、無ければ aws-switch の AWS_PROFILE。
+# その credential_process = aws-login が認証を担うため、シェル側の追加ログインは不要。
+# Bedrock は SigV4 認証で auth.json を見ないので、一時 home に資格情報は置かない。
 #
-# 起動前に aws-auth-ensure でそのプロファイルが認証済みかを確かめ、未認証なら起動しない。
-# 未認証のまま起動すると、TUI が立ったあとで credential_process(aws-login)がログイン URL を
-# /dev/tty へ出して画面が崩れるため。
-# 詳細: ~/.local/share/chezmoi/docs/zsh-cheatsheet.md
+# 起動前に、使うプロファイルが認証済みかを aws-auth-ensure で確かめる。未認証のまま起動
+# すると、TUI が立ったあとで credential_process (aws-login) がログイン URL を /dev/tty へ
+# 出し、画面が崩れるため。
+#
+# シェル関数ではなくスクリプトなのは claude-bedrock と同じ理由: シェルを経由しない実行
+# (VS Code 拡張の spawn / agmsg の spawn.sh / 非対話 bash)には関数が届かないため。
+# 関連: codex-bedrock-spawn / codex-appserver-evict / aws-auth-ensure /
+#       docs/agmsg-cheatsheet.md / docs/zsh-cheatsheet.md
 set -euo pipefail
 
 BASE_HOME="$HOME/.codex"
 OVERLAY="$BASE_HOME/bedrock.config.toml"
-# 一時 home はホーム配下に置く。codex は一時ディレクトリ配下の CODEX_HOME を「一時的なもの」
-# とみなし、PATH ヘルパー(apply_patch など)の作成を拒む。
+# 一時 home はホーム配下に置く。codex は /tmp 配下の CODEX_HOME を「一時ディレクトリ」と
+# みなし、PATH ヘルパー(apply_patch など)の作成を拒む。
 #
 # CODEX_HOME はフックの信頼キー(hooks.state)などに埋まる。codex はそのキーをシンボリック
 # リンク解決後の絶対パスで持つので、こちらも解決済みの形に揃えておく。揃っていないとパスの
-# 表記違い(macOS の /var -> /private/var など)でキーが一致せず、コピーしてきた信頼が効かずに
-# 毎回フックの確認が出る。
+# 表記違いでキーが一致せず、コピーしてきた信頼が効かずに毎回フックの確認が出る。
 RUNTIME_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}"
 RUNTIME_ROOT="${RUNTIME_ROOT%/}/codex-bedrock"
 mkdir -p "$RUNTIME_ROOT"
@@ -40,6 +45,11 @@ die() {
 
 [ -f "$OVERLAY" ] || die "$OVERLAY がない(chezmoi apply 済みか確認する)"
 [ -f "$BASE_HOME/config.toml" ] || die "$BASE_HOME/config.toml がない"
+
+# 既定プロファイルはハードコードしない。どちらも無ければ起動しない。
+profile="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+[ -n "$profile" ] ||
+	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択してください。"
 
 hash_of() {
 	if command -v shasum >/dev/null 2>&1; then
@@ -108,9 +118,9 @@ for d in "$RUNTIME_ROOT"/*; do
 	# このプロジェクトの home は回収しない。作り直すかどうかは下の stale_home が決める。
 	# ここで消すと毎回まっさらになり、codex がその home に書いた信頼(プロジェクトや
 	# フックの trust)が起動のたびに失われて、そのつど確認を聞かれる。
-	[ "$d" = "$HOME_DIR" ] && continue
-	is_live "$d" && continue
-	[ -n "$(find "$d" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ] && continue
+	if [ "$d" = "$HOME_DIR" ]; then continue; fi
+	if is_live "$d"; then continue; fi
+	if [ -n "$(find "$d" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ]; then continue; fi
 	rm -rf "$d"
 done
 
@@ -118,9 +128,9 @@ done
 stale_home() {
 	[ -f "$HOME_DIR/config.toml" ] || return 0
 	# 用意した直後の home は、これから codex が使う。掃除側と同じ猶予で作り直しも止める。
-	[ -n "$(find "$HOME_DIR" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ] && return 1
-	[ "$BASE_HOME/config.toml" -nt "$HOME_DIR/config.toml" ] && return 0
-	[ "$OVERLAY" -nt "$HOME_DIR/config.toml" ] && return 0
+	if [ -n "$(find "$HOME_DIR" -maxdepth 0 -mmin "-$FRESH_MIN" 2>/dev/null)" ]; then return 1; fi
+	if [ "$BASE_HOME/config.toml" -nt "$HOME_DIR/config.toml" ]; then return 0; fi
+	if [ "$OVERLAY" -nt "$HOME_DIR/config.toml" ]; then return 0; fi
 	return 1
 }
 
@@ -257,12 +267,12 @@ sys.stdout.write(text)
 PY
 		die "config.toml の合成に失敗した"
 
-	# グローバル指示とフックは素の home から持ち込む。MCP サーバやマーケットプレイスは
-	# config.toml 内で絶対パスを指しているので CODEX_HOME が変わってもそのまま解決する。
+	# グローバル指示とフックは素の home から持ち込む。MCP サーバは config.toml 内で絶対パスを
+	# 指しているので CODEX_HOME が変わってもそのまま解決する。
 	for f in AGENTS.md hooks.json; do
-		[ -f "$BASE_HOME/$f" ] && cp "$BASE_HOME/$f" "$BUILD/$f"
+		if [ -f "$BASE_HOME/$f" ]; then cp "$BASE_HOME/$f" "$BUILD/$f"; fi
 	done
-	[ -d "$BASE_HOME/skills" ] && cp -R "$BASE_HOME/skills" "$BUILD/skills"
+	if [ -d "$BASE_HOME/skills" ]; then cp -R "$BASE_HOME/skills" "$BUILD/skills"; fi
 
 	# agmsg の codex ドライバは rollout を $HOME/.codex/sessions に決め打ちで探す。実 home の
 	# sessions へ張っておかないと、Bedrock セッションのトランスクリプトを agmsg が見失う。
@@ -277,27 +287,26 @@ fi
 flock -u 9
 
 # 一時 home を用意するだけで codex は起動しない。CODEX_HOME を自分で渡して codex を
-# 起動したい呼び出し元(codex-bedrock-spawn)のための入り口。app-server の照合は
+# 起動したい呼び出し元(codex-bedrock-spawn)のための入り口。認証確認と app-server の照合は
 # 呼び出し元がやるので、ここでは触らない。
 if [ "${1:-}" = "--print-home" ]; then
 	printf '%s\n' "$HOME_DIR"
 	exit 0
 fi
 
-export AWS_PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
-export CODEX_HOME="$HOME_DIR"
-
 # Bedrock 用プロファイルが無いと動かないので、未認証なら起動しない。
-# PATH は足さない。aws-auth-ensure は自前で通すし、ここで ~/.local/bin を前に出すと agmsg
-# monitor の codex シム(~/.agents/bin/codex)を飛び越してしまう。
-AUTH_ENSURE="$HOME/.local/bin/aws-auth-ensure"
-if [ -x "$AUTH_ENSURE" ] && ! "$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock"; then
-	die "Bedrock 用プロファイル $AWS_PROFILE が未認証のため起動しない"
+# PATH は足さない。aws-auth-ensure は自前で通すし、ここで ~/.local/bin を前に出すと
+# agmsg monitor の codex シム (~/.agents/bin/codex) を飛び越してしまう。
+auth_ensure="$HOME/.local/bin/aws-auth-ensure"
+if [ -x "$auth_ensure" ] && ! "$auth_ensure" "$profile" "Bedrock"; then
+	die "Bedrock 用プロファイル ${profile} が未認証のため起動しません。"
 fi
 
 # 子プロセスから credential_process が呼ばれても、画面の中にログイン URL を描かせない。
-# 走行中に切れたときは herdr のタブへ委譲される(docs/aws-cheatsheet.md)。
+# 期限が切れたら認証エラーになるので、起動し直して上の確認を通す。
 export AWS_LOGIN_NO_INTERACTIVE=1
+export AWS_PROFILE="$profile"
+export CODEX_HOME="$HOME_DIR"
 
 codex-appserver-evict "$HOME_DIR" "$@"
 

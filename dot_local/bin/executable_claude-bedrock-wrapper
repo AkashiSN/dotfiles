@@ -2,28 +2,30 @@
 # claude-bedrock-wrapper <claude 実行ファイル> [args...] - 渡された claude を
 # Amazon Bedrock (グローバル推論プロファイル) 用の env つきで exec する。
 #
-# なぜ関数ではなく実体スクリプトなのか:
+# なぜ「関数」ではなく実体スクリプトが要るか:
 #   VS Code 拡張 (anthropic.claude-code) の claudeCode.claudeProcessWrapper は
 #   「実行ファイルのパス」しか受け取らない。拡張はシェルを介さず
 #     <wrapper> <拡張が同梱する claude> <claude への引数...>
-#   の形で spawn するため、zsh 関数や alias では解決できない。逆に「第 1 引数として
-#   渡された claude を exec する」ことが拡張との契約なので、ここでは PATH 上の claude を
-#   勝手に選ばず "$@" をそのまま exec する (拡張が動作確認しているのは同梱版であり、
-#   別バージョンを混ぜない)。
+#   の形で spawn するため、zsh 関数や alias では解決できず、絶対パスの実行ファイルが要る。
+#   逆に「第 1 引数として渡された claude を exec する」ことが拡張との契約なので、
+#   ここでは PATH 上の claude を勝手に選ばず "$@" をそのまま exec する
+#   (拡張が動作確認しているのは同梱版であり、別バージョンを混ぜない)。
 #
-# VS Code から Bedrock で動かしたいときだけ、設定に次を足す (既定では入れていない。
-# 手元の VS Code は claude.ai のサブスクリプションで使うため):
-#   "claudeCode.claudeProcessWrapper": "/Users/<user>/.local/bin/claude-bedrock-wrapper"
+# VS Code から Bedrock で動かしたいときは設定に次を足す (Remote なら Machine 設定
+# ~/.vscode-server/data/Machine/settings.json):
+#   "claudeCode.claudeProcessWrapper": "<ホームの絶対パス>/.local/bin/claude-bedrock-wrapper"
 #
-# 使う AWS プロファイルは CLAUDE_CODE_BEDROCK_AWS_PROFILE (既定 cdx-pre-dev)。対話中に
-# aws-switch で選んでいる AWS_PROFILE は上書きするので影響されない。認証はそのプロファイルの
-# credential_process = aws-login が担う (追加ログイン不要)。
+# 使う AWS プロファイルは CLAUDE_CODE_BEDROCK_AWS_PROFILE → AWS_PROFILE の順。
+# どちらも環境に無ければ ~/.env から読む (拡張ホストは direnv を通らないため)。
+# 既定プロファイルへのフォールバックは持たない (意図しないアカウントを黙って触らない)。
 #
-# 起動前に、そのプロファイルが認証済みかを aws-auth-ensure で確かめる。未認証のまま起動
+# 起動前に、使うプロファイルが認証済みかを aws-auth-ensure で確かめる。未認証のまま起動
 # すると、TUI が立ったあとで credential_process (aws-login) がログイン URL を /dev/tty へ
-# 出し、画面が崩れるため。Bedrock 用プロファイルが無いと動かないので、未認証なら起動しない。
+# 出し、画面が崩れるため。確かめるのは 2 つ:
+#   Bedrock 用 (このスクリプトが決めるプロファイル) : 無いと動かないので未認証なら起動しない
+#   AWS MCP 用 (aws-mcp-launch と同じ解決)          : MCP がエラーを返すだけなので警告のみ
 #
-# 関連: claude-bedrock / aws-auth-ensure / docs/zsh-cheatsheet.md
+# 関連: claude-bedrock / aws-auth-ensure / docs/claude-settings.md / docs/zsh-cheatsheet.md
 set -euo pipefail
 
 die() {
@@ -37,22 +39,52 @@ die() {
 # プロファイルの credential_process = aws-login も ~/.local/bin にある。
 export PATH="$HOME/.local/bin:${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$PATH"
 
-export AWS_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-cdx-pre-dev}"
+# 環境から来た選択 (aws-switch で選んだ AWS_PROFILE など) を優先し、
+# 何も無いときだけ ~/.env を読む。
+BEDROCK_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+if [ -z "$BEDROCK_PROFILE" ] && [ -f "$HOME/.env" ]; then
+	# shellcheck disable=SC1091
+	. "$HOME/.env"
+	BEDROCK_PROFILE="${CLAUDE_CODE_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+fi
+[ -n "$BEDROCK_PROFILE" ] ||
+	die "CLAUDE_CODE_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択してください。"
+export AWS_PROFILE="$BEDROCK_PROFILE"
 
 AUTH_ENSURE="$HOME/.local/bin/aws-auth-ensure"
 if [ -x "$AUTH_ENSURE" ]; then
-	"$AUTH_ENSURE" "$AWS_PROFILE" "Bedrock" ||
-		die "Bedrock 用プロファイル ${AWS_PROFILE} が未認証のため起動しません。"
+	"$AUTH_ENSURE" "$BEDROCK_PROFILE" "Bedrock" ||
+		die "Bedrock 用プロファイル ${BEDROCK_PROFILE} が未認証のため起動しません。"
+
+	# AWS MCP が使うプロファイルは aws-mcp-launch と同じ解決をなぞる。~/.env に AWS_PROFILE が
+	# あればそれ、無ければ継承した値 (= ここで export した Bedrock 用) になる。
+	# Bedrock 用と同じに落ち着くなら上で済んでいる。
+	# launcher が無い環境 (AWS MCP を登録していない) では確かめる相手が居ないので飛ばす。
+	if [ -x "$HOME/.local/bin/aws-mcp-launch" ]; then
+		MCP_PROFILE=$(
+			if [ -f "$HOME/.env" ]; then
+				# shellcheck disable=SC1091
+				. "$HOME/.env"
+			fi
+			printf '%s' "${AWS_PROFILE:-}"
+		)
+		if [ -n "$MCP_PROFILE" ] && [ "$MCP_PROFILE" != "$BEDROCK_PROFILE" ]; then
+			"$AUTH_ENSURE" "$MCP_PROFILE" "AWS MCP" || true
+		fi
+	fi
 fi
 
 # 子プロセス (MCP サーバ等) から credential_process が呼ばれても、画面の中にログイン URL を
-# 描かせない。期限が切れたら herdr のタブと statusLine で人へ渡る (docs/aws-cheatsheet.md)。
+# 描かせない。期限が切れたら認証エラーになるので、起動し直して上の確認を通す。
 export AWS_LOGIN_NO_INTERACTIVE=1
 
 export CLAUDE_CODE_USE_BEDROCK=1
 export CLAUDE_CODE_USE_MANTLE=1
 export CLAUDE_CODE_ENABLE_AUTO_MODE=1
 # グローバル推論プロファイルでも SigV4 署名には具体リージョンが要る (ルーティングは自動)。
+# これは Bedrock 呼び出し用の値で、操作対象リージョンではない。claude の子プロセスにも
+# そのまま継承されるので、AWS を操作する側 (aws-mcp-launch など) はこれを当てにせず
+# ~/.env から読み直すこと。
 export AWS_REGION="${CLAUDE_CODE_BEDROCK_REGION:-us-east-1}"
 export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-5[1m]}"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
