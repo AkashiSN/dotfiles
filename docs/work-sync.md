@@ -15,6 +15,21 @@
 > RWORK=$(ssh cloudsa 'ls -d ~/Project/src/*/*/cloudsa-dotfiles')
 > ```
 
+## work 環境の識別子の置き場
+
+サーバのインスタンス ID・ユーザ名・uid・AWS プロファイル・GitHub Enterprise のホスト名は、
+**ソースに書かず** `~/.config/chezmoi/chezmoi.toml` の `[data.work]` に置く（`chezmoi init` が
+`promptStringOnce` で聞いて生成する。一度答えれば再実行しても聞かれない）。
+
+| キー | 使うところ |
+| --- | --- |
+| `user` / `instance` / `uid` | `private_dot_ssh/private_config.tmpl` の `cloudsa` ブロックと鍵の参照 |
+| `profile` | 同上の `ProxyCommand`（ssh の踏み台で使う AWS プロファイル）と `dot_aws/create_config.tmpl` |
+| `bedrock` | `dot_aws/create_config.tmpl` と `create_dot_env.tmpl`（Bedrock の接続先プロファイル） |
+| `ghe` | `private_dot_ssh/private_config.tmpl` の GitHub Enterprise ブロック |
+
+値が無いマシンでは、これらを使う Host 定義とプロファイル定義をまるごと出力しない。
+
 ## リポジトリの場所
 
 | どれ | 場所 | 用途 |

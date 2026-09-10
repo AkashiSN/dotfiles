@@ -1,0 +1,25 @@
+{{- /*
+  work 用のプロファイル名（ssh の踏み台用と Bedrock 用）は、このリポジトリが公開なので
+  ここには書かず ~/.config/chezmoi/chezmoi.toml の [data.work] から取る
+  （.chezmoi.toml.tmpl が prompt して生成する）。値が無いマシンでは出力しない。
+  create_ なので、既に ~/.aws/config がある場合は配られない。
+*/ -}}
+{{- $work := dict -}}
+{{- if hasKey . "work" }}{{ $work = .work }}{{ end -}}
+{{- $sshProfile := "" -}}
+{{- if hasKey $work "profile" }}{{ $sshProfile = $work.profile }}{{ end -}}
+{{- $bedrockProfile := "" -}}
+{{- if hasKey $work "bedrock" }}{{ $bedrockProfile = $work.bedrock }}{{ end -}}
+[profile sylc]
+region = ap-northeast-1
+credential_process = aws-login sylc
+{{ if $bedrockProfile }}
+[profile {{ $bedrockProfile }}]
+region = ap-northeast-1
+credential_process = aws-login {{ $bedrockProfile }}
+{{ end }}{{ if $sshProfile }}
+[profile {{ $sshProfile }}]
+region = ap-northeast-1
+credential_process = aws-login {{ $sshProfile }}
+{{ end }}
+#--------------------------#

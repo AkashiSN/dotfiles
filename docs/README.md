@@ -15,7 +15,7 @@
 | Terraform（provider キャッシュ / tflint） | [terraform-cheatsheet.md](terraform-cheatsheet.md) | `dot_terraformrc.tmpl` / `dot_local/bin/tf-cache-prune` / `dot_config/aquaproj-aqua/aqua.yaml` |
 | uv（既定の Python / ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `dot_config/uv/dot_python-version` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |
 | シェルスクリプト lint / format | [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） |
-| AWS プロファイル切替 | [aws-cheatsheet.md](aws-cheatsheet.md) | `dot_local/bin/aws-switch` / `aws-login` / `aws-logout` / `dot_aws/modify_config` |
+| AWS プロファイル切替 | [aws-cheatsheet.md](aws-cheatsheet.md) | `dot_local/bin/aws-switch` / `aws-login` / `aws-logout` / `dot_aws/create_config.tmpl` |
 | portfwd（SSH ブラウザ自動FW） | [portfwd-cheatsheet.md](portfwd-cheatsheet.md) | `dot_local/bin/portfwd` / `portfwd-open` / `private_dot_ssh/private_config.tmpl` |
 | dji_workflow（DJI 取り込み → Immich） | [dji-cheatsheet.md](dji-cheatsheet.md) | `dot_local/bin/dji_workflow.py` |
 | agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |

@@ -11,6 +11,7 @@
 {{- $workUid := promptStringOnce . "work.uid" "work サーバでの uid" "" }}
 {{- $workProfile := promptStringOnce . "work.profile" "work サーバへ ssh するときの AWS プロファイル" "" }}
 {{- $workGhe := promptStringOnce . "work.ghe" "work 用 GitHub Enterprise のホスト名" "" }}
+{{- $workBedrock := promptStringOnce . "work.bedrock" "Bedrock を呼ぶときの AWS プロファイル" "" }}
 
 # umask を固定する。固定しないと chezmoi は実行時シェルの umask を使い、
 # 通常ファイル=0666&^umask / 実行ファイル・ディレクトリ=0777&^umask で目標モードを計算する。
@@ -30,4 +31,5 @@ instance = "{{ $workInstance }}"
 uid = "{{ $workUid }}"
 profile = "{{ $workProfile }}"
 ghe = "{{ $workGhe }}"
+bedrock = "{{ $workBedrock }}"
 {{- end }}

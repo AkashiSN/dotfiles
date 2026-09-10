@@ -1,3 +1,5 @@
+{{- $bedrock := "" -}}
+{{- if hasKey . "work" }}{{ if hasKey .work "bedrock" }}{{ $bedrock = .work.bedrock }}{{ end }}{{ end -}}
 # global env
 #
 # direnv (~/.envrc の `dotenv`) が読み込む。書き換えは次のプロンプトから効く。
@@ -7,8 +9,14 @@
 # claude-bedrock / codex-bedrock が使う AWS プロファイル。既定値はハードコードしていないので、
 # Bedrock で動かすなら書く (未設定なら aws-switch が書く AWS_PROFILE に従い、それも無ければ
 # 起動しない)。docs/zsh-cheatsheet.md の「bedrock 起動で使う AWS プロファイル」。
+# 値は ~/.config/chezmoi/chezmoi.toml の [data.work] から入る (リポジトリには書かない)。
+{{ if $bedrock -}}
+export CLAUDE_CODE_BEDROCK_AWS_PROFILE={{ $bedrock }}
+export CODEX_BEDROCK_AWS_PROFILE={{ $bedrock }}
+{{- else -}}
 # export CLAUDE_CODE_BEDROCK_AWS_PROFILE=<profile>
 # export CODEX_BEDROCK_AWS_PROFILE=<profile>
+{{- end }}
 
 # mo (ブラウザ版 markdown ビューア) のポートを固定したいときに設定する。既定は
 # ~/.local/bin/mo-port が uid から決める。複数ユーザのホストで他の人と被ったときや、

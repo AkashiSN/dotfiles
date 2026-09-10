@@ -116,7 +116,7 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 
 ### 前提
 
-- **AWS CLI と SSO profile は別途手動で設定しておくこと。** `dot_aws/create_config` の
+- **AWS CLI と SSO profile は別途手動で設定しておくこと。** `dot_aws/create_config.tmpl` の
   `credential_process = aws-login <profile>` は bash スクリプトを呼ぶため Windows では動かず、
   `.aws` は Windows へ展開しない。`cloudsa` への ssh が通ることが portfwd の前提になる。
 - Python（管理者権限は不要）:

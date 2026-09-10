@@ -25,7 +25,7 @@
 # 関連:
 #   - aws-login            : 実際の認証（credential_process 本体）
 #   - aws-logout           : セッションと -signin プロファイルの破棄
-#   - dot_aws/create_config: ~/.aws/config の初期テンプレート（初回作成時のみ）
+#   - dot_aws/create_config.tmpl: ~/.aws/config の初期テンプレート（初回作成時のみ）
 
 set -e
 
