@@ -1,22 +1,34 @@
 # work 用 dotfiles との同期
 
-この dotfiles には対になる **work 用 dotfiles**（`github.kddi.com/kddi-cdx/cloudsa-dotfiles`）が
+この dotfiles には対になる **work 用 dotfiles**（`cloudsa-dotfiles`。社内 GHE にある）が
 ある。同じ役割のスクリプトを両方が持っていて、片方で直した改良をもう一方へ運ぶ。ここはその
 運び方と、揃えると決めた規約をまとめたもの。
+
+> このリポジトリは公開なので、**社内の組織名・ホスト名・サーバ上のパス・ユーザ名は書かない**。
+> 以下では次の 2 つを使う。実際の値は手元の `~/.ssh/config` と `ghq` のパスから補う。
+>
+> - `$WORK` … work 用 dotfiles の**手元の読み取り用クローン**（`ghq` 管理のパス）
+> - `$RWORK` … **サーバ上の実体**のパス（`cloudsa` のホームの下）
+>
+> ```sh
+> WORK=$(ghq list -p | grep cloudsa-dotfiles)
+> RWORK=$(ssh cloudsa 'ls -d ~/Project/src/*/*/cloudsa-dotfiles')
+> ```
 
 ## リポジトリの場所
 
 | どれ | 場所 | 用途 |
 | --- | --- | --- |
-| このリポジトリ | `~/.local/share/chezmoi` | 個人用。**公開リポジトリ**（`github.com/AkashiSN/dotfiles`） |
-| work（実体） | `cloudsa:/home/su-nishi/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles` | 作業も commit もここでする |
-| work（手元の読み取り用クローン） | `~/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles` | 比較用。`git pull` で GHE から引くだけ |
+| このリポジトリ | `~/.local/share/chezmoi` | 個人用。公開リポジトリ |
+| work（実体） | `cloudsa:$RWORK` | 作業も commit もここでする |
+| work（手元のクローン） | `$WORK` | 比較用。`git pull` で GHE から引くだけ |
 
 `cloudsa` への SSH は `ssm-proxy.sh` 経由なので、先に AWS の認証が要る
-（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。
+（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。使うプロファイルは `~/.ssh/config` の
+`ProxyCommand` の引数にある。
 
 ```sh
-aws-auth-ensure cdx-arise-pre-dev "ssh cloudsa"
+aws-auth-ensure <ProxyCommand のプロファイル> "ssh cloudsa"
 ssh cloudsa
 ```
 
@@ -29,27 +41,27 @@ ssh cloudsa
 | Bedrock 用 AWS プロファイル | **既定を持たず `~/.env` から解決** | 公開リポジトリにアカウント名を焼かない。意図しないアカウントを触らない |
 | 環境固有の機能 | **揃えない** | work の AWS MCP / Grafana / EKS、こちらの superpowers / ghostty / 個人ツールなど。共有コアの外に置く |
 
-**公開リポジトリへ持ち込まないもの**: 業務アカウント名・ホスト名・社内 URL・runbook の類。
-work から取り込むときは、コード本体だけを取ってコメントの固有名詞は落とす。
+**どちらの向きにも持ち込まないもの**: work へは個人リポジトリの名前や URL を、こちらへは
+組織名・サーバのパス・業務アカウント名を書かない。取り込むときはコード本体だけを取り、
+コメントの固有名詞は落とす。
 
 ## work → こちらへ取り込む
 
 work 側の変更は GHE に push されているので、手元のクローンを更新してから読む。
 
 ```sh
-D=~/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles
-git -C "$D" pull
-git -C "$D" log --oneline -10
-git -C "$D" show <commit>
+git -C "$WORK" pull
+git -C "$WORK" log --oneline -10
+git -C "$WORK" show <commit>
 ```
 
 まだ push されていないなら、サーバで直接見る:
 
 ```sh
-ssh cloudsa 'cd /home/su-nishi/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles && git log --oneline -5'
+ssh cloudsa "cd $RWORK && git log --oneline -5"
 ```
 
-取り込むときは**そのまま貼らない**。この repo 側の携帯実装（`ps` / BSD `date` 互換）と、
+取り込むときは**そのまま貼らない**。この repo 側の携帯実装（`ps` / BSD `date` 互換）へ寄せ、
 公開リポジトリに置けない固有名詞を落としたうえで移植する。移植したら mac で実際に動かし、
 `shellcheck` と `shfmt -l` を通してからコミットする。
 
@@ -58,10 +70,9 @@ ssh cloudsa 'cd /home/su-nishi/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotf
 work は `scp` で直接置き換える（実体はサーバ側）。
 
 ```sh
-R=/home/su-nishi/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles
-scp dot_local/bin/executable_aws-login "cloudsa:$R/dot_local/bin/executable_aws-login"
+scp dot_local/bin/executable_aws-login "cloudsa:$RWORK/dot_local/bin/executable_aws-login"
 
-ssh cloudsa "export PATH=\$HOME/.local/share/aquaproj-aqua/bin:\$PATH; cd $R \
+ssh cloudsa "export PATH=\$HOME/.local/share/aquaproj-aqua/bin:\$PATH; cd $RWORK \
   && git diff --name-only | xargs shellcheck -f gcc \
   && git diff --name-only | xargs shfmt -l \
   && git status --porcelain"
@@ -77,7 +88,7 @@ work のツリーを手元へ取ってから、コメントと空行を除いた
 
 ```sh
 SP=$(mktemp -d)
-scp -q -r cloudsa:/home/su-nishi/Project/src/github.kddi.com/kddi-cdx/cloudsa-dotfiles/dot_local/bin "$SP/work-bin"
+scp -q -r "cloudsa:$RWORK/dot_local/bin" "$SP/work-bin"
 
 for f in "$SP"/work-bin/*; do
   n=$(basename "$f")
@@ -94,9 +105,9 @@ done | sort -rn
 
 2026-09-10 に、それまで別々に育っていた共有スクリプトを次の 3 段階で揃えた。
 
-1. 両リポジトリを `shfmt` の既定（タブ）へ一括整形（このリポジトリ `8f7c21c` / work `0abc44f`）
-2. OS 依存の実装をこのリポジトリの移植版へ統一（work `f273518`）
-3. Bedrock 用プロファイルの既定ハードコードを外し `~/.env` 解決へ（このリポジトリ `ab2a248` / work `afc2750`）
+1. 両リポジトリを `shfmt` の既定（タブ）へ一括整形（このリポジトリ `8f7c21c`）
+2. OS 依存の実装をこのリポジトリの移植版へ統一
+3. Bedrock 用プロファイルの既定ハードコードを外し `~/.env` 解決へ（このリポジトリ `ab2a248`）
 
 これで `dot_local/bin` の共有スクリプトはコメントを含めてほぼ同一になり、以後は差分＝実装の
 違いだけになる。
