@@ -1,4 +1,16 @@
 # chezmoi 本体の設定。`chezmoi init` 時に ~/.config/chezmoi/chezmoi.toml へ展開される。
+#
+# work 環境の識別子（サーバのインスタンス ID / ユーザ名 / uid / AWS プロファイル / GitHub
+# Enterprise のホスト名）は、このリポジトリが公開なのでソースへ書かず、ここ（リポジトリ外の生成物）へ置く。
+# 参照するのは private_dot_ssh/private_config.tmpl。値が無ければ work 向けの Host 定義ごと
+# 出力しないので、work を使わないマシンでは空のままでよい。
+# promptStringOnce なので、一度答えれば `chezmoi init` を再実行しても聞かれない。
+
+{{- $workUser := promptStringOnce . "work.user" "work サーバのユーザ名（使わないなら空のまま Enter）" "" }}
+{{- $workInstance := promptStringOnce . "work.instance" "work サーバのインスタンス ID" "" }}
+{{- $workUid := promptStringOnce . "work.uid" "work サーバでの uid" "" }}
+{{- $workProfile := promptStringOnce . "work.profile" "work サーバへ ssh するときの AWS プロファイル" "" }}
+{{- $workGhe := promptStringOnce . "work.ghe" "work 用 GitHub Enterprise のホスト名" "" }}
 
 # umask を固定する。固定しないと chezmoi は実行時シェルの umask を使い、
 # 通常ファイル=0666&^umask / 実行ファイル・ディレクトリ=0777&^umask で目標モードを計算する。
@@ -11,3 +23,11 @@ umask = 0o022
 [interpreters.ps1]
 command = "powershell"
 args = ["-NoProfile", "-ExecutionPolicy", "Bypass"]
+{{ if $workUser }}
+[data.work]
+user = "{{ $workUser }}"
+instance = "{{ $workInstance }}"
+uid = "{{ $workUid }}"
+profile = "{{ $workProfile }}"
+ghe = "{{ $workGhe }}"
+{{- end }}

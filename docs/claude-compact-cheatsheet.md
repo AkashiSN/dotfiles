@@ -69,7 +69,7 @@ hook 側からは見えないので、`statusline.sh` が表示のついでに m
 AWS の認証が切れているときは、行の末尾に赤で `⚠ AWS 未認証: <profile>` が付く。
 
 ```
-[Opus 5] chezmoi (main) ▓▓▓░░░░░░░ 31% ⚠ AWS 未認証: cdx-pre-dev
+[Opus 5] chezmoi (main) ▓▓▓░░░░░░░ 31% ⚠ AWS 未認証: <profile>
 ```
 
 marker（`~/.aws/.aws-login-<profile>.expired`）を置くのは `aws-login` で、statusLine は**有無を

@@ -314,7 +314,7 @@ hooks / exec policy を読まないので、`.codex/hooks.json` が効かない�
 書きかけのレコードを畳んでから終わる。
 
 > **経緯**: 以前は codex の AWS プロファイルを `dot_codex/private_bedrock.config.toml` に
-> `profile = "cdx-pre-dev"` とハードコードし、`claude-bedrock` は `aws-switch` で選んだ
+> `profile = "<profile>"` とハードコードし、`claude-bedrock` は `aws-switch` で選んだ
 > `AWS_PROFILE` を流用（未設定ならエラー停止）していた。その後、両者を専用環境変数
 > `{CODEX,CLAUDE_CODE}_BEDROCK_AWS_PROFILE` で切り替える方式に統一し、codex 側は
 > config から `profile` を削除して `AWS_PROFILE` 経由に一本化した。あわせて claude 側の上書き変数を

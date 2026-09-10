@@ -197,8 +197,8 @@ aws-switch my-profile <role_name> # assume role 付きで切り替え（ARN で�
 ### aws-auth-ensure
 
 ```sh
-aws-auth-ensure cdx-pre-dev            # 未認証ならその場でログインする
-aws-auth-ensure cdx-pre-dev "Bedrock"  # 第 2 引数はメッセージに出す用途ラベル
+aws-auth-ensure <profile>            # 未認証ならその場でログインする
+aws-auth-ensure <profile> "Bedrock"  # 第 2 引数はメッセージに出す用途ラベル
 ```
 
 AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`）を呼ばない。そのため

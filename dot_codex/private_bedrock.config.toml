@@ -2,7 +2,8 @@
 # config.toml として書き出す(手で `codex --profile bedrock` として使うこともできる)。プレーン
 # codex はサブスク(OpenAI ログイン)のまま無変更で、Bedrock を使うときだけこれを被せる。
 # 認証に使う AWS プロファイルはここに書かず、codex-bedrock が環境変数
-# CODEX_BEDROCK_AWS_PROFILE(既定 cdx-pre-dev)から AWS_PROFILE を渡す。そのプロファイルの
+# CODEX_BEDROCK_AWS_PROFILE(無ければ aws-switch が選択中の AWS_PROFILE。どちらも無ければ
+# エラー。既定プロファイルはハードコードしない)から AWS_PROFILE を渡す。そのプロファイルの
 # credential_process = aws-login が認証を担うため、シェル側の追加ログインは不要。codex が
 # 実行時状態を書き戻すのは一時 home 側の config.toml なので、このファイルは読み取り専用として
 # chezmoi で常時同期する。
