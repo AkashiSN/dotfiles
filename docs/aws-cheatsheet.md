@@ -254,9 +254,18 @@ AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`�
 - ペインが閉じていても 60 秒は開き直さない（ユーザが閉じたのに湧き続けるのを防ぐ）
 - 同時呼び出しは `flock` で 1 つに絞る
 
-`.expired` は認証が通った時点で `aws-login` / `aws-auth-ensure` が消す。別経路（手打ちの
-`aws login` など）で入り直して取り残された場合は、statusLine が creds キャッシュの期限を見て
-自分で消す（[claude-compact-cheatsheet.md](claude-compact-cheatsheet.md#statusline-の表示)）。
+`.expired` は認証が通った時点で `aws-login` / `aws-auth-ensure` が消す。取り残される経路は
+2 つあり、それぞれ別の担当が拾う。
+
+| 取り残される経路 | 誰が消すか |
+| --- | --- |
+| 別経路（手打ちの `aws login` など）で入り直した | statusLine。creds キャッシュの期限を見て、生きていれば自分で消す（[claude-compact-cheatsheet.md](claude-compact-cheatsheet.md#statusline-の表示)） |
+| 認証せずに `aws-switch` で別プロファイルへ乗り換えた | `aws-switch`。切り替え成功後に切り替え元の marker を消す |
+
+statusLine の警告は `~/.aws/.aws-login-*.expired` を glob して並べるだけで現在のプロファイルとは
+関係がないので、後者を放っておくと**もう使っていないプロファイルの警告が出続け、プロファイルが
+切り替わっていないように見える**。まだ必要なプロファイルなら、次の `credential_process` 呼び出しで
+置き直される。
 
 `AWS_LOGIN_NO_INTERACTIVE` が唯一のゲートなので、**herdr のペインで普通に `aws s3 ls` を叩いて
 期限切れになった場合は今までどおりその場でログインする**。タブは湧かない。

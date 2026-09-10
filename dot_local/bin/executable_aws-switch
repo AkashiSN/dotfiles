@@ -5,6 +5,7 @@
 #   1. 対象プロファイルで aws-login を実行し、`aws login` による認証（credential_process）を済ませる
 #   2. $HOME/.env の `export AWS_PROFILE=...` 行を書き換え、以降のシェルで
 #      そのプロファイルが既定になるようにする
+#   3. 切り替え元プロファイルに残った `.expired` marker を落とす
 #   ※ MFA は `aws login` 側で扱う。このスクリプトは STS を直接呼ばない。
 #
 # 使用方法:
@@ -54,6 +55,10 @@ fi
 
 export AWS_PROFILE
 echo "Current profile is \"${AWS_PROFILE}\"."
+
+# 切り替え元のプロファイル。このあと .env から行を消すので、その前に控える。
+# 末尾の .expired marker を落とすのに使う（スクリプト末尾を参照）。
+PREV_PROFILE=$(sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?AWS_PROFILE=[\"']?([^\"'[:space:]]+).*/\2/p" "$HOME/.env" | tail -n 1)
 # .env の古い AWS_PROFILE 行を削除する（このあと新しい AWS_PROFILE 行を追記する）。
 # このスクリプトが .env に書くのは AWS_PROFILE 行だけなので、削除対象もそれに限定する。
 # AWS を含む他の変数（CODEX_BEDROCK_AWS_PROFILE 等）を巻き込まないため。
@@ -114,4 +119,13 @@ else
 
     echo "export AWS_PROFILE=${AWS_PROFILE}" >> $HOME/.env
     echo "Successful profile switch to ${AWS_PROFILE}."
+fi
+
+# 切り替え元に残った .expired marker を落とす。
+# marker は「対話ログインできない場所で認証切れを踏んだ」印で、消すのは認証を通した
+# aws-login / aws-auth-ensure だけ。認証せず別プロファイルへ移ったときは誰も消さないため、
+# もう使っていないプロファイルの警告が Claude Code の statusLine に残り続ける。
+# まだ必要なプロファイルなら、次の credential_process 呼び出しで置き直される。
+if [[ -n $PREV_PROFILE && $PREV_PROFILE != "$AWS_PROFILE" ]]; then
+    rm -f "$HOME/.aws/.aws-login-${PREV_PROFILE}.expired" 2>/dev/null || true
 fi
