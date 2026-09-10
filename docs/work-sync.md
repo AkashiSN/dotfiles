@@ -55,6 +55,7 @@ ssh cloudsa
 | 整形 | **`shfmt` の既定（`-i 0` = タブ）** | フラグ無しで回せる。詳細は [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md#このリポジトリの整形規約) |
 | Bedrock 用 AWS プロファイル | **既定を持たず `~/.env` から解決** | 公開リポジトリにアカウント名を焼かない。意図しないアカウントを触らない |
 | 環境固有の機能 | **揃えない** | work の AWS MCP / Grafana / EKS、こちらの superpowers / ghostty / 個人ツールなど。共有コアの外に置く |
+| Claude Code の設定の置き場 | **揃えない** | work は policy 層（`managed-settings.json`）へまとめて置く。こちらの policy 層は sudo が要るうえ「忘れても破れない禁止事項」の場所なので、機能設定（`awsAuthRefresh` など）は `private_dot_claude/modify_settings.json.tmpl` のユーザ層に置く |
 
 **どちらの向きにも持ち込まないもの**: work へは個人リポジトリの名前や URL を、こちらへは
 組織名・サーバのパス・アカウント名を書かない。取り込むときはコード本体だけを取り、
@@ -116,6 +117,16 @@ done | sort -rn
 `0` 行のファイルは byte 単位で同じか、コメントだけの差。片側にしか無いファイルは
 `diff -rq --exclude=.git` の `Only in` で見る。
 
+**意図して残している差分**（次に測るときに取り込み漏れと取り違えないように）。
+
+| ファイル | 差分の中身 |
+| --- | --- |
+| `executable_herdr-difit` | state file の pid が difit か確かめる実装。work は `/proc/<pid>/cmdline`、こちらは `ps -p <pid> -o args=`（mac で同じ判定になる携帯実装） |
+| `executable_claude-bedrock` | **こちらが新しい。** SSH 接続先での引数なし起動に `--remote-control` を足す判定と、`command -v claude` での実体解決を持つ。work へ配る側 |
+| `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |
+| `executable_aws-auth-ensure` / `executable_claude-bedrock-wrapper` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
+| `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
+
 ## 経緯
 
 2026-09-10 に、それまで別々に育っていた共有スクリプトを次の 3 段階で揃えた。
@@ -126,3 +137,16 @@ done | sort -rn
 
 これで `dot_local/bin` の共有スクリプトはコメントを含めてほぼ同一になり、以後は差分＝実装の
 違いだけになる。
+
+同日、揃えたあとに work 側で育っていた分を取り込んだ。
+
+| 取り込んだもの | 中身 |
+| --- | --- |
+| `aws-login` の委譲と判断ログ | 認証切れの委譲を herdr の popup へ（`aws-auth-handoff` / `herdr-api` / `dot_config/herdr/plugins/aws-login` を新規に持ち込み、`platforms` に `darwin` を足した）。更新の直列化・リトライ・見送り判定と `~/.aws/.aws-login.log` |
+| `aws-auth-ensure --wait` | Claude Code の `awsAuthRefresh` から呼ばれる待ちモード。設定はこちらではユーザ層へ置いた |
+| difit 一式 | `difit` / `difit-port` / `herdr-difit` と `<prefix> d` / `shift+d` の入れ替え（`close_workspace` は `shift+q` へ退避）。`/proc` 依存を `ps` へ寄せた |
+| `tf-cache-prune` | `TF_PLUGIN_CACHE_DIR` の所在を指すコメントの修正（`.zshenv` → `~/.config/shell/env.sh`） |
+
+`mo` / `mo-port` の 371b26a（ポート決定の説明を mac も含む書き方へ）は、こちらの文面へ揃えた
+変更だったので取り込むものが無かった。work 側の `eice` / `windows-setup` はこちらに対応する
+ファイルが無いので対象外。
