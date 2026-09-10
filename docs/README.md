@@ -24,6 +24,7 @@
 | Claude Code（compact 対策 / statusLine） | [claude-compact-cheatsheet.md](claude-compact-cheatsheet.md) | `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl` |
 | graphify（知識グラフ） | [graphify-cheatsheet.md](graphify-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md` |
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
+| work 用 dotfiles との同期 | [work-sync.md](work-sync.md) | （運用手順。`cloudsa-dotfiles` との共有スクリプト全般） |
 
 > これらは chezmoi のソースリポジトリ内のドキュメントで、ホームへは展開されない
 > （`.chezmoiignore` で `docs` を除外）。設定を変更したらチートシートも更新すること（[CLAUDE.md](../CLAUDE.md) 参照）。

@@ -1,0 +1,8 @@
+# 整形だけのコミット。git blame から外す。
+#
+# 使い方（このリポジトリで一度だけ）:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub の blame は設定なしでこのファイルを読む。
+
+# style: シェルスクリプトを shfmt 既定（タブ）へ一括整形する
+8f7c21c39cb2264f3245238c332fe5cd0a89ba85

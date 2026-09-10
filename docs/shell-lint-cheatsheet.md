@@ -50,9 +50,28 @@ nvim の `bashls`（mason 管理）は **PATH 上に `shellcheck` があれば�
 | `shfmt -i 2 FILE` | インデントをスペース 2 に（既定の `-i 0` はタブ） |
 | `shfmt -s FILE` | 簡約もする（`${a}` → `$a` など） |
 
-> **リポジトリ全体へ `-w` をかけないこと。** タブ派・2 スペース派・4 スペース派が混在しており
-> （どの `-i` を指定しても大半のファイルが `-l` に出る）、一括整形すると無関係な差分でコミットが
-> 埋まる。触っているファイルだけを、そのファイルの既存の書き方に合わせた `-i` で整形する。
+### このリポジトリの整形規約
+
+**`shfmt` の既定（`-i 0` = タブ）。フラグは付けない。** work 用 dotfiles
+（`cloudsa-dotfiles`）と同じ規約にしてあり、スクリプトを行き来させても整形の差分が出ない
+（[work との同期](work-sync.md)）。
+
+```sh
+shfmt -l . | grep -v '\.zsh$'   # 整形が要るファイル。空であること
+shfmt -w FILE...                 # 直したファイルだけ整形して直す
+```
+
+対象外は 3 つ。
+
+| 対象外 | 理由 |
+| --- | --- |
+| `dot_config/zsh/rc.d/*.zsh` | shfmt は bash 系のパーサしか持たない。`shfmt -l` には出るが触らない |
+| `.chezmoiscripts/*.tmpl` | Go テンプレート。shfmt が shell と判定しないので、はじめから対象外 |
+| Python スクリプト（下表） | shfmt が構文エラーになる。`ruff` を使う |
+
+一括整形のコミット（`8f7c21c`）は `.git-blame-ignore-revs` に載せてある。手元の blame から
+外すには一度だけ `git config blame.ignoreRevsFile .git-blame-ignore-revs` を実行する
+（GitHub は設定なしで読む）。
 
 ## このリポジトリを検査するときの注意
 
