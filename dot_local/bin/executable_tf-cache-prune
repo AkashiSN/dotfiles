@@ -14,7 +14,7 @@
 #   tf-cache-prune --all -y       # キャッシュを丸ごと空にする
 #
 # 前提:
-#   - キャッシュ先は TF_PLUGIN_CACHE_DIR（.zshenv で設定）。未設定なら
+#   - キャッシュ先は TF_PLUGIN_CACHE_DIR（~/.config/shell/env.sh で設定）。未設定なら
 #     ${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache を見る。
 #   - terraform はキャッシュに置いた provider を自分では削除しないため、
 #     容量の管理はこのスクリプトで行う。

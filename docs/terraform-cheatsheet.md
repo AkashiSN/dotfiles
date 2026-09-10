@@ -2,7 +2,7 @@
 
 `tenv` によるバージョン管理、provider のダウンロードキャッシュ、`tflint` による lint について。
 
-対象ファイル: `dot_terraformrc.tmpl` / `dot_zshenv.tmpl` /
+対象ファイル: `dot_terraformrc.tmpl` / `dot_config/shell/env.sh.tmpl` /
 `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` /
 `dot_local/bin/executable_tf-cache-prune` / `dot_config/zsh/rc.d/40-tools.zsh` /
 `dot_config/aquaproj-aqua/aqua.yaml`
@@ -25,7 +25,7 @@ ${XDG_CACHE_HOME:-$HOME/.cache}/terraform/plugin-cache
 | 場所 | 設定 | 効く範囲 |
 | --- | --- | --- |
 | `~/.terraformrc`（`dot_terraformrc.tmpl`） | `plugin_cache_dir` | terraform 本体が読むので、zsh を経由しない実行でも効く |
-| `~/.zshenv`（`dot_zshenv.tmpl`） | `TF_PLUGIN_CACHE_DIR` | zsh を起点とする全プロセス（非インタラクティブ含む） |
+| `~/.config/shell/env.sh`（`dot_config/shell/env.sh.tmpl`） | `TF_PLUGIN_CACHE_DIR` | zsh / bash を起点とする全プロセス（非インタラクティブ含む。`.zshenv` と `.bashrc` がここを source する） |
 
 両方に同じパスを書いている。**環境変数のほうが CLI 設定ファイルより優先される**ため、
 仮に食い違っても環境変数側の値が使われる。
@@ -133,7 +133,7 @@ registry.terraform.io/hashicorp/aws
 | `terraform` が返ってこない（`terraform version` でも／Tab を押すと固まる） | `TENV_AUTO_INSTALL=true` なので、未導入バージョンを tenv が黙ってダウンロード中。**terraform は Tab 補完でも起動される**（`40-tools.zsh` の `complete -o nospace -C terraform`）ので補完のたびに待たされる。`tenv tf list` で手元の版を確認し、`tenv tf install <ver>` で先に入れておく |
 | `Invalid plugin cache directory` | キャッシュディレクトリが無い。`chezmoi apply` するか `mkdir -p "$TF_PLUGIN_CACHE_DIR"` |
 | `.terraform/providers` のリンク切れ | `tf-cache-prune` で消した後に起きる。該当プロジェクトで `terraform init` |
-| キャッシュが効いていない | `echo $TF_PLUGIN_CACHE_DIR` を確認。空なら `.zshenv` が読まれていない（新しいシェルを開く） |
+| キャッシュが効いていない | `echo $TF_PLUGIN_CACHE_DIR` を確認。空なら `env.sh` が読まれていない（新しいシェルを開く） |
 | キャッシュを一時的に無効化したい | `TF_PLUGIN_CACHE_DIR= terraform init`（その実行だけ空にする） |
 
 ## 関連
