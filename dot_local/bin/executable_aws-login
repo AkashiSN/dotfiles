@@ -80,6 +80,13 @@ fi
 # 例: "my-profile" → "my-profile-signin"
 export AWS_PROFILE="$1-signin"
 
+# リージョンは -signin プロファイルのものだけを使う。signin のエンドポイントはリージョナル
+# （https://<region>.signin.aws.amazon.com）で、refresh token はログインしたリージョンでしか
+# 通らない。呼び出し元の環境変数はプロファイルの region より優先されるため、Bedrock 用に
+# AWS_REGION=us-east-1 を持つ Claude Code の配下から credential_process として呼ばれると、
+# 更新が毎回 INVALID_REQUEST で弾かれる。ここで捨てて、どこから呼ばれても同じ場所へ行かせる。
+unset AWS_REGION AWS_DEFAULT_REGION
+
 # EC2インスタンスのメタデータサービスを無効化
 # ローカル環境でEC2の認証情報が誤って使用されるのを防ぐ
 export AWS_EC2_METADATA_DISABLED=true

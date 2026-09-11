@@ -123,17 +123,32 @@ grep -c 'event=refresh-shared' ~/.aws/.aws-login.log
 grep -c 'event=refresh-retry-ok' ~/.aws/.aws-login.log
 ```
 
-### 更新が一瞬だけ弾かれることがある
+### 更新はログインしたリージョンでしか通らない
 
-`CreateOAuth2Token` が `The provided authorization grant is invalid, expired, revoked, or malformed`
-を返しても、**数秒後には同じ refresh token で通る**ことがある（実測 2 件。うち 1 件は同時実行が
-無い状態で起きた）。1 回目の失敗で認証切れとして扱うと、通るはずの認証のために人を呼び出して
-しまうので、`aws-login` は**待って試し直す**（`refresh-retry-ok`）。
+signin のエンドポイントはリージョナル（`https://<region>.signin.aws.amazon.com`）で、refresh token は
+ログインしたリージョン（`<profile>-signin` の `region`、`aws-login` が `ap-northeast-1` で作る）の
+signin にしか通らない。別のリージョンへ投げると `CreateOAuth2Token` が
+`The provided authorization grant is invalid, expired, revoked, or malformed` を返す（トークンは
+消費されない）。
 
-リトライは `export-credentials` の失敗だけが対象で、**待つのは 2 秒 × 2 回**（実測で一時的な失敗が
-3〜4 秒続いたため）。エラーが「セッションが切れた」とはっきり言っているとき
-（`session has expired` / `Token has expired` / `reauthenticate`）や、STS が認証エラーを返したとき
-（`sts-expired`）は、待っても通らないのでリトライしない。
+`AWS_REGION` / `AWS_DEFAULT_REGION` は **プロファイルの `region` より優先される**ので、それを持つ
+プロセスの配下から `credential_process` として呼ばれると更新先がずれる。`claude-bedrock-wrapper` は
+Bedrock 用に `AWS_REGION=us-east-1` を export しており、その配下の `aws-login` は 15 分ごとの更新で
+毎回この失敗を踏んでいた（herdr の popup やターミナルから叩く `aws sts` はこの変数を持たないので
+通り、そのあと claude 側は新しいキャッシュを読むだけで復帰して見えた）。
+
+そこで `aws-login` は先頭で **`AWS_REGION` / `AWS_DEFAULT_REGION` を捨て**、どこから呼ばれても
+`-signin` プロファイルの `region` で signin へ行く。呼び出し元の STS / Bedrock の呼び出し先には
+影響しない（捨てるのは `aws-login` プロセスの中だけ）。
+
+### 更新が弾かれたら短く試し直す
+
+上の取り違えを除いても、更新が一瞬だけ弾かれて数秒後に通ることはありうる。1 回目の失敗で
+認証切れとして扱うと、通るはずの認証のために人を呼び出してしまうので、`aws-login` は
+`export-credentials` の失敗に限り **2 秒待って 2 回まで試し直す**（救えたら `refresh-retry-ok`）。
+エラーが「セッションが切れた」とはっきり言っているとき（`session has expired` / `Token has expired` /
+`reauthenticate`）や、STS が認証エラーを返したとき（`sts-expired`）は、待っても通らないので
+リトライしない。
 
 ### 人手が要らないなら popup もタブも開かない
 
