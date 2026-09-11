@@ -134,6 +134,11 @@ stale_home() {
 	return 1
 }
 
+# 一時 home の sessions は実 home の sessions への symlink(下記)。リンク先は素の codex を一度も
+# 起動していないユーザには無く、dangling のままだと codex の sessions/<日付> 作成が EEXIST
+# (thread-store internal error: File exists)で落ちるので、作り直すかどうかによらず先に作る。
+mkdir -p "$BASE_HOME/sessions"
+
 # home を作り直すのは、誰も使っておらず、かつ元が更新されているときだけ。走っている codex の
 # 下で config.toml を書き換えると codex が書き戻す実行時状態を壊すし、用意し終えたばかりで
 # まだ codex を起動していない(プロセス一覧に出ない)home を別の起動が作り直すと、そちらが壊れる。

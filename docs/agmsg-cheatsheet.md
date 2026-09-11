@@ -40,6 +40,19 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
 > しないとチーム会話が成立しないため、codex / claude は同一プロジェクト（cwd）の
 > herdr ペインで起動する。
 
+**チームはリポジトリごとに 1 つ**にする（名前はリポジトリ名）。履歴（`history.sh <team>`）は
+チーム単位なので、複数リポジトリを 1 チームに混ぜると別リポの依頼・返信が同じ流れに混ざる。
+登録は `(agent, type, project path)` で引くため、混ぜても別リポの登録は互いに見えず利点がない。
+`codex-bedrock-spawn` は `whoami.sh` が `suggest=` / `not_joined=` を返すプロジェクト（未参加）では
+止まる。`suggest=` の `teams=` は他プロジェクトの登録からの提案で、それを採用すると別リポジトリの
+チームへ codex を join させてしまうため。先に cwd で `/agmsg` から join する。
+
+**git worktree では新しいチームを作らない。** agmsg は cwd をメインチェックアウトへ解決する
+（登録パス配下の worktree は祖先探索、兄弟ディレクトリの worktree は `git rev-parse
+--git-common-dir` で戻す）ので、worktree 内で `whoami.sh "$(pwd)"` を叩けばメインチェックアウトと
+同じチーム・同じ名前が返る。spawn した codex は worktree のパスのまま同じチームに登録される
+（codex はその cwd でファイルを見る必要がある）。終わったら通常どおり `despawn.sh ... --force`。
+
 ## 基本コマンド（Claude Code）
 
 | コマンド | 動作 |
@@ -80,6 +93,13 @@ Codex は本来 `turn`（ターンの合間にしか受信できない）しか�
 # Codex を起動するプロジェクトの cwd で一度だけ
 ~/.agents/skills/agmsg/scripts/delivery.sh set monitor codex "$PWD"
 ```
+
+フックは起動先ディレクトリの `.codex/hooks.json` に書かれ、`~/.gitignore_global` で無視されるので
+clone や worktree には付いてこない。**git worktree は worktree ごとに要る**（codex は自分の cwd の
+フックしか読まず、`delivery.sh` は worktree をメインチェックアウトへ寄せない）。
+`codex-bedrock-spawn` は起動先が `monitor` でなければ自動で `set monitor` する（Bedrock でも、
+マーカーで素の `spawn.sh` へ委譲するときでも）ので、spawn 経由なら手で打つ必要はない。手打ちの
+`codex` で受信したいときだけ上を実行する。
 
 **dotfiles 側の前提（導入済み）:**
 

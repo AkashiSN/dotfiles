@@ -178,7 +178,10 @@ Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は r
   フックの trust hash・`projects` の trust_level・サンドボックスの writable roots はそのまま引き継ぐ
 - `AGENTS.md` / `hooks.json` / `skills/` — 実 home からコピー
 - `sessions` — 実 home の `sessions` への symlink。agmsg の codex ドライバが rollout を
-  `$HOME/.codex/sessions` に決め打ちで探すため、張らないと Bedrock セッションのトランスクリプトを見失う
+  `$HOME/.codex/sessions` に決め打ちで探すため、張らないと Bedrock セッションのトランスクリプトを見失う。
+  リンク先の `~/.codex/sessions` は素の codex を起動したことがなければ無いので先に作る（dangling の
+  ままだと codex の `sessions/<日付>` 作成が EEXIST になり `thread-store internal error: File exists`
+  でトランスクリプトを書けない）
 - `auth.json` — **置かない**。Bedrock は SigV4 認証なので不要で、一時領域に資格情報を撒かずに済む
 
 `config.toml` を合成するとき、`hooks.state` のうち**グローバル `hooks.json` を指す信頼キーは一時 home の
@@ -262,7 +265,15 @@ app-server を共有できる。逆に、種類をまたいで切り替えると
 
 `codex-bedrock-spawn <name>` を使う。herdr のペインの中から実行すること。`~/.config/zsh/no-codex-bedrock`
 があるときは素の `spawn.sh` へ委譲するので、**手打ちの `codex` と spawn がマーカー 1 つで一緒に
-切り替わる**。
+切り替わる**。委譲する前に、起動先の配信モードが `monitor` でなければ `delivery.sh set monitor codex`
+しておく（配信フック `.codex/hooks.json` は gitignore 済みで clone や worktree に付いてこず、無いと
+bridge が上がらず依頼が届かない。冪等なので既に `monitor` なら何もしない）。
+
+チームは `--team` が無ければ `whoami.sh` から解決するが、採用するのは `agent=` / `multiple=`（この
+プロジェクト自身の登録）のときだけ。`suggest=` / `not_joined=`（未参加）では止まる——`suggest=` の
+`teams=` は他プロジェクトの登録からの提案で、それを使うと別リポジトリのチームへ codex を join
+させてしまうため。先に cwd で `/agmsg` から join する
+（[agmsg-cheatsheet.md](agmsg-cheatsheet.md#チームへの参加プロジェクトごとに一度)）。
 
 ```sh
 codex-bedrock-spawn reviewer
@@ -282,7 +293,7 @@ codex-bedrock-spawn reviewer
 - マニフェスト（`drivers/types/codex/type.conf`）の `cli=codex` は固定で差し替えられない
 - codex に `--profile` 相当の環境変数は無い
 
-`codex-bedrock-spawn` がやっていることは 5 つ:
+`codex-bedrock-spawn` が Bedrock 経路でやっていることは 7 つ:
 
 1. `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（未認証ならここでログインし、
    通らなければ spawn しない）
@@ -291,7 +302,9 @@ codex-bedrock-spawn reviewer
 4. `codex-appserver-evict` で食い違う app-server を畳む
 5. `herdr pane split --env CODEX_HOME=... --env AWS_PROFILE=... --env AWS_LOGIN_NO_INTERACTIVE=1` で
    ペインを作る
-6. `HERDR_ENV` / `HERDR_PANE_ID` を落として `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
+6. `HERDR_ENV` / `HERDR_PANE_ID` を落とし、`TMPDIR` をユーザ専用の場所に向けて
+   `spawn.sh ... --terminal "herdr pane run <pane> {cmd}"` を呼ぶ
+7. placement レコードを自分で書く（後述）
 
 1 が要るのは、spawn 先の codex が `codex-bedrock` を通らないため（`spawn.sh` は `type.conf` の
 `cli=codex` を非対話 bash のブートスクリプトから直接 exec する）。スクリプトが持つ起動前チェックは
@@ -305,7 +318,11 @@ hooks / exec policy を読まないので、`.codex/hooks.json` が効かない�
 この codex に限る）。一時 home を作り直した直後は、codex が一度だけフックの確認を出す。
 
 6 で env を落とすのは、spawn の配置優先度が **`$TMUX` → herdr → `--terminal` テンプレート**で、
-落とさないと herdr パスが先に勝って env 無しのペインを作り直してしまうため。
+落とさないと herdr パスが先に勝って env 無しのペインを作り直してしまうため。`TMPDIR` を
+`${XDG_RUNTIME_DIR:-~/.cache/agmsg}` に向けるのは、`spawn.sh` が boot script を
+`${TMPDIR:-/tmp}/agmsg-spawn` という固定名のディレクトリに置くため。共有ホストでは最初に spawn した
+人の所有になり、他のユーザが `mktemp` の permission denied で止まる。この `TMPDIR` は boot script の
+置き場にだけ効き、ペインの codex には届かない（ペインは 5 で作成済み）。
 
 テンプレート経路は placement レコードを書かないので、`despawn --force` が `no placement record` で
 失敗する。`codex-bedrock-spawn` は herdr パスと同じ形式（`herdr:<pane_id>\t<project>\tcodex`）で

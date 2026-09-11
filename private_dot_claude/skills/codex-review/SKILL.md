@@ -34,6 +34,12 @@ $S/whoami.sh "$(pwd)"             # → agent=<self> teams=<team> ...
 $S/identities.sh "$(pwd)" codex   # → <team> <reviewer>
 ```
 
+`whoami.sh` が `suggest=` / `not_joined=` を返したら、このリポジトリはまだチームに参加していない。
+`codex-bedrock-spawn` はその状態では止まる（別リポのチームへ join させないため）ので、先に
+`/agmsg` でリポジトリ名のチームに join する。**チームはリポジトリごとに 1 つ**。git worktree は
+メインチェックアウトへ解決されるので、worktree 内でも同じチーム・同じ `<self>` が返る。
+新しいチームを作らない。
+
 ## 手順
 
 ```bash
@@ -83,6 +89,9 @@ $S/delivery.sh status codex "$(pwd)"
 - `has no session recorded (N threads loaded, none identifiable as its session)` → agmsg が
   「どのスレッドがこのセッションか」を特定できていない。bridge は arm できず、送っても届かない。
 - `not running` → bridge が落ちている。
+- `mode: off` → 起動先に配信フック（`.codex/hooks.json`）が無い。`codex-bedrock-spawn` は起動前に
+  `set monitor` するので通常は起きない。出たら `delivery.sh set monitor codex "$(pwd)"` を打って
+  spawn し直す（worktree ごとに要る）。
 
 **確実な代替は、依頼を起動時のプロンプトとして渡すこと。** 受信経路を使わないので、上のどれに
 当たっても通る。返信は codex 側から送られるので受け取れる。

@@ -85,6 +85,17 @@ PROJECT="$(cd "$PROJECT" && pwd -P)"
 command -v herdr >/dev/null 2>&1 || die "herdr が PATH に無い"
 [ -x "$S/spawn.sh" ] || die "agmsg が見つからない: $S/spawn.sh"
 
+# 起動先の配信モードを monitor にする。配信フックは起動先ディレクトリの .codex/hooks.json
+# にあり、git で持ち回れない(gitignore 済み)うえ worktree ごとに別なので、無いまま起動すると
+# bridge が上がらず send.sh の依頼が届かない。set は冪等で、既に monitor なら何も変えない。
+# 素の codex へ委譲するときも要るので、マーカー判定より前に置く。
+MODE="$("$S/delivery.sh" status codex "$PROJECT" 2>/dev/null | sed -n 's/^mode: \([a-z]*\).*/\1/p' | head -1)"
+if [ "$MODE" != "monitor" ]; then
+	"$S/delivery.sh" set monitor codex "$PROJECT" >/dev/null ||
+		die "配信モードを monitor にできなかった: $PROJECT"
+	printf 'codex-bedrock-spawn: 配信モードを monitor にした(%s → monitor): %s\n' "${MODE:-off}" "$PROJECT" >&2
+fi
+
 # 素の codex へ戻すマーカー。対話シェルの `codex` 関数と同じファイルを見るので、置けば
 # 手打ちと spawn の両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、
 # ペインの配置も spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
@@ -100,8 +111,16 @@ PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
 	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択する"
 
 # チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
+# 採用するのは whoami が「このプロジェクト自身の登録」を返したとき(agent= / multiple=)だけ。
+# suggest= は他プロジェクトの登録からの提案、not_joined= は未参加で、どちらも teams= を
+# 含みうるが、それを使うと別リポジトリのチームへ codex を join させてしまう。
 if [ -z "$TEAM" ]; then
-	TEAM="$("$S/whoami.sh" "$PROJECT" 2>/dev/null | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
+	WHO="$("$S/whoami.sh" "$PROJECT" 2>/dev/null || true)"
+	case "$WHO" in
+	agent=* | multiple=*) ;;
+	*) die "このプロジェクトはまだチームに参加していない($PROJECT)。プロジェクトの cwd で /agmsg から join するか、--team で指定する" ;;
+	esac
+	TEAM="$(printf '%s\n' "$WHO" | tr ' ' '\n' | sed -n 's/^teams=//p' | head -1)"
 	case "$TEAM" in
 	"") die "チームを解決できない。--team で指定する" ;;
 	*,*) die "このプロジェクトは複数チームに属している($TEAM)。--team で指定する" ;;
@@ -178,7 +197,14 @@ herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
 # 6) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
 #    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
 #    env 無しのペインを作り直してしまうため。
-env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX \
+#    TMPDIR をユーザ専用の場所に向けるのは、spawn.sh が boot script を
+#    ${TMPDIR:-/tmp}/agmsg-spawn という固定名のディレクトリに置くため。共有ホストでは最初に
+#    spawn した人の所有になり、他のユーザは mktemp で permission denied になる。ここで渡す
+#    TMPDIR は spawn.sh と boot script の配置にだけ効き、ペインの codex には届かない
+#    (ペインは 5 で作成済み)。
+SPAWN_TMPDIR="${XDG_RUNTIME_DIR:-$HOME/.cache/agmsg}"
+mkdir -p "$SPAWN_TMPDIR"
+env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX TMPDIR="$SPAWN_TMPDIR" \
 	"$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
 	--terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"} ||
 	die "spawn.sh に失敗した"
