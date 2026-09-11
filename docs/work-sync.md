@@ -123,7 +123,6 @@ done | sort -rn
 | --- | --- |
 | `executable_herdr-difit` | state file の pid が difit か確かめる実装。work は `/proc/<pid>/cmdline`、こちらは `ps -p <pid> -o args=`（mac で同じ判定になる携帯実装） |
 | `executable_claude-bedrock` | **こちらが新しい。** SSH 接続先での引数なし起動に `--remote-control` を足す判定と、`command -v claude` での実体解決を持つ。work へ配る側 |
-| `executable_codex-bedrock-spawn` | **こちらが新しい。** 起動先を `monitor` にする処理を `no-codex-bedrock` マーカーの判定より前に置き、素の `spawn.sh` へ委譲する経路でも効くようにしている（work は Bedrock 経路の 4 番目）。work へ配る側 |
 | `.chezmoiscripts/run_onchange_after_45-agmsg-reset.sh.tmpl` | **こちらには無い。** 共有ホストの全ユーザで agmsg の状態（チーム登録・履歴・一時 home）を一掃するための管理スクリプト。こちらは単一ユーザで登録も既にリポジトリごとに 1 チームなので持ち込まない（`docs/admin-runbook.md` も同様） |
 | `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |
 | `executable_aws-auth-ensure` / `executable_claude-bedrock-wrapper` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
@@ -158,7 +157,7 @@ done | sort -rn
 | 取り込んだもの | 中身 |
 | --- | --- |
 | `codex-bedrock-spawn` のチーム解決 | `whoami.sh` が `agent=` / `multiple=` を返すときだけ採用し、`suggest=` / `not_joined=`（未参加）では止める。`suggest=` の `teams=` を拾うと別リポのチームへ join させていた |
-| `codex-bedrock-spawn` の配信モード | 起動先が `monitor` でなければ `delivery.sh set monitor codex` してから spawn する（`.codex/hooks.json` は gitignore 済みで worktree に付いてこない）。こちらではマーカー判定より前に置いた（上の表） |
+| `codex-bedrock-spawn` の配信モード | 起動先が `monitor` でなければ `delivery.sh set monitor codex` してから spawn する（`.codex/hooks.json` は gitignore 済みで worktree に付いてこない）。こちらではマーカー判定より前に置き、素の `spawn.sh` へ委譲する経路でも効くようにした。同日 work へも配った（work の d9f52d3） |
 | `codex-bedrock-spawn` の `TMPDIR` | `spawn.sh` へ `TMPDIR=${XDG_RUNTIME_DIR:-~/.cache/agmsg}` を渡す。共有ホストで `${TMPDIR:-/tmp}/agmsg-spawn` が他ユーザの所有になる問題。mac では `$TMPDIR` が元からユーザ専用だが、差分を作らないためそのまま揃えた |
 | `codex-bedrock` の `sessions` | 一時 home の `sessions` symlink のリンク先 `~/.codex/sessions` を先に作る（無いと `thread-store internal error: File exists`） |
 | `aws-login` のリージョン | 先頭で `AWS_REGION` / `AWS_DEFAULT_REGION` を捨てる。`claude-bedrock-wrapper` の `AWS_REGION=us-east-1` 配下では signin の更新が毎回 `INVALID_REQUEST` で弾かれていた。「更新が一瞬だけ弾かれる」と読んでいた失敗はこれだった（aws-cheatsheet の節を書き換えた） |
