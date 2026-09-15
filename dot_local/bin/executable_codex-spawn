@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
-# agmsg の codex エージェントを、Amazon Bedrock で動く状態で herdr のペインに立ち上げる。
+# codex-spawn <name> [options] - agmsg の codex エージェントを herdr のペインに立ち上げる。
+# マーカーの有無で、素の codex (OpenAI サブスク) か Amazon Bedrock かを振り分ける:
 #
-# 素の `spawn.sh codex <name>` との違いは CODEX_HOME だけ。ただしそれを差し込む隙が
-# spawn.sh には無い:
+#   ~/.config/zsh/no-codex-bedrock が有る : 素の spawn.sh へそのまま委譲
+#   無い                                 : codex-bedrock の一時 CODEX_HOME を env に載せた
+#                                          ペインを先に作り、その中で spawn する
+#
+# 対話シェルの `codex` (codex-wrapper) と同じマーカーを見るので、マーカー 1 つで手打ちと
+# spawn が一緒に切り替わる。
+#
+# Bedrock 経路で素の `spawn.sh codex <name>` と違うのは CODEX_HOME だけ。ただしそれを差し込む
+# 隙が spawn.sh には無い:
 #   - spawn.sh の herdr パス(launch_in_herdr)は `herdr pane split` を --env 無しで呼ぶ
 #   - マニフェスト(drivers/types/codex/type.conf)の `cli=codex` は固定で差し替えられない
 #   - codex には --profile 相当の環境変数が無い(CODEX_HOME だけが env で効く)
 # そこで env 付きのペインを先に作り、spawn.sh には --terminal テンプレートで「そのペインで
 # boot script を走らせる」とだけ指示する。
 #
-# ~/.config/zsh/no-codex-bedrock を置くと、対話シェルの `codex` と同じく素の codex
-# (OpenAI サブスク)で spawn する。マーカー 1 つで手打ちと spawn が一緒に切り替わる。
-#
-# 使い方: codex-bedrock-spawn <name> [options]
+# 使い方: codex-spawn <name> [options]
 #   --team <team>        参加させるチーム(既定: プロジェクトの登録から解決)
 #   --project <path>     起動先プロジェクト(既定: $PWD)
-#   --direction right|down   ペインの分割方向(既定: right)
+#   --direction right|down   ペインの分割方向(既定: right。Bedrock 経路のみ)
 #   その他の引数はそのまま spawn.sh へ渡す(--boot-prompt / --model / --fresh など)
 #
 # 片付けは素の agmsg と同じ: despawn.sh <team> <self> <name> --force
@@ -26,7 +31,7 @@ SKILL_DIR="$HOME/.agents/skills/agmsg"
 S="$SKILL_DIR/scripts"
 
 die() {
-	printf 'codex-bedrock-spawn: %s\n' "$*" >&2
+	printf 'codex-spawn: %s\n' "$*" >&2
 	exit 1
 }
 
@@ -51,7 +56,7 @@ while [ "$#" -gt 0 ]; do
 		shift 2
 		;;
 	-h | --help)
-		sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	# spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
@@ -77,7 +82,7 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-[ -n "$NAME" ] || die "エージェント名を指定する。例: codex-bedrock-spawn reviewer"
+[ -n "$NAME" ] || die "エージェント名を指定する。例: codex-spawn reviewer"
 [ -d "$PROJECT" ] || die "プロジェクトが存在しない: $PROJECT"
 PROJECT="$(cd "$PROJECT" && pwd -P)"
 
@@ -93,17 +98,18 @@ MODE="$("$S/delivery.sh" status codex "$PROJECT" 2>/dev/null | sed -n 's/^mode: 
 if [ "$MODE" != "monitor" ]; then
 	"$S/delivery.sh" set monitor codex "$PROJECT" >/dev/null ||
 		die "配信モードを monitor にできなかった: $PROJECT"
-	printf 'codex-bedrock-spawn: 配信モードを monitor にした(%s → monitor): %s\n' "${MODE:-off}" "$PROJECT" >&2
+	printf 'codex-spawn: 配信モードを monitor にした(%s → monitor): %s\n' "${MODE:-off}" "$PROJECT" >&2
 fi
 
-# 素の codex へ戻すマーカー。対話シェルの `codex` 関数と同じファイルを見るので、置けば
-# 手打ちと spawn の両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、
-# ペインの配置も spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
+# 素の codex へ戻すマーカー。codex-wrapper と同じファイルを見るので、置けば手打ちと spawn の
+# 両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、ペインの配置も
+# spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
 if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
 	exec "$S/spawn.sh" codex "$NAME" --project "$PROJECT" \
 		${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
 fi
 
+# ここから先は Bedrock 経路。
 # Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。既定はハードコード
 # しない(codex-bedrock と同じ解決順)。
 PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"

@@ -122,10 +122,10 @@ done | sort -rn
 | ファイル | 差分の中身 |
 | --- | --- |
 | `executable_herdr-difit` | state file の pid が difit か確かめる実装。work は `/proc/<pid>/cmdline`、こちらは `ps -p <pid> -o args=`（mac で同じ判定になる携帯実装） |
-| `executable_claude-bedrock` | **こちらが新しい。** SSH 接続先での引数なし起動に `--remote-control` を足す判定と、`command -v claude` での実体解決を持つ。work へ配る側 |
+| `executable_claude-wrapper` / `executable_codex-wrapper` / `executable_claude-bedrock` / `executable_codex-spawn` | **こちらが新しい（2026-09-16 の 2 階層化。下の経緯）。** work には `claude-bedrock-wrapper` / `codex-bedrock-spawn` の名前で旧構成が残っている。work へ配る側で、配るときは `.chezmoiremove` の 2 行も一緒に運ぶ |
 | `.chezmoiscripts/run_onchange_after_45-agmsg-reset.sh.tmpl` | **こちらには無い。** 共有ホストの全ユーザで agmsg の状態（チーム登録・履歴・一時 home）を一掃するための管理スクリプト。こちらは単一ユーザで登録も既にリポジトリごとに 1 チームなので持ち込まない（`docs/admin-runbook.md` も同様） |
 | `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |
-| `executable_aws-auth-ensure` / `executable_claude-bedrock-wrapper` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
+| `executable_aws-auth-ensure` / `executable_claude-bedrock` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」）。work 側は `claude-bedrock-wrapper` が持つ |
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
 
 ## 経緯
@@ -156,12 +156,24 @@ done | sort -rn
 
 | 取り込んだもの | 中身 |
 | --- | --- |
-| `codex-bedrock-spawn` のチーム解決 | `whoami.sh` が `agent=` / `multiple=` を返すときだけ採用し、`suggest=` / `not_joined=`（未参加）では止める。`suggest=` の `teams=` を拾うと別リポのチームへ join させていた |
-| `codex-bedrock-spawn` の配信モード | 起動先が `monitor` でなければ `delivery.sh set monitor codex` してから spawn する（`.codex/hooks.json` は gitignore 済みで worktree に付いてこない）。こちらではマーカー判定より前に置き、素の `spawn.sh` へ委譲する経路でも効くようにした。同日 work へも配った（work の d9f52d3） |
-| `codex-bedrock-spawn` の `TMPDIR` | `spawn.sh` へ `TMPDIR=${XDG_RUNTIME_DIR:-~/.cache/agmsg}` を渡す。共有ホストで `${TMPDIR:-/tmp}/agmsg-spawn` が他ユーザの所有になる問題。mac では `$TMPDIR` が元からユーザ専用だが、差分を作らないためそのまま揃えた |
+| `codex-bedrock-spawn`（現 `codex-spawn`）のチーム解決 | `whoami.sh` が `agent=` / `multiple=` を返すときだけ採用し、`suggest=` / `not_joined=`（未参加）では止める。`suggest=` の `teams=` を拾うと別リポのチームへ join させていた |
+| `codex-bedrock-spawn`（現 `codex-spawn`）の配信モード | 起動先が `monitor` でなければ `delivery.sh set monitor codex` してから spawn する（`.codex/hooks.json` は gitignore 済みで worktree に付いてこない）。こちらではマーカー判定より前に置き、素の `spawn.sh` へ委譲する経路でも効くようにした。同日 work へも配った（work の d9f52d3） |
+| `codex-bedrock-spawn`（現 `codex-spawn`）の `TMPDIR` | `spawn.sh` へ `TMPDIR=${XDG_RUNTIME_DIR:-~/.cache/agmsg}` を渡す。共有ホストで `${TMPDIR:-/tmp}/agmsg-spawn` が他ユーザの所有になる問題。mac では `$TMPDIR` が元からユーザ専用だが、差分を作らないためそのまま揃えた |
 | `codex-bedrock` の `sessions` | 一時 home の `sessions` symlink のリンク先 `~/.codex/sessions` を先に作る（無いと `thread-store internal error: File exists`） |
-| `aws-login` のリージョン | 先頭で `AWS_REGION` / `AWS_DEFAULT_REGION` を捨てる。`claude-bedrock-wrapper` の `AWS_REGION=us-east-1` 配下では signin の更新が毎回 `INVALID_REQUEST` で弾かれていた。「更新が一瞬だけ弾かれる」と読んでいた失敗はこれだった（aws-cheatsheet の節を書き換えた） |
+| `aws-login` のリージョン | 先頭で `AWS_REGION` / `AWS_DEFAULT_REGION` を捨てる。`claude-bedrock-wrapper`（現 `claude-bedrock`）の `AWS_REGION=us-east-1` 配下では signin の更新が毎回 `INVALID_REQUEST` で弾かれていた。「更新が一瞬だけ弾かれる」と読んでいた失敗はこれだった（aws-cheatsheet の節を書き換えた） |
 | docs / codex-review スキル | 「チームはリポジトリごとに 1 つ」「worktree では新チームを作らない」「フックは worktree ごとに要る」と、未参加時・`mode: off` 時の分岐 |
 
 work の `docs/claude-settings.md` に足された「popup へ来るのはログインセッションが切れたときだけ」は、
 こちらでは `docs/herdr-cheatsheet.md` の popup の節に置いた。
+
+2026-09-16 に、claude / codex の起動を「マーカー判定 → Bedrock」の 2 階層へ整理した（こちらが先。
+work へはこれから配る）。`-bedrock` と名の付くものが `claude-bedrock` / `codex-bedrock` の 2 つだけに
+なり、どちらも常に Bedrock でマーカーを見ない。判定は手前の入口だけが持つ。
+
+| 変更 | 中身 |
+| --- | --- |
+| `claude-bedrock-wrapper` → `claude-bedrock` に統合 | env の組み立てと認証確認を `claude-bedrock` 自身が持ち、先頭の `--bin <path>` で実行ファイルを受ける（VS Code 同梱版を渡す口）。`claude-bedrock-wrapper` は削除（`.chezmoiremove`） |
+| `claude-wrapper` を新設 | `<claude 実行ファイル> [args]` を受け、`no-claude-bedrock` が有ればそのまま exec、無ければ `claude-bedrock --bin` へ。VS Code の `claudeProcessWrapper` はこれを常に指す |
+| `codex-wrapper` を新設 | 旧 zsh `codex` 関数の中身（マーカー判定と `codex-appserver-evict`）をスクリプト化 |
+| `codex-bedrock-spawn` → `codex-spawn` に改名 | 中身は同じ（既にマーカーで素の `spawn.sh` へ委譲していたため、名前だけが実態と合っていなかった）。旧名は `.chezmoiremove` で消す |
+| zsh の `claude` / `codex` 関数 | 判定を持たず wrapper へ渡す一行に。`--remote-control` の付与だけ関数に残す |

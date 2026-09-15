@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# codex-wrapper [args...] - codex を、マーカーの有無で素 (OpenAI サブスク認証) か
+# Amazon Bedrock かに振り分けて exec する。
+#
+#   ~/.config/zsh/no-codex-bedrock が有る : PATH 上の codex をそのまま exec
+#   無い                                 : codex-bedrock へ渡す
+#
+# Bedrock 用の一時 CODEX_HOME と AWS プロファイルの解決はここには無く、codex-bedrock が
+# 持つ。ここは分岐だけ。対話 zsh の `codex` 関数はこのスクリプトを通る。agmsg で spawn
+# する codex は codex-spawn が同じマーカーを見る。
+#
+# 素で起動するときは、その前に共有 app-server の CODEX_HOME を照合する。agmsg monitor モードの
+# app-server はプロジェクトパスだけでキーされ設定を見ないので、codex-bedrock が残した Bedrock 用
+# app-server を素の codex が黙って再利用してしまう。codex-appserver-evict が食い違う app-server を
+# 畳み、codex に作り直させる (Bedrock 側は codex-bedrock が同じことをする)。
+#
+# codex は PATH 解決のまま exec する (実行ファイルを固定しない)。PATH 前段に agmsg monitor の
+# codex シム (~/.agents/bin/codex) が居るときはそれを踏むのが正しいため。
+#
+# 関連: codex-bedrock / codex-spawn / claude-wrapper / docs/zsh-cheatsheet.md
+set -euo pipefail
+
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
+	codex-appserver-evict "${CODEX_HOME:-$HOME/.codex}" "$@"
+	exec codex "$@"
+fi
+
+exec "$HOME/.local/bin/codex-bedrock" "$@"

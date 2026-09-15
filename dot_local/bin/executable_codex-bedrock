@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# codex を Amazon Bedrock で起動する。対話 zsh の `codex` も同じ経路を通る
-# (50-functions.zsh の関数)。素のバイナリ(OpenAI サブスク)を使いたいときは `command codex`、
-# 恒久的に戻すなら ~/.config/zsh/no-codex-bedrock を置く。
+# codex-bedrock [args...] - codex を Amazon Bedrock で起動する。名前のとおり常に Bedrock で、
+# マーカー (~/.config/zsh/no-codex-bedrock) は見ない。マーカーで切り替える入口は codex-wrapper
+# (対話 zsh の `codex` はそこを通る)。agmsg で spawn するときは codex-spawn が
+# `--print-home` で一時 home だけを借りる。
 #
 # Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は runtime コマンド専用で
 # `codex app-server` が受け取らず、agmsg monitor モードでは TUI が共有 app-server に
@@ -19,8 +20,8 @@
 # 出し、画面が崩れるため。
 #
 # シェル関数ではなくスクリプトなのは claude-bedrock と同じ理由: シェルを経由しない実行
-# (VS Code 拡張の spawn / agmsg の spawn.sh / 非対話 bash)には関数が届かないため。
-# 関連: codex-bedrock-spawn / codex-appserver-evict / aws-auth-ensure /
+# (agmsg の spawn.sh / 非対話 bash)には関数が届かないため。
+# 関連: codex-wrapper / codex-spawn / codex-appserver-evict / aws-auth-ensure /
 #       docs/agmsg-cheatsheet.md / docs/zsh-cheatsheet.md
 set -euo pipefail
 
@@ -292,7 +293,7 @@ fi
 flock -u 9
 
 # 一時 home を用意するだけで codex は起動しない。CODEX_HOME を自分で渡して codex を
-# 起動したい呼び出し元(codex-bedrock-spawn)のための入り口。認証確認と app-server の照合は
+# 起動したい呼び出し元(codex-spawn)のための入り口。認証確認と app-server の照合は
 # 呼び出し元がやるので、ここでは触らない。
 if [ "${1:-}" = "--print-home" ]; then
 	printf '%s\n' "$HOME_DIR"

@@ -43,7 +43,7 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
 **チームはリポジトリごとに 1 つ**にする（名前はリポジトリ名）。履歴（`history.sh <team>`）は
 チーム単位なので、複数リポジトリを 1 チームに混ぜると別リポの依頼・返信が同じ流れに混ざる。
 登録は `(agent, type, project path)` で引くため、混ぜても別リポの登録は互いに見えず利点がない。
-`codex-bedrock-spawn` は `whoami.sh` が `suggest=` / `not_joined=` を返すプロジェクト（未参加）では
+`codex-spawn` は `whoami.sh` が `suggest=` / `not_joined=` を返すプロジェクト（未参加）では
 止まる。`suggest=` の `teams=` は他プロジェクトの登録からの提案で、それを採用すると別リポジトリの
 チームへ codex を join させてしまうため。先に cwd で `/agmsg` から join する。
 
@@ -97,7 +97,7 @@ Codex は本来 `turn`（ターンの合間にしか受信できない）しか�
 フックは起動先ディレクトリの `.codex/hooks.json` に書かれ、`~/.gitignore_global` で無視されるので
 clone や worktree には付いてこない。**git worktree は worktree ごとに要る**（codex は自分の cwd の
 フックしか読まず、`delivery.sh` は worktree をメインチェックアウトへ寄せない）。
-`codex-bedrock-spawn` は起動先が `monitor` でなければ自動で `set monitor` する（Bedrock でも、
+`codex-spawn` は起動先が `monitor` でなければ自動で `set monitor` する（Bedrock でも、
 マーカーで素の `spawn.sh` へ委譲するときでも）ので、spawn 経由なら手で打つ必要はない。手打ちの
 `codex` で受信したいときだけ上を実行する。
 
@@ -182,7 +182,7 @@ codex:
 > **Bedrock 設定はここでは渡さない。** codex の `--profile` は runtime コマンド専用で
 > `codex app-server` が受け取らず、monitor モードでは TUI がその共有 app-server に繋ぐため、
 > CLI 引数では切り替わらない（[zsh チートシート](zsh-cheatsheet.md#codex-bedrock-が一時-codex_home-を使う理由)）。
-> Bedrock で spawn するかどうかは `codex-bedrock-spawn` が
+> Bedrock で spawn するかどうかは `codex-spawn` が
 > `~/.config/zsh/no-codex-bedrock` を見て決める。マーカーが無ければ Bedrock、あれば素の codex。
 
 ## 役割管理など（Claude Code 追加コマンド）

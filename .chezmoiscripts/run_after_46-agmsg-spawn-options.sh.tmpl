@@ -14,12 +14,12 @@
 # Bedrock 設定はここでは渡さない (CODEX_HOME 方式。dot_local/bin/executable_codex-bedrock)。
 # codex の `--profile` は runtime コマンド専用で `codex app-server` が受け取らず、agmsg monitor
 # モードでは TUI がその共有 app-server に繋ぐため、CLI 引数では切り替わらない。Bedrock で
-# spawn するかどうかは codex-bedrock-spawn がマーカー (~/.config/zsh/no-codex-bedrock) を見て
+# spawn するかどうかは codex-spawn がマーカー (~/.config/zsh/no-codex-bedrock) を見て
 # 決める。
 #
 # run_after (run_once ではない): 冪等に差分だけ書くので、毎回走って構わない。
 #
-# 関連: dot_local/bin/executable_codex-bedrock-spawn / docs/agmsg-cheatsheet.md
+# 関連: dot_local/bin/executable_codex-spawn / docs/agmsg-cheatsheet.md
 set -eu
 
 {{ template "shell-log" }}

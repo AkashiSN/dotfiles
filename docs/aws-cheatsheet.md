@@ -132,7 +132,7 @@ signin にしか通らない。別のリージョンへ投げると `CreateOAuth
 消費されない）。
 
 `AWS_REGION` / `AWS_DEFAULT_REGION` は **プロファイルの `region` より優先される**ので、それを持つ
-プロセスの配下から `credential_process` として呼ばれると更新先がずれる。`claude-bedrock-wrapper` は
+プロセスの配下から `credential_process` として呼ばれると更新先がずれる。`claude-bedrock` は
 Bedrock 用に `AWS_REGION=us-east-1` を export しており、その配下の `aws-login` は 15 分ごとの更新で
 毎回この失敗を踏んでいた（herdr の popup やターミナルから叩く `aws sts` はこの変数を持たないので
 通り、そのあと claude 側は新しいキャッシュを読むだけで復帰して見えた）。
@@ -325,8 +325,8 @@ AWS CLI/SDK は認証情報が要るまで `credential_process`（= `aws-login`�
 - `aws` が PATH に無ければ何も判定せず素通しする（呼び出し元の起動を巻き添えにしない）。
 
 いま通しているのは Bedrock の起動経路（[zsh-cheatsheet.md](zsh-cheatsheet.md#bedrock-起動で使う-aws-プロファイル)）。
-`claude-bedrock-wrapper` と `codex-bedrock` は Bedrock 用プロファイルが未認証ならアプリを起動しない。
-`codex-bedrock-spawn` はペインを作る前に通す（spawn 先の codex は `codex-bedrock` を通らないため）。
+`claude-bedrock` と `codex-bedrock` は Bedrock 用プロファイルが未認証ならアプリを起動しない。
+`codex-spawn` はペインを作る前に通す（spawn 先の codex は `codex-bedrock` を通らないため）。
 
 #### --wait（走行中の入り直し）
 
@@ -444,7 +444,7 @@ aws-logout --all        # すべての -signin プロファイルを掃除
 #### 走行中のアプリを置いてログアウトしたとき
 
 `aws-logout` が触るのはファイルだけで、**走っているプロセスの環境変数は書き換わらない**。
-`claude-bedrock-wrapper` 経由の Claude Code なら `AWS_PROFILE`（Bedrock 用）はプロセス内に残るため、
+`claude-bedrock` 経由の Claude Code なら `AWS_PROFILE`（Bedrock 用）はプロセス内に残るため、
 打った瞬間には何も起きず、**次に認証情報を更新しようとした時点で失敗する**（認証情報の寿命は
 約 15 分なので、それが猶予の上限）。そこから先は
 [走行中に認証が切れたとき](#走行中に認証が切れたとき)と同じ経路に乗る。

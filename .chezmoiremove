@@ -4,3 +4,6 @@
 # shpool 撤去（herdr へ一本化）で不要になった設定。
 .config/shpool/config.toml
 .config/shpool
+# Bedrock 起動を claude-wrapper / codex-wrapper の 2 階層へ整理して不要になった旧スクリプト。
+.local/bin/claude-bedrock-wrapper
+.local/bin/codex-bedrock-spawn

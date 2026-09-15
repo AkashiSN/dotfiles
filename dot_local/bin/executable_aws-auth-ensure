@@ -36,7 +36,7 @@
 # 呼び出し側は、そのプロファイルが無いと動かないなら 1 で止め、無くても縮退運転できるなら
 # 警告にとどめる、と使い分ける。
 #
-# 関連: aws-login / aws-switch / claude-bedrock-wrapper / docs/aws-cheatsheet.md
+# 関連: aws-login / aws-switch / claude-bedrock / docs/aws-cheatsheet.md
 set -euo pipefail
 
 PROG=aws-auth-ensure

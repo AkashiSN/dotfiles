@@ -1,0 +1,40 @@
+#!/bin/bash
+# claude-wrapper <claude 実行ファイル> [args...] - 渡された claude を、マーカーの有無で
+# 素 (claude.ai 認証) か Amazon Bedrock かに振り分けて exec する。
+#
+#   ~/.config/zsh/no-claude-bedrock が有る : そのまま exec (claude.ai のサブスクリプション)
+#   無い                                   : claude-bedrock --bin <実行ファイル> へ渡す
+#
+# Bedrock の env と AWS プロファイルの解決はここには無く、claude-bedrock が持つ。ここは
+# 分岐だけ。対話 zsh の `claude` 関数も VS Code 拡張もこのスクリプトを通るので、マーカー
+# 1 つで両方が一緒に切り替わる。
+#
+# 第 1 引数に実行ファイルを取るのは VS Code 拡張 (anthropic.claude-code) の
+# claudeCode.claudeProcessWrapper の契約。拡張はシェルを介さず
+#   <wrapper> <拡張が同梱する claude> <claude への引数...>
+# の形で spawn するため、zsh 関数や alias では解決できず、絶対パスの実行ファイルが要る。
+# 拡張が動作確認しているのは同梱版なので、PATH 上の claude を勝手に選ばず渡されたものを使う。
+#
+# VS Code から使うときは設定に次を足す (Remote なら Machine 設定
+# ~/.vscode-server/data/Machine/settings.json)。Bedrock かどうかはマーカーで決まるので、
+# この設定は置いたままでよい:
+#   "claudeCode.claudeProcessWrapper": "<ホームの絶対パス>/.local/bin/claude-wrapper"
+#
+# 関連: claude-bedrock / codex-wrapper / docs/zsh-cheatsheet.md
+set -euo pipefail
+
+die() {
+	echo "claude-wrapper: $1" >&2
+	exit 1
+}
+
+[ $# -gt 0 ] || die "使い方: claude-wrapper <claude 実行ファイル> [args...]"
+CLAUDE="$1"
+shift
+[ -x "$CLAUDE" ] || die "claude 実行ファイルが無いか実行できません: $CLAUDE"
+
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-claude-bedrock" ]; then
+	exec "$CLAUDE" "$@"
+fi
+
+exec "$HOME/.local/bin/claude-bedrock" --bin "$CLAUDE" "$@"

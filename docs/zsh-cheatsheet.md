@@ -60,32 +60,60 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `convert-crlf-to-lf` | CRLF のファイルを検出して LF へ一括変換（nkf） |
 | `peco-src` | `ghq` 管理リポジトリを peco で選んで `cd`（キー: `C-]`） |
 | `agmsg-bridge-reap` | agmsg Codex monitor の残留 `codex-bridge.js`（孤児のみ）を回収。ログイン時に自動実行。詳細は [agmsg チートシート](agmsg-cheatsheet.md#codex-monitor-モードbeta) |
-| `claude [args]` | **既定で Amazon Bedrock（グローバル推論プロファイル）へ向ける。** `~/.local/bin/claude-bedrock` 経由で起動し、起動前に AWS プロファイルの認証を確かめる。恒久的に素（claude.ai 認証）へ戻すときは `touch ~/.config/zsh/no-claude-bedrock`、一度だけの迂回は `command claude`。素で起動するときは、**SSH 接続先で引数なしの素の起動**のときだけ `--remote-control` を自動付与する（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能。Bedrock 経路でも `claude-bedrock` が同じ規則を持つ）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し |
-| `claude-bedrock [args]` | Claude Code を Amazon Bedrock（グローバル推論プロファイル）で起動するスクリプト（`~/.local/bin/claude-bedrock`）。対話シェルの `claude` もここを通る。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`。設定しておけば対話中に `aws-switch` で選んでいるプロファイルに影響されず、未設定なら `AWS_PROFILE`（無ければ `~/.env`）に従う。既定値はハードコードしていないので、どちらも無ければ起動しない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。SSH 接続先の引数なし起動には `claude`（関数）と同じ規則で `--remote-control` を足す |
-| `codex [args]` | **既定で Amazon Bedrock へ向ける。** `~/.local/bin/codex-bedrock` 経由で起動する。恒久的に素（OpenAI サブスク認証）へ戻すときは `touch ~/.config/zsh/no-codex-bedrock`（agmsg の spawn も一緒に戻る）、一度だけの迂回は `command codex`。素で起動するときは、その前に `codex-appserver-evict` で共有 app-server の `CODEX_HOME` を照合し、食い違う app-server（＝ Bedrock 用に残ったもの）を畳んで作り直させる（素の codex が黙って Bedrock で走るのを防ぐ）。app-server に繋がない呼び出し（`exec` / `login` / `--version` など）では何もしない |
-| `codex-bedrock [args]` | codex を Amazon Bedrock で起動するスクリプト（`~/.local/bin/codex-bedrock`）。対話シェルの `codex` もここを通る。`CODEX_HOME` をプロジェクトごとの一時 home へ向け、その `config.toml` を「素の config ＋ `~/.codex/bedrock.config.toml`」にする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`、無ければ `AWS_PROFILE`（どちらも無ければ起動しない）。それを `AWS_PROFILE` として渡し、その `credential_process = aws-login` が認証を担う。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルを変えるときは `dot_codex/private_bedrock.config.toml` を編集 |
-| `codex-bedrock-spawn <name> [opts]` | agmsg の codex エージェントを Bedrock で動く状態で herdr のペインに立ち上げる（`~/.local/bin/codex-bedrock-spawn`）。内部で `spawn.sh` を呼ぶ。ペインを作る前に `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（spawn 先の codex は `codex-bedrock` を通らないため）。`~/.config/zsh/no-codex-bedrock` があるときは素の `spawn.sh` へそのまま委譲する（＝ OpenAI サブスクの codex を spawn する）。`--team` / `--project` / `--direction` 以外の引数は spawn.sh へ素通し（`--boot-prompt` など）。片付けは素の agmsg と同じ `despawn.sh <team> <self> <name> --force` |
+| `claude [args]` | `~/.local/bin/claude-wrapper` に PATH 上の `claude` を渡す関数。**Bedrock か素かは wrapper がマーカー（`~/.config/zsh/no-claude-bedrock`）で決める**（下の「2 階層」節）。関数自身は、**SSH 接続先で引数なしの起動**のときだけ `--remote-control` を付ける（claude.ai / モバイル等のリモートからそのインタラクティブセッションを操作可能）。引数付き（プロンプト・`-p`/`--print`・`mcp`/`update` 等のサブコマンド・`-c`/`--resume` 等）は素通し。一度だけマーカーごと迂回するなら `command claude` |
+| `claude-wrapper <claude 実行ファイル> [args]` | マーカーを見て振り分けるだけのスクリプト（`~/.local/bin/claude-wrapper`）。マーカーが有れば渡された実行ファイルをそのまま exec（claude.ai 認証）、無ければ `claude-bedrock --bin <実行ファイル>` へ渡す。第 1 引数に実行ファイルを取るのは VS Code 拡張の `claudeProcessWrapper` の契約で、対話シェルの `claude` と VS Code 拡張の両方がここを通る |
+| `claude-bedrock [--bin <path>] [args]` | Claude Code を Amazon Bedrock（グローバル推論プロファイル）で起動するスクリプト（`~/.local/bin/claude-bedrock`）。**名前のとおり常に Bedrock で、マーカーは見ない。** 起動する claude は既定で PATH 上のもの、`--bin` で実行ファイルを指定できる（`claude-wrapper` が VS Code 同梱版を渡す口）。使う AWS プロファイルは `CLAUDE_CODE_BEDROCK_AWS_PROFILE`。設定しておけば対話中に `aws-switch` で選んでいるプロファイルに影響されず、未設定なら `AWS_PROFILE`（無ければ `~/.env`）に従う。既定値はハードコードしていないので、どちらも無ければ起動しない。認証は `aws-login`（credential_process）が担う（追加ログイン不要）。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルは下表の `CLAUDE_CODE_BEDROCK_*` で上書き可。SSH 接続先の引数なし起動には `claude`（関数）と同じ規則で `--remote-control` を足す |
+| `codex [args]` | `~/.local/bin/codex-wrapper` へ渡す関数。**Bedrock か素かは wrapper がマーカー（`~/.config/zsh/no-codex-bedrock`）で決める**（agmsg の spawn も一緒に切り替わる）。一度だけマーカーごと迂回するなら `command codex` |
+| `codex-wrapper [args]` | マーカーを見て振り分けるだけのスクリプト（`~/.local/bin/codex-wrapper`）。マーカーが無ければ `codex-bedrock` へ渡す。有れば素の codex（OpenAI サブスク認証）を PATH 解決のまま exec するが、その前に `codex-appserver-evict` で共有 app-server の `CODEX_HOME` を照合し、食い違う app-server（＝ Bedrock 用に残ったもの）を畳んで作り直させる（素の codex が黙って Bedrock で走るのを防ぐ）。app-server に繋がない呼び出し（`exec` / `login` / `--version` など）では何もしない |
+| `codex-bedrock [args]` | codex を Amazon Bedrock で起動するスクリプト（`~/.local/bin/codex-bedrock`）。**名前のとおり常に Bedrock で、マーカーは見ない。** `CODEX_HOME` をプロジェクトごとの一時 home へ向け、その `config.toml` を「素の config ＋ `~/.codex/bedrock.config.toml`」にする。使う AWS プロファイルは `CODEX_BEDROCK_AWS_PROFILE`、無ければ `AWS_PROFILE`（どちらも無ければ起動しない）。それを `AWS_PROFILE` として渡し、その `credential_process = aws-login` が認証を担う。ただし**起動前に `aws-auth-ensure` でそのプロファイルが認証済みかを確かめ、未認証なら起動しない**（[aws-cheatsheet.md](aws-cheatsheet.md#aws-auth-ensure)）。リージョン/モデルを変えるときは `dot_codex/private_bedrock.config.toml` を編集 |
+| `codex-spawn <name> [opts]` | agmsg の codex エージェントを herdr のペインに立ち上げる（`~/.local/bin/codex-spawn`）。内部で `spawn.sh` を呼ぶ。**Bedrock か素かはマーカー（`~/.config/zsh/no-codex-bedrock`）で決める**: 有れば素の `spawn.sh` へそのまま委譲（＝ OpenAI サブスクの codex）、無ければ `codex-bedrock --print-home` で一時 home を借り、それを `CODEX_HOME` に載せたペインの中で spawn する。Bedrock 経路ではペインを作る前に `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（spawn 先の codex は `codex-bedrock` を通らないため）。`--team` / `--project` / `--direction` 以外の引数は spawn.sh へ素通し（`--boot-prompt` など）。片付けは素の agmsg と同じ `despawn.sh <team> <self> <name> --force` |
 | `term-reset` | 端末のマウス報告 / フォーカス報告 / 括弧付き貼り付け / Kitty keyboard protocol（`\e[<u` で pop、`\e[=0;1u` でフラグ 0）を無効化して端末状態を復旧。SSH 異常切断でリモートの nvim 等が有効化した端末モードが居残り、キー入力で `15;1:3u` 等・マウスで `0;129;39M` 等が漏れたときに叩く（素の端末でも無害）。詳細は [herdr チートシート](herdr-cheatsheet.md#ssh-異常切断後の端末化けterm-reset) |
 | `herdr [args]` / `ssh [args]` | ローカルシェルでのみ実バイナリをラップし、戻り際に必ず `term-reset` する（`herdr --remote` / `ssh` 先の異常切断による端末化けを自動復旧）。herdr は内部で自前の ssh を exec するため `herdr` 自体もラップ対象。リモートシェル（`$SSH_CONNECTION` あり）ではラップしない |
 
-**`claude-bedrock` は関数ではなくスクリプト**（`~/.local/bin/claude-bedrock`）。env の組み立てと
-AWS プロファイルの解決は `~/.local/bin/claude-bedrock-wrapper`（`<claude 実行ファイル> [args...]`
-を受け取って exec する）に一本化してあり、`claude-bedrock` はそこへ PATH 上の `claude` を渡すだけ。
-分けてあるのは、VS Code 拡張の `claudeCode.claudeProcessWrapper` が**シェルを経由せず実行ファイルの
-パス**を spawn するため（zsh 関数や alias では届かない）。
+### claude / codex の起動は 2 階層（マーカー判定 → Bedrock）
 
-> **VS Code は既定では Bedrock にしていない**（手元の VS Code は claude.ai のサブスクリプションで
-> 使うため）。拡張から Bedrock で動かしたいときだけ、`Library/Application Support/Code/User/settings.json`
-> に次を足す。拡張はシェルを経由しないので、zsh の `claude` 関数（Remote Control 付与）も通らない。
+`claude` と `codex` は対称な 2 階層になっている。**`-bedrock` と名の付くものは `claude-bedrock` /
+`codex-bedrock` の 2 つだけで、どちらも常に Bedrock（マーカーを見ない）。** マーカーの判定は
+その手前の入口だけが持ち、マーカーが無いときにこの 2 つへ落ちる。
+
+```
+層 1: マーカー判定だけ（Bedrock の中身は持たない）
+  対話 zsh `claude` ──┐
+  VS Code 拡張 ───────┴─▶ claude-wrapper <claude 実行ファイル> [args]
+  対話 zsh `codex` ──────▶ codex-wrapper [args]
+  agmsg の spawn ────────▶ codex-spawn <name> [opts]
+
+層 2: 常に Bedrock
+  claude-bedrock [--bin <path>] [args]
+  codex-bedrock [args]（codex-spawn は --print-home で一時 home だけ借りる）
+```
+
+| 層 1 の入口 | マーカー有り | マーカー無し |
+| --- | --- | --- |
+| `claude-wrapper <bin> [args]` | `exec <bin> args`（claude.ai サブスク） | `claude-bedrock --bin <bin> args` |
+| `codex-wrapper [args]` | `codex-appserver-evict` → `exec codex args`（OpenAI サブスク） | `codex-bedrock args` |
+| `codex-spawn <name> [opts]` | 配信モードを monitor にして `spawn.sh codex` へ委譲 | `codex-bedrock --print-home` の一時 home を env に載せたペインで spawn |
+
+どれもシェル関数ではなくスクリプトなのは、シェルを経由しない起動（VS Code 拡張の spawn / agmsg の
+`spawn.sh` / 非対話 bash）に関数が届かないため。zsh の `claude` / `codex` 関数は wrapper へ渡す
+一行で、判定を持たない。`claude-wrapper` だけ第 1 引数に実行ファイルを取るのは VS Code 拡張の
+`claudeCode.claudeProcessWrapper` が**シェルを経由せず `<wrapper> <同梱の claude> <引数...>` の形で
+spawn する**契約のため（codex 側にその消費者は無く、PATH 前段の agmsg シムを踏む必要があるので
+実行ファイルを固定しない）。
+
+> **VS Code 拡張は常に `claude-wrapper` を指定しておく。** Bedrock か素かはマーカーで決まるので、
+> 切り替えのたびに設定を出し入れしなくてよい。`Library/Application Support/Code/User/settings.json`
+> （Remote なら `~/.vscode-server/data/Machine/settings.json`）に次を足す。拡張はシェルを経由しない
+> ので、zsh の `claude` 関数（Remote Control 付与）は通らない。
 >
 > ```json
-> "claudeCode.claudeProcessWrapper": "/Users/<user>/.local/bin/claude-bedrock-wrapper"
+> "claudeCode.claudeProcessWrapper": "/Users/<user>/.local/bin/claude-wrapper"
 > ```
 >
 > なお `claudeProcessWrapper` が効くのは**拡張自身が spawn するプロセス**だけで、エディタ右上の
 > Claude Code アイコン（`claude-vscode.terminal.open`）は統合ターミナルへリテラル `claude` を流す
-> 別実装のため、この設定を見ない。アイコンから Bedrock で起動したいときは、ターミナルで
-> `claude-bedrock` を打つ。
+> 別実装のため、この設定を見ない。統合ターミナルは対話 zsh なので、そちらは `claude` 関数が
+> 同じ `claude-wrapper` を通す。
 
 ### SSH セッションでの `$BROWSER` 自動切替（portfwd）
 
@@ -98,12 +126,12 @@ portfwd でオプトインした SSH セッションでは `$BROWSER` が自動�
 （`claude-bedrock` は自分のプロセス内、`codex-bedrock` はサブシェルに閉じ込めるので、どちらも
 対話シェルの `AWS_PROFILE` は不変）。**既定のプロファイルはハードコードしていない**ので、専用変数も
 `AWS_PROFILE` も無ければ起動せずに終わる（意図しないアカウントを黙って触らないため）。
-**対話シェルの `claude` / `codex` は既定でこの経路を通る**ので、素で使いたいときは下のマーカーを置く。
+**マーカーが無ければ `claude-wrapper` / `codex-wrapper` / `codex-spawn` はこの経路へ落ちる**ので、素で使いたいときは下のマーカーを置く。
 
 | 変数 | 未設定のとき | 対象 |
 | --- | --- | --- |
 | `CLAUDE_CODE_BEDROCK_AWS_PROFILE` | `AWS_PROFILE` →（それも無ければ）`~/.env` の値 | `claude-bedrock` |
-| `CODEX_BEDROCK_AWS_PROFILE` | `AWS_PROFILE` | `codex-bedrock` / `codex-bedrock-spawn` |
+| `CODEX_BEDROCK_AWS_PROFILE` | `AWS_PROFILE` | `codex-bedrock` / `codex-spawn` |
 
 `claude-bedrock` と `codex-bedrock` は起動前に `aws-auth-ensure` を通す。未認証のまま起動すると、
 TUI が立ったあとで `credential_process`（`aws-login`）がログイン URL を `/dev/tty` へ出して画面が
@@ -119,15 +147,18 @@ TUI が立ったあとで `credential_process`（`aws-login`）がログイン U
 
 | 置くファイル | 効果 |
 | --- | --- |
-| `~/.config/zsh/no-claude-bedrock` | 対話シェルの `claude` が claude.ai 認証の素のバイナリで起動する |
-| `~/.config/zsh/no-codex-bedrock` | 対話シェルの `codex` と `codex-bedrock-spawn` が OpenAI サブスク認証の素の codex で起動する |
+| `~/.config/zsh/no-claude-bedrock` | `claude-wrapper`（＝対話シェルの `claude` と VS Code 拡張）が claude.ai 認証の素のバイナリで起動する |
+| `~/.config/zsh/no-codex-bedrock` | `codex-wrapper`（＝対話シェルの `codex`）と `codex-spawn` が OpenAI サブスク認証の素の codex で起動する |
 
-一度だけ迂回するなら `command claude` / `command codex`（関数ごと素通しするので、起動前の認証
-確認も通らない）。マーカーは chezmoi の管理外なので、置く / 消すのはマシンごとの判断。
+マーカーを見るのは層 1 の入口だけで、`claude-bedrock` / `codex-bedrock` を直接叩けばマーカーが
+あっても Bedrock で起動する。一度だけ素で迂回するなら `command claude` / `command codex`
+（関数ごと素通しするので、起動前の認証確認も通らない）。マーカーは chezmoi の管理外なので、
+置く / 消すのはマシンごとの判断。
 
 **関数が効くのは対話 zsh だけ。** Claude Code 自身が走らせるシェルは `CLAUDE_CODE_SHELL=/bin/bash`
-なので、Claude Code の Bash ツールから `claude` / `codex` を叩いても素のバイナリが動く。VS Code
-拡張の spawn は `claudeProcessWrapper`、agmsg の spawn は `codex-bedrock-spawn` で手当てしている。
+なので、Claude Code の Bash ツールから `claude` / `codex` を叩いても素のバイナリが動く（`git-aicommit`
+/ `gh-pr-aicreate` の `claude --print` も同じ）。VS Code 拡張の spawn は `claudeProcessWrapper` に
+`claude-wrapper` を、agmsg の spawn は `codex-spawn` を通すことで手当てしている。
 
 ### `claude-bedrock` のリージョン/モデル上書き変数
 
@@ -256,14 +287,14 @@ Bedrock 用 app-server を拾う向き**は課金先が変わるので特に厄�
 違えば畳む。候補は `ps -o args=` で**argv がちょうど `codex app-server ...` の形か**まで確かめる。
 `pgrep -f` はコマンドライン全体への部分一致なので、その文字列を含むだけの無関係なプロセス（このスクリプトを
 探して走らせているシェル自身を含む）まで挙がり、cwd もプロジェクトと一致してしまうため。agmsg の run ディレクトリ名には依存せず codex 自身のプロセス署名だけを見ているので、agmsg 側の
-命名が変わっても壊れない。`codex` 関数と `codex-bedrock` の両方から呼ぶので、どちら向きの取り違えも防げる。
+命名が変わっても壊れない。`codex-wrapper`（素へ戻す側）と `codex-bedrock` の両方から呼ぶので、どちら向きの取り違えも防げる。
 
 同じ種類（同じ `CODEX_HOME`）なら畳まないため、同一プロジェクトで codex-bedrock を並行起動しても
 app-server を共有できる。逆に、種類をまたいで切り替えるときは**開いていた側のセッションが切れる**。
 
 ### agmsg spawn で Bedrock の codex をペインに出す
 
-`codex-bedrock-spawn <name>` を使う。herdr のペインの中から実行すること。`~/.config/zsh/no-codex-bedrock`
+`codex-spawn <name>` を使う。herdr のペインの中から実行すること。`~/.config/zsh/no-codex-bedrock`
 があるときは素の `spawn.sh` へ委譲するので、**手打ちの `codex` と spawn がマーカー 1 つで一緒に
 切り替わる**。委譲する前に、起動先の配信モードが `monitor` でなければ `delivery.sh set monitor codex`
 しておく（配信フック `.codex/hooks.json` は gitignore 済みで clone や worktree に付いてこず、無いと
@@ -276,7 +307,7 @@ bridge が上がらず依頼が届かない。冪等なので既に `monitor` �
 （[agmsg-cheatsheet.md](agmsg-cheatsheet.md#チームへの参加プロジェクトごとに一度)）。
 
 ```sh
-codex-bedrock-spawn reviewer
+codex-spawn reviewer
 #   → spawned codex 'reviewer' (team dotfiles) in herdr pane wQ:p7
 #       CODEX_HOME  /Users/<user>/.cache/codex-bedrock/<sha1>
 #       AWS_PROFILE <bedrock 用プロファイル>
@@ -293,7 +324,7 @@ codex-bedrock-spawn reviewer
 - マニフェスト（`drivers/types/codex/type.conf`）の `cli=codex` は固定で差し替えられない
 - codex に `--profile` 相当の環境変数は無い
 
-`codex-bedrock-spawn` が Bedrock 経路でやっていることは 7 つ:
+`codex-spawn` が Bedrock 経路でやっていることは 7 つ:
 
 1. `aws-auth-ensure` で Bedrock 用プロファイルの認証を済ませる（未認証ならここでログインし、
    通らなければ spawn しない）
@@ -325,7 +356,7 @@ hooks / exec policy を読まないので、`.codex/hooks.json` が効かない�
 置き場にだけ効き、ペインの codex には届かない（ペインは 5 で作成済み）。
 
 テンプレート経路は placement レコードを書かないので、`despawn --force` が `no placement record` で
-失敗する。`codex-bedrock-spawn` は herdr パスと同じ形式（`herdr:<pane_id>\t<project>\tcodex`）で
+失敗する。`codex-spawn` は herdr パスと同じ形式（`herdr:<pane_id>\t<project>\tcodex`）で
 自分で書いている。既存レコードは常に上書きする——前の異常終了で古い pane_id が残っていると、
 `despawn --force` がそちらを畳んで今のペインを取り逃がすため。途中で失敗したときは、作ったペインと
 書きかけのレコードを畳んでから終わる。
@@ -346,6 +377,15 @@ hooks / exec policy を読まないので、`.codex/hooks.json` が効かない�
 >
 > リージョンも当初 `us-west-2` だったが、`openai.gpt-5.6-sol` が 404 になるため `us-east-1` へ移し、
 > その後 work 側の dotfiles と揃えて `us-east-2` にした。
+
+> **経緯**: 2026-09-16 まではマーカー判定が zsh の `claude` / `codex` 関数と `codex-bedrock-spawn` に
+> 散っていて、`codex-bedrock-spawn` は名前に `-bedrock` が付くのにマーカーで素の codex を spawn した。
+> また claude 側は `claude-bedrock`（PATH の claude を渡すだけ）と `claude-bedrock-wrapper`（env を組む
+> 実体。VS Code の `claudeProcessWrapper` 用）の 2 本に分かれ、VS Code を Bedrock にするには設定の
+> 出し入れが要った。これを「マーカー判定だけの層（`claude-wrapper` / `codex-wrapper` / `codex-spawn`）
+> → 常に Bedrock の層（`claude-bedrock` / `codex-bedrock`）」の 2 階層へ整理し、`claude-bedrock-wrapper`
+> は `claude-bedrock` に統合（`--bin` で実行ファイルを受ける）、`codex-bedrock-spawn` は `codex-spawn` に
+> 改名した。
 
 ---
 
