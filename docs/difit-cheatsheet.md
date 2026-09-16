@@ -96,7 +96,7 @@ difit --pr https://github.com/owner/repo/pull/123   # PR（GitHub Enterprise も
 | オプション | 既定 | 意味 |
 | --- | --- | --- |
 | `--port <port>` | `4966`（ラッパーが `difit-port` の値を渡す） | 希望ポート。埋まっていると繰り上がる |
-| `--host <host>` | `127.0.0.1` | bind アドレス |
+| `--host <host>` | `localhost`（ラッパーが `127.0.0.1` を渡す） | bind アドレス。`localhost` は Node が OS の名前解決順で bind するため、`::1` が先に返るホストでは IPv6 loopback だけになる |
 | `--no-open` | open する | ブラウザを開かない |
 | `--background` | off | サーバを切り離し、`{"port":..,"url":..,"pid":..}` を出して終わる |
 | `--keep-alive` | off | ブラウザが切れてもサーバを残す |
@@ -112,7 +112,8 @@ difit --pr https://github.com/owner/repo/pull/123   # PR（GitHub Enterprise も
 
 > **`--port` を 2 回渡してはいけない。** 後勝ちにならず、エラーも出さずに**既定の 4966 に落ちる**。
 > ラッパーは呼び出し側が `--port` を書いているときは自分の分を足さないので、
-> `difit --port 5000` と明示すればそちらが使われる。
+> `difit --port 5000` と明示すればそちらが使われる。`--host` も同じ扱いで、呼び出し側が
+> 書いていないときだけラッパーが `--host 127.0.0.1` を足す（理由は[落とし穴](#落とし穴)）。
 
 ---
 
@@ -142,9 +143,9 @@ difit の既定は 4966 で、`mo` の帯（6275..6774）と重ならない 4966
 
 ```
 herdr-difit（<prefix> d）
-  └─ difit --background --no-open …   → {"url":"http://localhost:4968",…}
+  └─ difit --background --no-open …   → {"url":"http://127.0.0.1:4968",…}
        └─ $BROWSER=portfwd-open → 手元 PC の daemon
-            1. http://localhost:4968/ を「ローカルのページ」と判定
+            1. http://127.0.0.1:4968/ を「ローカルのページ」と判定
             2. 手元の 127.0.0.1:4968 を listen し、SOCKS 経由で SSH 先の 4968 へ中継
             3. 手元 PC の既定ブラウザで開く
 ```
@@ -166,8 +167,16 @@ difit 自身に開かせず `--no-open` にしているのは、**実際に list
 - **popup は herdr サーバ起動時の環境を継承する**。portfwd 非対象のセッションで herdr を
   起動していると `$BROWSER` が渡らないので、portfwd 対象のセッションで `herdr server stop` →
   `herdr` と起動し直す（`herdr server reload-config` では環境は入れ替わらない）。
+- **`localhost` に bind すると portfwd 経由で `connection refused` になるホストがある**。difit の
+  `--host` 既定は `localhost` で、Node はこれを OS の名前解決の順で bind する。Ubuntu 等
+  `getent ahosts localhost` が `::1` を先頭に返すホストでは `[::1]:<port>` にしか listen せず、
+  portfwd の page リレー（SSH 先の `127.0.0.1:<port>` へ SOCKS CONNECT）が拒否される。手元の
+  ブラウザは開くのに `localhost:<port>` が refused、手元の portfwd ログに
+  `SOCKS CONNECT 失敗` → `転送先が listen していないため終了` と残るのがこの症状。
+  ラッパーが `--host 127.0.0.1` を足して IPv4 loopback に固定しているので、**素の difit
+  （npm global の実体）を直接呼ばない**。呼ぶなら `--host 127.0.0.1` を明示する。
 - **同じホストの他のローカルユーザは、ポートを知っていれば接続できる**（difit に認証は無い）。
-  `--host` は既定の `127.0.0.1` のままにし、複数ユーザがいるホストでは見せたくない差分を
+  `--host` はラッパーが渡す `127.0.0.1` のままにし、複数ユーザがいるホストでは見せたくない差分を
   開かない。
 - **`.` / `working` を開いたまま作業を進めたら、ブラウザを再読み込みする**。サーバは要求のたびに
   git を読み直すので、再読み込みすれば最新のワークツリーの差分になる（`<prefix> d` から

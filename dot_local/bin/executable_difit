@@ -23,6 +23,13 @@
 #   difit へ --port を 2 回渡すと、後勝ちにならず既定の 4966 に落ちる(エラーも出ない)。
 #   `difit --port 5000` と明示した人を黙って 4966 へ流さないよう、既に指定があれば足さない。
 #
+# なぜ --host 127.0.0.1 を足すか:
+#   difit の --host 既定は localhost で、Node は localhost を OS の名前解決の順で bind する。
+#   ::1 が先に返る Linux ホストでは IPv6 の loopback にしか listen せず、portfwd の中継
+#   (SSH 先の 127.0.0.1:<port> へ CONNECT) が connection refused になる。IPv4 の loopback へ
+#   固定して、URL と中継先を一致させる。--port と同じく、呼び出し側が --host を指定して
+#   いるときは足さない (LAN へ公開したい等の意図を潰さない)。
+#
 # 関連: difit-port / herdr-difit / docs/difit-cheatsheet.md
 set -euo pipefail
 
@@ -40,24 +47,31 @@ die() {
 [ -x "$difit_bin" ] ||
 	die "${difit_bin} が見つかりません(npm global への導入が済んでいない可能性があります。chezmoi apply で入ります)"
 
-# 呼び出し側が --port を指定しているか調べる。-- 以降は difit への引数ではないので見ない。
+# 呼び出し側が --port / --host を指定しているか調べる。-- 以降は difit への引数ではないので見ない。
 has_port=false
+has_host=false
 for arg in "$@"; do
 	case $arg in
 	--) break ;;
 	--port | --port=*) has_port=true ;;
+	--host | --host=*) has_host=true ;;
 	esac
 done
 
-if [ "$has_port" = true ]; then
-	exec "$difit_bin" "$@"
+extra=()
+
+if [ "$has_port" = false ]; then
+	command -v difit-port >/dev/null 2>&1 || die "difit-port コマンドが見つかりません"
+
+	# port=$(difit-port) を extra の中に埋め込まないこと: set -e はコマンド置換の失敗を
+	# 引数位置では捕まえないため、埋め込むと difit-port が失敗しても --port "" のまま exec
+	# へ進んでしまう。代入を独立した行にすることで set -e を効かせる。
+	port=$(difit-port)
+	extra+=(--port "$port")
 fi
 
-command -v difit-port >/dev/null 2>&1 || die "difit-port コマンドが見つかりません"
+if [ "$has_host" = false ]; then
+	extra+=(--host 127.0.0.1)
+fi
 
-# port=$(difit-port) を exec と同じ行に埋め込まないこと: set -e はコマンド置換の失敗を
-# 引数位置では捕まえないため、埋め込むと difit-port が失敗しても --port "" のまま exec
-# へ進んでしまう。代入を独立した行にすることで set -e を効かせる。
-port=$(difit-port)
-
-exec "$difit_bin" --port "$port" "$@"
+exec "$difit_bin" ${extra[@]+"${extra[@]}"} "$@"
