@@ -378,15 +378,6 @@ hooks / exec policy を読まないので、`.codex/hooks.json` が効かない�
 > リージョンも当初 `us-west-2` だったが、`openai.gpt-5.6-sol` が 404 になるため `us-east-1` へ移し、
 > その後 work 側の dotfiles と揃えて `us-east-2` にした。
 
-> **経緯**: 2026-09-16 まではマーカー判定が zsh の `claude` / `codex` 関数と `codex-bedrock-spawn` に
-> 散っていて、`codex-bedrock-spawn` は名前に `-bedrock` が付くのにマーカーで素の codex を spawn した。
-> また claude 側は `claude-bedrock`（PATH の claude を渡すだけ）と `claude-bedrock-wrapper`（env を組む
-> 実体。VS Code の `claudeProcessWrapper` 用）の 2 本に分かれ、VS Code を Bedrock にするには設定の
-> 出し入れが要った。これを「マーカー判定だけの層（`claude-wrapper` / `codex-wrapper` / `codex-spawn`）
-> → 常に Bedrock の層（`claude-bedrock` / `codex-bedrock`）」の 2 階層へ整理し、`claude-bedrock-wrapper`
-> は `claude-bedrock` に統合（`--bin` で実行ファイルを受ける）、`codex-bedrock-spawn` は `codex-spawn` に
-> 改名した。
-
 ---
 
 ## キーバインド
