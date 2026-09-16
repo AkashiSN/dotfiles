@@ -111,8 +111,9 @@ function claude () {
 # 対話シェルの `codex` を codex-wrapper へ渡す。Bedrock かどうかはそこがマーカー
 # (~/.config/zsh/no-codex-bedrock) で決める: 無ければ codex-bedrock、有れば素のバイナリ
 # (OpenAI サブスク認証。その前に codex-appserver-evict で Bedrock 用 app-server を畳む)。
-# 一度だけマーカーごと迂回したいときは `command codex`。agmsg で spawn する codex は
-# codex-spawn が同じマーカーを見る。
+# `command codex` でもシムの先の PATH ラッパー(~/.local/libexec/codex-dispatch/codex)が同じ
+# マーカーを見るので、一度だけ迂回したいときは `CODEX_HOME=~/.codex command codex`(CODEX_HOME が
+# 設定済みならラッパーは素通り)。agmsg で spawn する codex も同じマーカーを見る。
 function codex () {
   local wrapper=$HOME/.local/bin/codex-wrapper
   if [[ -x $wrapper ]]; then

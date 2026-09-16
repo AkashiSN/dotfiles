@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# codex (PATH ラッパー) - PATH 上で agmsg のシム(~/.agents/bin/codex)の次に来る `codex`。
+# シムと codex-monitor.sh は「PATH 上でシムでない最初の codex」を本体として app-server と
+# TUI を起動するので、monitor モードの codex はすべてここを通る。マーカーの有無で素の codex か
+# Amazon Bedrock かを振り分ける:
+#
+#   CODEX_HOME が設定済み                 : 本体をそのまま exec(判定済みの経路。codex-bedrock や
+#                                          Bedrock 版の app-server の子はこれ)
+#   ~/.config/zsh/no-codex-bedrock が有る : 本体をそのまま exec(OpenAI サブスク)
+#   無い                                 : codex-bedrock --print-home の一時 home を CODEX_HOME に
+#                                          載せ、Bedrock 用の AWS プロファイルを export して本体を exec
+#
+# 対話シェルの `codex`(codex-wrapper)と同じマーカーを見る。手打ちは codex-wrapper → codex-bedrock
+# が CODEX_HOME を付けてから codex を exec するのでここは素通り、agmsg の spawn(boot script →
+# シム → codex-monitor.sh)は env を持たずに来るのでここで Bedrock に振り分ける。spawn 先の
+# ペインへ env を届ける手段は無い(spawn.sh の herdr driver は `herdr pane split` に --env を
+# 渡さず、分割元ペインの env も継承しない)ので、本体の解決点であるここで付ける。
+#
+# 本体は PATH 上でこのファイルより後ろにある、シムでない codex(通常 ~/.local/bin/codex)。
+# 一度だけマーカーごと迂回したいときは `CODEX_HOME=~/.codex codex ...`(設定済みなら素通り)。
+#
+# 関連: codex-wrapper / codex-bedrock / codex-spawn / docs/zsh-cheatsheet.md
+set -euo pipefail
+
+die() {
+	printf 'codex(dispatch): %s\n' "$*" >&2
+	exit 1
+}
+
+# シムかどうかは、シムが自分を名乗るヘッダの文言で見る(シム自身の resolve_real_codex と同じ
+# 判定)。この文言をここに丸ごと書くと、シムがこのファイルをシムだと誤認するので一部だけ持つ。
+is_agmsg_shim() {
+	grep -q "entrypoint shim for agmsg monitor mode" "$1" 2>/dev/null
+}
+
+self="$(cd "$(dirname "$0")" && pwd -P)/$(basename "$0")"
+real=""
+IFS=: read -r -a path_dirs <<<"$PATH"
+for dir in "${path_dirs[@]}"; do
+	candidate="${dir:-.}/codex"
+	[ -x "$candidate" ] || continue
+	candidate="$(cd "$(dirname "$candidate")" 2>/dev/null && pwd -P)/codex" || continue
+	[ "$candidate" = "$self" ] && continue
+	is_agmsg_shim "$candidate" && continue
+	real="$candidate"
+	break
+done
+[ -n "$real" ] || die "本体の codex が PATH に無い"
+
+# 判定済み、または本体の情報を出すだけの呼び出しはそのまま通す。
+if [ -n "${CODEX_HOME:-}" ]; then
+	exec "$real" "$@"
+fi
+case "${1:-}" in
+--version | -V | --help | -h) exec "$real" "$@" ;;
+esac
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
+	exec "$real" "$@"
+fi
+
+# ここから Bedrock。プロファイルの解決順は codex-bedrock と同じで、そのうえで aws-switch が
+# 書く ~/.env を見る。spawn 先のペインは direnv が ~/.env を読む前に boot を打たれることがあり、
+# 環境変数だけでは決まらないことがあるため。
+profile="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+if [ -z "$profile" ] && [ -f "$HOME/.env" ]; then
+	profile="$(sed -n 's/^export AWS_PROFILE=//p' "$HOME/.env" | tail -1 | tr -d '"'"'")"
+fi
+[ -n "$profile" ] ||
+	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択する"
+
+# 一時 home はプロジェクト(cwd)ごと。認証確認と app-server の照合は呼び出し元(codex-spawn /
+# codex-wrapper)が済ませているので、ここでは home を借りるだけ。codex-bedrock も同じ順で
+# プロファイルを解決するので、~/.env から拾った値はここで渡す。
+home_dir="$(AWS_PROFILE="$profile" codex-bedrock --print-home)" ||
+	die "Bedrock 用の一時 home を用意できなかった"
+[ -d "$home_dir" ] || die "Bedrock 用の一時 home が無い: $home_dir"
+
+# AWS_LOGIN_NO_INTERACTIVE は、走行中に期限が切れたときログイン URL を codex の画面へ
+# 描かせないため(代わりに aws-login が herdr のタブへ委譲する。docs/aws-cheatsheet.md)。
+export CODEX_HOME="$home_dir"
+export AWS_PROFILE="$profile"
+export AWS_LOGIN_NO_INTERACTIVE=1
+exec "$real" "$@"

@@ -2,25 +2,26 @@
 # codex-spawn <name> [options] - agmsg の codex エージェントを herdr のペインに立ち上げる。
 # マーカーの有無で、素の codex (OpenAI サブスク) か Amazon Bedrock かを振り分ける:
 #
-#   ~/.config/zsh/no-codex-bedrock が有る : 素の spawn.sh へそのまま委譲
-#   無い                                 : codex-bedrock の一時 CODEX_HOME を env に載せた
-#                                          ペインを先に作り、その中で spawn する
+#   ~/.config/zsh/no-codex-bedrock が有る : そのまま spawn.sh へ委譲
+#   無い                                 : Bedrock 用の認証・一時 CODEX_HOME・信頼設定を整えてから
+#                                          spawn.sh へ委譲
 #
 # 対話シェルの `codex` (codex-wrapper) と同じマーカーを見るので、マーカー 1 つで手打ちと
 # spawn が一緒に切り替わる。
 #
-# Bedrock 経路で素の `spawn.sh codex <name>` と違うのは CODEX_HOME だけ。ただしそれを差し込む
-# 隙が spawn.sh には無い:
-#   - spawn.sh の herdr パス(launch_in_herdr)は `herdr pane split` を --env 無しで呼ぶ
-#   - マニフェスト(drivers/types/codex/type.conf)の `cli=codex` は固定で差し替えられない
-#   - codex には --profile 相当の環境変数が無い(CODEX_HOME だけが env で効く)
-# そこで env 付きのペインを先に作り、spawn.sh には --terminal テンプレートで「そのペインで
-# boot script を走らせる」とだけ指示する。
+# Bedrock の設定(一時 CODEX_HOME)を spawn 先の codex に載せるのは PATH ラッパー
+# (~/.local/libexec/codex-dispatch/codex)の仕事。spawn.sh の boot script は agmsg のシム →
+# codex-monitor.sh と進み、monitor は「PATH 上でシムでない最初の codex」を本体として app-server と
+# TUI を起動する。その位置にラッパーを置き、マーカーが無ければ CODEX_HOME を付けて本体を exec
+# させる。spawn 先のペインへ env を届ける手段は無い(spawn.sh の herdr driver は `herdr pane split`
+# に --env を渡さず、分割元ペインの env も継承しない)ので、本体の解決点で付けている。
+#
+# どちらの経路でも、spawn のあとに seat(役 → codex スレッド)を書く(下の「seat の記録」)。
 #
 # 使い方: codex-spawn <name> [options]
 #   --team <team>        参加させるチーム(既定: プロジェクトの登録から解決)
 #   --project <path>     起動先プロジェクト(既定: $PWD)
-#   --direction right|down   ペインの分割方向(既定: right。Bedrock 経路のみ)
+#   --direction right|down   ペインの分割方向(既定: right)
 #   その他の引数はそのまま spawn.sh へ渡す(--boot-prompt / --model / --fresh など)
 #
 # 片付けは素の agmsg と同じ: despawn.sh <team> <self> <name> --force
@@ -56,7 +57,7 @@ while [ "$#" -gt 0 ]; do
 		shift 2
 		;;
 	-h | --help)
-		sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	# spawn.sh のフラグのうち値を取るものは、その値も一緒に運ぶ。「次が非フラグなら値」と
@@ -101,25 +102,10 @@ if [ "$MODE" != "monitor" ]; then
 	printf 'codex-spawn: 配信モードを monitor にした(%s → monitor): %s\n' "${MODE:-off}" "$PROJECT" >&2
 fi
 
-# 素の codex へ戻すマーカー。codex-wrapper と同じファイルを見るので、置けば手打ちと spawn の
-# 両方が OpenAI サブスクへ戻る。素の codex なら env を差し込む必要が無く、ペインの配置も
-# spawn.sh の herdr パスに任せられるので、そのまま渡して終わる。
-if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
-	exec "$S/spawn.sh" codex "$NAME" --project "$PROJECT" \
-		${TEAM:+--team "$TEAM"} ${PASS[@]+"${PASS[@]}"}
-fi
-
-# ここから先は Bedrock 経路。
-# Bedrock 用プロファイル。起動前チェックとペインの env の両方で使う。既定はハードコード
-# しない(codex-bedrock と同じ解決順)。
-PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
-[ -n "$PROFILE" ] ||
-	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択する"
-
-# チームは spawn.sh も自動解決するが、placement レコードを自前で書くのでこちらでも要る。
-# 採用するのは whoami が「このプロジェクト自身の登録」を返したとき(agent= / multiple=)だけ。
-# suggest= は他プロジェクトの登録からの提案、not_joined= は未参加で、どちらも teams= を
-# 含みうるが、それを使うと別リポジトリのチームへ codex を join させてしまう。
+# チームは spawn.sh も自動解決するが、seat の記録と placement レコードを自前で書くので
+# こちらでも要る。採用するのは whoami が「このプロジェクト自身の登録」を返したとき
+# (agent= / multiple=)だけ。suggest= は他プロジェクトの登録からの提案、not_joined= は未参加で、
+# どちらも teams= を含みうるが、それを使うと別リポジトリのチームへ codex を join させてしまう。
 if [ -z "$TEAM" ]; then
 	WHO="$("$S/whoami.sh" "$PROJECT" 2>/dev/null || true)"
 	case "$WHO" in
@@ -133,29 +119,194 @@ if [ -z "$TEAM" ]; then
 	esac
 fi
 
-# herdr の JSON から 1 つの文字列フィールドを取り出す。端末制御シーケンスが混ざるので落とす。
-herdr_field() {
-	python3 -c '
-import json, re, sys
-text = re.sub(r"\x1b\[[0-9;<=?]*[a-zA-Z]", "", sys.stdin.read()).strip()
-text = text[text.index("{"):text.rindex("}") + 1]
-value = json.loads(text)
-for key in sys.argv[1:]:
-    value = value[key]
-print(value)
-' "$@"
+# --- seat(役 → codex スレッド)の記録 ---
+# monitor モードの bridge は、役の seat(run/role-session.<team>__<name> の session=)に
+# 書かれたスレッドへ配信する。seat は codex 自身が actas の中で
+# `codex-record-session.sh <team> <name>` を実行して書く建前だが、その実行は codex(モデル)
+# 任せで、引数を落として実行すると何も記録せず黙って成功する。seat が前回のスレッドを指した
+# ままだと bridge はそちらを app-server に resume して配信し、依頼は誰も見ていない旧スレッドで
+# 処理される(ペインの codex には何も届かない)。そこで spawn したこちらが、app-server に
+# 新しく載ったスレッドを見つけて seat を書く。
+#
+# 新しいスレッドは、app-server にロード中のスレッドのうち「spawn 開始より後に作られ、
+# どの役の seat にもなっていないもの」で特定する。codex のスレッド id は UUIDv7 で先頭
+# 48 bit がミリ秒時刻なので、作成時刻は id から読める。旧スレッド(bridge が古い seat を
+# resume して載せ直したものを含む)は時刻で、他の役のスレッドは seat で除ける。ちょうど 1 つの
+# ときだけ記録し、判定できなければ記録せず警告に留める(誤った seat は配信先を間違えるので、
+# 記録しないほうがまし)。
+# shellcheck disable=SC1091
+. "$S/lib/hash.sh"
+# shellcheck disable=SC1091
+. "$S/lib/node.sh"
+# shellcheck disable=SC1091
+. "$S/drivers/types/codex/_app-server.sh"
+# shellcheck disable=SC1091
+. "$S/lib/actas-lock.sh"
+# shellcheck disable=SC1091
+. "$S/lib/role-session.sh"
+NODE_BIN="$(agmsg_resolve_node 2>/dev/null || true)"
+
+# app-server にロード中のスレッド id を 1 行ずつ出す。app-server が無い/応答しないときは非 0。
+codex_loaded_threads() {
+	local url pidfile pid
+	url="$(_agmsg_codex_app_server_url "$PROJECT" 2>/dev/null || true)"
+	[ -n "$url" ] || return 1
+	pidfile="$SKILL_DIR/run/codex-app-server.$(printf '%s' "$PROJECT" | agmsg_sha1).pid"
+	pid="$(cat "$pidfile" 2>/dev/null || true)"
+	{ [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; } || return 1
+	[ -n "$NODE_BIN" ] || return 1
+	"$NODE_BIN" "$S/drivers/types/codex/codex-bridge.js" --app-server "$url" --print-loaded-threads \
+		--connect-timeout-ms 1500 --request-timeout-ms 1500 2>/dev/null | grep . | sort -u
+	return "${PIPESTATUS[0]}"
 }
 
-# 1) Bedrock 用プロファイルの認証を済ませる。spawn 先の codex は codex-bedrock を通らない
-#    (spawn.sh が cli=codex を直接 exec する)ので、未認証のままだと立ち上がった TUI の中へ
-#    credential_process(aws-login)がログイン URL を描いて画面が崩れる。ここは人が居る対話ペイン
-#    なので、未認証ならその場でログインまで進む。
+# UUIDv7 の作成時刻(ミリ秒)。UUID の形でなければ 0。
+uuid7_ms() {
+	case "$1" in
+	[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*)
+		printf '%d' "$((16#${1:0:8}${1:9:4}))"
+		;;
+	*) printf 0 ;;
+	esac
+}
+
+# spawn 開始時刻。これより後に作られたスレッドだけを候補にする(時計のずれ分だけ手前に取る)。
+SPAWN_T0_MS=$(($(date +%s) * 1000 - 5000))
+
+# スレッド id の rollout(トランスクリプト)があるか。TUI のスレッドは書き、名前付け用の短命な
+# スレッドは書かないので、候補が絞れないときの決め手にする。
+has_rollout() {
+	[ -n "$(find "$HOME/.codex/sessions" -name "rollout-*-$1.jsonl" -print -quit 2>/dev/null)" ]
+}
+
+# spawn 後に呼ぶ。新しいスレッドを待ち、1 つに決まったら seat に記録する。spawn.sh は codex の
+# readiness を待たないので、ここで TUI がスレッドを開くまで待つ(Bedrock 用の一時 home を作った
+# 直後は codex がフックの確認(Hooks need review)で止まるので、人が答えるまで進まない)。
+# 候補が複数見える間は待つ: codex は起動直後にスレッド名を付けるための短命なスレッドを載せるので、
+# その瞬間に当たると 2 本に見える。長引くときは rollout の有無で TUI のスレッドを選ぶ。
+# codex 自身が actas の中でこの役の seat を新しいスレッドに書いていたら、それを正とし上書きしない。
+record_seat() {
+	local waited=0 now own others id new count="" chosen recorded
+	while [ "$waited" -lt 90 ]; do
+		if now="$(codex_loaded_threads)"; then
+			own="$(agmsg_role_session_uuid "$TEAM" "$NAME" 2>/dev/null || true)"
+			if [ -n "$own" ] && [ "$(uuid7_ms "$own")" -ge "$SPAWN_T0_MS" ] &&
+				printf '%s\n' "$now" | grep -qx "$own"; then
+				printf 'codex-spawn: seat は codex 自身が記録済み: %s/%s → %s\n' "$TEAM" "$NAME" "$own" >&2
+				return 0
+			fi
+			others="$(agmsg_role_session_recorded_uuids codex 2>/dev/null | grep . | grep -vx "${own:-__none__}" || true)"
+			new=""
+			while IFS= read -r id; do
+				[ -n "$id" ] || continue
+				[ "$(uuid7_ms "$id")" -ge "$SPAWN_T0_MS" ] || continue
+				printf '%s\n' "$others" | grep -qx "$id" && continue
+				new="${new:+$new$'\n'}$id"
+			done <<<"$now"
+			count="$(printf '%s' "$new" | grep -c . || true)"
+			chosen=""
+			if [ "$count" = 1 ]; then
+				chosen="$new"
+			elif [ "$count" -gt 1 ] && [ "$waited" -ge 10 ]; then
+				while IFS= read -r id; do
+					has_rollout "$id" || continue
+					if [ -n "$chosen" ]; then
+						chosen=""
+						break
+					fi
+					chosen="$id"
+				done <<<"$new"
+			fi
+			if [ -n "$chosen" ]; then
+				CODEX_THREAD_ID="$chosen" "$S/drivers/types/codex/codex-record-session.sh" "$TEAM" "$NAME" "$PROJECT"
+				recorded="$(agmsg_role_session_uuid "$TEAM" "$NAME" 2>/dev/null || true)"
+				if [ "$recorded" = "$chosen" ]; then
+					printf 'codex-spawn: seat を記録した: %s/%s → %s\n' "$TEAM" "$NAME" "$chosen" >&2
+				else
+					printf 'codex-spawn: seat を記録できなかった(%s/%s → %s)。%s/run/role-session.* を確認する\n' "$TEAM" "$NAME" "$chosen" "$SKILL_DIR" >&2
+				fi
+				return 0
+			fi
+		fi
+		sleep 1
+		waited=$((waited + 1))
+	done
+	if [ -n "$count" ] && [ "$count" -gt 1 ]; then
+		printf 'codex-spawn: 新しいスレッドが %s 本あり特定できないため seat を記録しない:\n%s\n' "$count" "$new" >&2
+		return 0
+	fi
+	# 新しいスレッドが現れなかった。記録済みの seat を resume した(spawn.sh が --fresh 無しで
+	# `codex resume` を選んだ)ならそれで正しい。
+	recorded="$(agmsg_role_session_uuid "$TEAM" "$NAME" 2>/dev/null || true)"
+	if [ -n "$recorded" ] && printf '%s\n' "${now:-}" | grep -qx "$recorded"; then
+		printf 'codex-spawn: 記録済みの seat を resume した: %s/%s → %s\n' "$TEAM" "$NAME" "$recorded" >&2
+		return 0
+	fi
+	printf 'codex-spawn: 新しいスレッドを特定できず seat を記録していない。ペインが Hooks need review で止まっていたら Trust all and continue を選び、codex が動き出してから %s/delivery.sh status codex %s で bridge が alive か確認する。alive にならなければ CODEX_THREAD_ID=<ペインのスレッド id> %s/drivers/types/codex/codex-record-session.sh %s %s %s で seat を書く\n' "$S" "$PROJECT" "$S" "$TEAM" "$NAME" "$PROJECT" >&2
+}
+
+# spawn 本体。両経路とも spawn.sh の herdr driver に任せる(ペインの分割・boot の投入・placement
+# レコードまで spawn.sh が書く)。--direction は spawn.sh の --split(h=right / v=down)へ写す。
+# TMPDIR をユーザ専用の場所に向けるのは、spawn.sh が boot script を ${TMPDIR:-/tmp}/agmsg-spawn
+# という固定名のディレクトリに置くため。共有ホストでは最初に spawn した人の所有になり、他の
+# ユーザは mktemp で permission denied になる。この TMPDIR は boot script の置き場にだけ効き、
+# ペインの codex には届かない(ペインの env は herdr が決める)。
+run_spawn() {
+	local split tmpdir
+	case "$DIRECTION" in
+	right) split=h ;;
+	down) split=v ;;
+	*) die "--direction は right か down: $DIRECTION" ;;
+	esac
+	tmpdir="${XDG_RUNTIME_DIR:-$HOME/.cache/agmsg}"
+	mkdir -p "$tmpdir"
+	TMPDIR="$tmpdir" "$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
+		--split "$split" ${PASS[@]+"${PASS[@]}"} ||
+		die "spawn.sh に失敗した"
+}
+
+# 素の codex へ戻すマーカー。codex-wrapper と同じファイルを見るので、置けば手打ちと spawn の
+# 両方が OpenAI サブスクへ戻る。素の codex なら準備するものが無いので、spawn して seat を書いて
+# 終わる。
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/no-codex-bedrock" ]; then
+	run_spawn
+	record_seat
+	exit 0
+fi
+
+# ここから先は Bedrock 経路。Bedrock の設定(一時 CODEX_HOME)と AWS プロファイルを spawn 先の
+# codex に載せるのは PATH ラッパー(~/.local/libexec/codex-dispatch/codex)の仕事で、ここでは
+# それが使う一時 home と認証を先に整えるだけ。ラッパーは boot script → シム → codex-monitor.sh
+# が本体として解決する位置にあり、マーカーが無ければ CODEX_HOME を付けて本体を exec する。
+# spawn 先のペインへ env を届ける手段は無い(spawn.sh の herdr driver は `herdr pane split` に
+# --env を渡さず、分割元ペインの env も継承しない)ので、本体の解決点で付けている。
+command -v codex-bedrock >/dev/null 2>&1 || die "codex-bedrock が PATH に無い"
+DISPATCH="$HOME/.local/libexec/codex-dispatch/codex"
+[ -x "$DISPATCH" ] || die "PATH ラッパーが無い: $DISPATCH(chezmoi apply 済みか確認する)"
+# ラッパーが効くのは spawn 先のペインの PATH(新しいシェルが ~/.config/shell/env.sh で作る)なので、
+# ここの PATH に無くても止めない。ただし無いなら env.sh が古い可能性が高いので知らせる。
+case ":$PATH:" in
+*":$(dirname "$DISPATCH"):"*) ;;
+*) printf 'codex-spawn: PATH ラッパーのディレクトリがこのシェルの PATH に無い(%s)。spawn 先のペインでも無ければ Bedrock にならない。~/.config/shell/env.sh が最新か確認する\n' "$(dirname "$DISPATCH")" >&2 ;;
+esac
+
+# Bedrock 用プロファイル。既定はハードコードしない(codex-bedrock と同じ解決順)。ラッパーも
+# 同じ順で解決するので、ここで通れば spawn 先でも同じプロファイルになる。
+PROFILE="${CODEX_BEDROCK_AWS_PROFILE:-${AWS_PROFILE:-}}"
+[ -n "$PROFILE" ] ||
+	die "CODEX_BEDROCK_AWS_PROFILE を設定するか aws-switch でプロファイルを選択する"
+
+# 1) Bedrock 用プロファイルの認証を済ませる。spawn 先の codex は codex-bedrock を通らず、
+#    ラッパーも認証確認をしない(app-server はバックグラウンドで起動され、対話できない)。
+#    未認証のままだと立ち上がった TUI の中へ credential_process(aws-login)がログイン URL を
+#    描いて画面が崩れる。ここは人が居る対話ペインなので、未認証ならその場でログインまで進む。
 if [ -x "$HOME/.local/bin/aws-auth-ensure" ]; then
 	"$HOME/.local/bin/aws-auth-ensure" "$PROFILE" "Bedrock" ||
 		die "Bedrock 用プロファイル $PROFILE が未認証のため spawn しない"
 fi
 
-# 2) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。
+# 2) Bedrock 用の一時 home を用意する(既にあれば作り直さない)。ラッパーも同じコマンドで
+#    同じ home を引くので、ここで用意しておけば spawn 先は借りるだけで済む。
 HOME_DIR="$(cd "$PROJECT" && codex-bedrock --print-home)" ||
 	die "一時 home を用意できなかった"
 
@@ -178,57 +329,12 @@ fi
 #    それを再利用してしまい、設定が食い違う。
 (cd "$PROJECT" && codex-appserver-evict "$HOME_DIR")
 
-# 5) env 付きでペインを作る。ここが素の spawn.sh との唯一の実質的な差。
-# AWS_LOGIN_NO_INTERACTIVE は、走行中に期限が切れたときログイン URL をこのペインへ
-# 描かせないため。代わりに aws-login が herdr のタブへ委譲する(docs/aws-cheatsheet.md)。
-resp="$(herdr pane split "$HERDR_PANE_ID" --direction "$DIRECTION" --no-focus --cwd "$PROJECT" \
-	--env "CODEX_HOME=$HOME_DIR" \
-	--env "AWS_PROFILE=$PROFILE" \
-	--env "AWS_LOGIN_NO_INTERACTIVE=1" 2>&1)" ||
-	die "herdr pane split に失敗した: $resp"
-PANE="$(printf '%s' "$resp" | herdr_field result pane pane_id)" ||
-	die "herdr pane split の応答から pane_id を読めなかった: $resp"
-
-# ここから先の失敗は、起動済みのペインと書きかけの placement レコードを残す。最後まで
-# 通ったときだけ trap を解いて残す。
-rollback() {
-	herdr pane close "$PANE" >/dev/null 2>&1 || true
-	[ -n "${rec:-}" ] && rm -f "$rec"
-	return 0
-}
-trap rollback EXIT
-
-herdr pane rename "$PANE" "$NAME" >/dev/null 2>&1 || true
-
-# 6) spawn 本体。HERDR_ENV / HERDR_PANE_ID を落とすのは、配置の優先度が
-#    $TMUX → herdr → --terminal テンプレートで、落とさないと herdr パスが先に勝って
-#    env 無しのペインを作り直してしまうため。
-#    TMPDIR をユーザ専用の場所に向けるのは、spawn.sh が boot script を
-#    ${TMPDIR:-/tmp}/agmsg-spawn という固定名のディレクトリに置くため。共有ホストでは最初に
-#    spawn した人の所有になり、他のユーザは mktemp で permission denied になる。ここで渡す
-#    TMPDIR は spawn.sh と boot script の配置にだけ効き、ペインの codex には届かない
-#    (ペインは 5 で作成済み)。
-SPAWN_TMPDIR="${XDG_RUNTIME_DIR:-$HOME/.cache/agmsg}"
-mkdir -p "$SPAWN_TMPDIR"
-env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX TMPDIR="$SPAWN_TMPDIR" \
-	"$S/spawn.sh" codex "$NAME" --project "$PROJECT" --team "$TEAM" \
-	--terminal "herdr pane run $PANE {cmd}" ${PASS[@]+"${PASS[@]}"} ||
-	die "spawn.sh に失敗した"
-
-# 7) placement レコード。テンプレート経路は書かないので、herdr パスと同じ形式で補う。
-#    これが無いと despawn --force が no placement record で失敗する。既存レコードは常に
-#    上書きする。前の異常終了で古い pane_id が残っていると、despawn --force がそちらを
-#    畳んで今のペインを取り逃がす。
-# shellcheck disable=SC1091
-. "$S/lib/actas-lock.sh"
-rec="$(agmsg_spawn_path "$TEAM" "$NAME")"
-mkdir -p "$(dirname "$rec")"
-printf 'herdr:%s\t%s\t%s\n' "$PANE" "$PROJECT" "codex" >"$rec"
-
-trap - EXIT
+# 5) spawn と seat の記録。
+run_spawn
+record_seat
 
 cat <<EOS
-spawned codex '$NAME' (team $TEAM) in herdr pane $PANE
+spawned codex '$NAME' (team $TEAM)
   CODEX_HOME  $HOME_DIR
   AWS_PROFILE $PROFILE
   片付け      $S/despawn.sh $TEAM <self> $NAME --force

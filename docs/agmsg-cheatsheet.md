@@ -112,6 +112,11 @@ clone や worktree には付いてこない。**git worktree は worktree ごと
   スキルディレクトリを求める際にリンクを解決しないため、シンボリックリンクではなく
   絶対パスで exec するラッパーにしている。あわせて本体 codex の絶対パスを
   `AGMSG_REAL_CODEX` に入れ、PATH 前段のシムを経由しないようにする。
+- シムと `codex-monitor.sh` が本体として解決するのは「PATH 上でシムでない最初の `codex`」。その位置
+  （`~/.agents/bin` の後ろ、`~/.local/bin` の前）に PATH ラッパー `~/.local/libexec/codex-dispatch/codex`
+  を置き、マーカーが無ければ Bedrock 用の一時 `CODEX_HOME` を付けて本体を exec させている。
+  agmsg の spawn 先（boot script → シム → monitor）はこれで Bedrock になる
+  （[zsh-cheatsheet.md](zsh-cheatsheet.md#agmsg-spawn-で-bedrock-の-codex-をペインに出す)）。
 
 ```
 # シムを介さず、明示的にブリッジ経由で Codex を起動する
@@ -125,6 +130,32 @@ monitor モードのプロジェクトなら `codex` を叩くだけでシムが
 
 **制限（beta）:** 有効化は「再起動＋初回メッセージ送信後」に反映／実行中セッションは
 未監視／プロジェクトあたり Codex identity は1つ。
+
+**seat（役 → スレッド）が配信先を決める:** bridge は `run/role-session.<team>__<name>` の
+`session=` に書かれた codex スレッドへ配信する（`codex-bridge-launcher.sh` はこれを唯一の
+権威として扱い、無ければ配信しない）。seat は codex が `$agmsg actas <name>` の中で
+`codex-record-session.sh <team> <name>` を実行して書く建前だが、スキル本文が引数の形を示さず、
+codex が引数無しで実行すると何も記録せずに黙って成功する。**seat が前回のスレッドを指したままだと、
+bridge はその旧スレッドを app-server に resume して配信し、依頼はペインに出ない旧スレッドで処理される**
+（`delivery.sh status` は `alive` を返し、返信も旧スレッドから来るので、一見動いているように見える）。
+`codex-spawn` は spawn のあと新しいスレッドを特定して seat を書くので、spawn 経由ならこの穴は
+踏まない（[zsh-cheatsheet.md](zsh-cheatsheet.md#agmsg-spawn-で-bedrock-の-codex-をペインに出す)）。
+手打ちの `codex` で seat を直したいときは、codex のシェルツールには
+`CODEX_THREAD_ID` が出ているので、TUI の中から `codex-record-session.sh <team> <name>` を
+引数付きで実行させる（外からなら `CODEX_THREAD_ID=<id>` を付けて同じコマンド）。
+
+> **経緯**: agmsg 1.3.0（terminal driver v1、2026-09-14）で codex 用のスキル本文が共有 SKILL.md への
+> オーバレイに置き換わり、actas の手順から `codex-record-session.sh <team> <name>` という引数の
+> 指定が落ちた。それまでは codex が引数付きで実行して spawn のたびに seat が新スレッドへ更新されて
+> いたが、更新後は引数無し（`--help` → 素）で実行して seat が古いまま残り、bridge が前回の
+> スレッドへ配信していた（2026-09-16 に spindle で観測）。`codex-spawn` が seat を書くようにしたのは
+> このため。
+
+**spawn が「held by a live session」で止まるとき:** codex が actas の中で `actas-claim.sh` を
+自分で実行すると、サンドボックス内の pid（`1`）を含む所有者トークン `<thread>.1` で actas ロックが
+取られ、pid 1 は常に生きているので永久に「live」と判定される。`despawn --force` はロックを外すが、
+ペインを手で閉じたときは残る。`run/actas.<team-id>__<member-id>.session` の中身がそのトークンなら
+消してよい。
 
 **残留ブリッジの掃除:** TUI を閉じると launcher は終了するが、それが `nohup` で起動した
 `codex-bridge.js` 本体が残る（上流 beta の未対応箇所。SessionEnd フックは Claude 側

@@ -45,7 +45,7 @@ $S/identities.sh "$(pwd)" codex   # → <team> <reviewer>
 ```bash
 S=~/.agents/skills/agmsg/scripts
 
-codex-spawn <reviewer> --fresh            # 起動。ペインが開く
+codex-spawn <reviewer> --fresh            # 起動。ペインが開く。最後に「seat を記録した」と出る
 $S/delivery.sh status codex "$(pwd)"              # → Codex bridge: ... alive を確認してから送る
 $S/send.sh <team> <self> <reviewer> "<依頼>"
 # 返信を待つ: $S/history.sh <team> に "<reviewer> → <self>" が現れる
@@ -64,11 +64,11 @@ $S/delivery.sh status codex "$(pwd)"              # → no identities registered
 
 - **`--fresh` を付ける。** `spawn.sh` は resumable な過去セッションがあると既定で復帰するので、
   付けないと前の依頼の文脈が混ざる。
-- **`spawn.sh` を直接使わない。`codex-spawn` を使う。** codex の `--profile` は runtime
-  コマンド専用で `codex app-server` が受け取らず、monitor モードでは TUI がその共有 app-server へ
-  `--remote` で繋ぐため、素の spawn で起動した codex は Bedrock にならない。`codex-spawn` は
-  `CODEX_HOME` を Bedrock 用の一時 home へ向けたペインを作る（env なら app-server まで届く）。
-  マーカーがあるときは中で素の `spawn.sh` へ委譲するので、こちらを入口にしておけば両方に効く。
+- **`spawn.sh` を直接使わない。`codex-spawn` を使う。** `codex-spawn` は起動先の配信モードを
+  monitor にし、Bedrock なら認証確認・一時 home・信頼設定・app-server の照合を済ませてから
+  `spawn.sh` へ委譲し、spawn 後に seat を記録する。素の `spawn.sh` はどれもしない（seat が古い
+  ままだと依頼が旧スレッドへ行く）。spawn 先の codex を Bedrock にするのは PATH ラッパー
+  （`~/.local/libexec/codex-dispatch/codex`）で、マーカーがあれば素の codex になる。
 - **`--force` を最初から付ける。素の graceful を先に打ってはいけない。** graceful な despawn は
   actas ロックだけを土台にしているが、codex は `actas-claim` を一度も走らせないのでロックが常に
   `free`。graceful は `status=ok note=no-live-lock` を返して**何も片付けない**うえ、離脱の直前に
@@ -92,6 +92,13 @@ $S/delivery.sh status codex "$(pwd)"
 - `mode: off` → 起動先に配信フック（`.codex/hooks.json`）が無い。`codex-spawn` は起動前に
   `set monitor` するので通常は起きない。出たら `delivery.sh set monitor codex "$(pwd)"` を打って
   spawn し直す（worktree ごとに要る）。
+- `alive` なのにペインの codex が動かない（返信が来ない、または来ても旧セッションの続きに
+  見える）→ **seat が前回のスレッドを指している。** bridge は
+  `~/.agents/skills/agmsg/run/role-session.<team>__<reviewer>` の `session=` へ配信するので、
+  古いままだと誰も見ていない旧スレッドが依頼を処理する。`codex-spawn` は spawn 後に seat を
+  書いて「seat を記録した」と出す。出ずに警告だけだったときは、ペインの codex が動き出してから
+  `CODEX_THREAD_ID=<ペインのスレッド id> $S/drivers/types/codex/codex-record-session.sh <team> <reviewer> "$(pwd)"`
+  で手で書く（id は `~/.codex/sessions/<日付>/` の最新 rollout のファイル名）。
 
 **確実な代替は、依頼を起動時のプロンプトとして渡すこと。** 受信経路を使わないので、上のどれに
 当たっても通る。返信は codex 側から送られるので受け取れる。
