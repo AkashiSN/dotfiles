@@ -30,7 +30,7 @@
 #   固定して、URL と中継先を一致させる。--port と同じく、呼び出し側が --host を指定して
 #   いるときは足さない (LAN へ公開したい等の意図を潰さない)。
 #
-# 関連: difit-port / herdr-difit / docs/difit-cheatsheet.md
+# 関連: difit-port / herdr-difit / docs/git-diff-cheatsheet.md
 set -euo pipefail
 
 # 呼び出し元が env.sh を読んでいるとは限らないので、difit-port の解決に要る PATH は自前で通す。

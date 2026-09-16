@@ -1,4 +1,75 @@
-# Claude Code のコンテキスト圧縮（compact）対策
+# Claude Code の設定 チートシート
+
+`~/.claude/settings.json` に chezmoi から配っている設定（plugin / compact 対策の hook / statusLine）の
+リファレンス。
+
+| 対象 | ソース |
+| --- | --- |
+| `settings.json` の `enabledPlugins` / `extraKnownMarketplaces` / `hooks` / `statusLine` | `private_dot_claude/modify_settings.json.tmpl`（`MANAGED`） |
+| hook 本体 | `private_dot_claude/hooks/executable_*.sh`（`~/.claude/hooks/` へ展開） |
+| `/compact-prep` スキル | `private_dot_claude/skills/compact-prep/SKILL.md`（`~/.claude/skills/compact-prep/` へ展開） |
+
+> `~/.claude/settings.json` は Claude Code 自身が書き戻すため、chezmoi 側は
+> `modify_settings.json.tmpl` で **`MANAGED` に書いたキーだけ**を所有する。ここにある設定を
+> 変えるときはこのファイルを編集する（`/config` で変えても apply で戻る）。所有権の細かい規則は
+> [knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md#書き込み先と-chezmoi-の分担)。
+
+同じ `settings.json` で配っているもののうち、git / PR まわり（`pr-refresh-check.sh` /
+`block-session-url.sh` / `attribution`）は [ai-git-cheatsheet.md](ai-git-cheatsheet.md)、
+CodeGraph の MCP 権限と `prompt-hook` は [knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md)
+にある。
+
+---
+
+## plugin
+
+`enabledPlugins` / `extraKnownMarketplaces` で配る plugin について。
+
+### 仕組み
+
+`enabledPlugins` に書いた plugin は、`extraKnownMarketplaces` に marketplace が登録されていれば
+Claude Code が起動時に自動で取得する（`~/.claude/plugins/cache/` に入り、`installed_plugins.json`
+に記録される）。`claude-plugins-official` は組み込みなので登録は要らない。
+
+| コマンド | 役割 |
+| --- | --- |
+| `claude plugin list` | 導入済み plugin と有効/無効 |
+| `claude plugin marketplace list` | 登録済み marketplace |
+| `claude plugin marketplace add <owner>/<repo>` | marketplace を取得（settings に宣言済みなら「declared in user settings」と出る） |
+| `claude plugin install <plugin>@<marketplace>` | 取得を待たずその場で入れる |
+
+### 配っているもの
+
+| plugin | marketplace | 用途 | 前提 |
+| --- | --- | --- | --- |
+| `code-simplifier` | `claude-plugins-official`（組み込み） | 変更したコードの簡素化 | なし |
+| `gopls-lsp` | `claude-plugins-official`（組み込み） | Go の LSP 連携 | なし |
+| `superpowers` | `claude-plugins-official`（組み込み） / `superpowers-marketplace` | ブレインストーミング・TDD などの process skill 群 | なし |
+| `natural-japanese` | `natural-japanese`（[coji/natural-japanese](https://github.com/coji/natural-japanese)） | 日本語文書の執筆・校正と AI 臭さの検出（`/natural-japanese`） | `uv` |
+
+`natural-japanese` の検査スクリプト（`lint.py` / `outline.py` / `terms.py`）は PEP 723 の
+インラインメタデータを持ち、`uv run` が実行時に sudachipy などを取ってくる。`uv` は aqua 管理
+なので追加の手当ては要らない（[uv-cheatsheet.md](uv-cheatsheet.md)）。
+
+### 追加・削除するとき
+
+- plugin を足すときは `enabledPlugins` と `extraKnownMarketplaces` の**両方**を更新し、
+  上の表にも行を足す。
+- **登録の無い marketplace を `enabledPlugins` に書いても、エラーにはならず黙って取得されない。**
+  組み込みの `claude-plugins-official` が登録不要なので気づきにくい。追加したら
+  `claude plugin list` に出るところまで確認する。
+- `modify_settings.json.tmpl` は現物へ**再帰マージ**する（`jq '. * $managed'`）ので、
+  `enabledPlugins` から行を消しても現物からは消えない。宣言を落とすときは
+  `~/.claude/settings.json` 側も手で消す:
+
+  ```sh
+  jq 'del(.enabledPlugins["<plugin>@<marketplace>"])' ~/.claude/settings.json > /tmp/s \
+    && mv /tmp/s ~/.claude/settings.json
+  ```
+
+---
+
+## コンテキスト圧縮（compact）対策と statusLine
 
 `/compact` と自動 compact は、会話履歴を言語モデルに投げて**自然文へ要約**し、その要約で
 コンテキストを組み直す。要約は「何をしたか」は残すが、**作業指示と作業ログの区別**、
@@ -17,7 +88,7 @@
 登録はすべて `private_dot_claude/modify_settings.json.tmpl` の `MANAGED`（`hooks` と
 `statusLine`）にある。
 
-## 流れ
+### 流れ
 
 ```
 [使用率が閾値超]  statusline.sh              → warn/<session_id> を書く
@@ -42,7 +113,7 @@
 marker を挟む 2 段構成にしてある。どの hook も `jq` が無い・`session_id` が取れない・JSON が
 壊れている場合は無出力で `exit 0` する（fail-open）。
 
-## 閾値
+### 閾値
 
 context 使用率は **statusLine の JSON（`context_window.used_percentage`）でしか取れない**。
 hook 側からは見えないので、`statusline.sh` が表示のついでに marker を書いている。
@@ -56,7 +127,7 @@ hook 側からは見えないので、`statusline.sh` が表示のついでに m
 
 `CLAUDE_COMPACT_WARN_THRESHOLD` を export すると上書きできる。
 
-## statusLine の表示
+### statusLine の表示
 
 ```
 [Opus 5] chezmoi (main) ▓▓▓▓▓▓░░░░ 62%
@@ -77,7 +148,7 @@ marker（`~/.aws/.aws-login-<profile>.expired`）を置くのは `aws-login` で
 直して marker が取り残された場合は、creds キャッシュの期限を読んで自分で消す（`aws` は起動
 しない）。仕組みは [aws-cheatsheet.md](aws-cheatsheet.md#走行中に認証が切れたとき)。
 
-## `/compact-prep` が保存するもの
+### `/compact-prep` が保存するもの
 
 `${TMPDIR:-/tmp}/claude-compact-<UID>/state/<SESSION_ID>.md` に次の見出しで保存する。
 
@@ -95,7 +166,7 @@ marker（`~/.aws/.aws-login-<profile>.expired`）を置くのは `aws-login` で
 セッション ID は `CLAUDE_CODE_SESSION_ID` から取る。取得できないときは**推測した名前で state
 file を作らず停止する**（別セッションの state を上書きすると復旧が壊れる）。
 
-## 動作確認
+### 動作確認
 
 ```sh
 # statusLine が JSON を受けて 1 行返すか（閾値の分岐込み）
@@ -112,11 +183,7 @@ echo '{"session_id":"test"}' | ~/.claude/hooks/userpromptsubmit-compact-prep-rem
 
 Claude Code 側の登録状況は `/hooks` と `/status` で確認できる。
 
-## 注意
+### 注意
 
-- `~/.claude/settings.json` は Claude Code 自身が書き戻すため、chezmoi 側は
-  `modify_settings.json.tmpl` で **`MANAGED` に書いたキーだけ**を所有する。statusLine や
-  compact 系 hook を変えるときはこのファイルを編集する（`/config` で変えても apply で戻る）。
-- hook 本体は `private_dot_claude/hooks/executable_*.sh`。`~/.claude/hooks/` へ展開される。
-- スキルは `~/.claude/skills/compact-prep/SKILL.md` へ展開される。同ディレクトリには
-  `graphify install` が置く `graphify/` も同居するが、chezmoi は管理外のものを消さない。
+- `~/.claude/skills/` には `graphify install` が置く `graphify/` も同居するが、chezmoi は
+  管理外のものを消さない（[knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md#graphify)）。

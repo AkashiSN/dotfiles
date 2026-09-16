@@ -121,7 +121,7 @@ done | sort -rn
 
 | ファイル | 差分の中身 |
 | --- | --- |
-| `executable_difit` / `executable_herdr-difit` | **こちらが新しい（2026-09-16）。** ラッパーが `--host` 未指定時に `--host 127.0.0.1` を足す（difit の既定 `localhost` は `::1` が先に返る Linux で IPv6 loopback にしか bind されず、portfwd の中継が refused になる）。work へ配る側。work 側は同じ症状が出るはずなので、配るときは `docs/difit-cheatsheet.md` の落とし穴も一緒に運ぶ |
+| `executable_difit` / `executable_herdr-difit` | **こちらが新しい（2026-09-16）。** ラッパーが `--host` 未指定時に `--host 127.0.0.1` を足す（difit の既定 `localhost` は `::1` が先に返る Linux で IPv6 loopback にしか bind されず、portfwd の中継が refused になる）。work へ配る側。work 側は同じ症状が出るはずなので、配るときは `docs/git-diff-cheatsheet.md` の落とし穴も一緒に運ぶ |
 | `executable_herdr-difit` | state file の pid が difit か確かめる実装。work は `/proc/<pid>/cmdline`、こちらは `ps -p <pid> -o args=`（mac で同じ判定になる携帯実装） |
 | `.chezmoiscripts/run_onchange_after_45-agmsg-reset.sh.tmpl` | **こちらには無い。** 共有ホストの全ユーザで agmsg の状態（チーム登録・履歴・一時 home）を一掃するための管理スクリプト。こちらは単一ユーザで登録も既にリポジトリごとに 1 チームなので持ち込まない（`docs/admin-runbook.md` も同様） |
 | `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |

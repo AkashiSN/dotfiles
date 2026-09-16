@@ -571,4 +571,4 @@ Claude が bash の手癖でコマンドを書き、それが zsh で実行さ�
 > **gitui の push が `bad credentials` で失敗する時**はこれが原因。gitui は libgit2 経由で
 > SSH 鍵を **agent 経由でしか使えず**、鍵ファイルを直読みしない。上記フォールバックで
 > agent に鍵が載るので、**新しいシェルを開いて**（または `exec zsh`）から gitui を起動すれば通る。
-> 詳細は [gitui チートシート](gitui-cheatsheet.md#push-が-bad-credentials-で失敗する)。
+> 詳細は [git 差分レビュー チートシート](git-diff-cheatsheet.md#push-が-bad-credentials-で失敗する)。

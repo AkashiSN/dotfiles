@@ -216,7 +216,7 @@ flowchart LR
 popup は Escape を含む全ての入力を中のアプリへ渡すため、herdr 側に「popup だけ閉じる」キーは無い。
 `<prefix> d`（difit）と `<prefix> m`（mo）だけは例外的に**選び終わると自動で閉じる** — 中で動くのは
 選択 UI だけで、表示そのものはブラウザへ出るため（`Esc` で何も選ばずに閉じてもよい）。詳細は
-[difit チートシート](difit-cheatsheet.md) と
+[git 差分レビュー チートシート](git-diff-cheatsheet.md) と
 [Markdown プレビュー チートシート](markdown-preview-cheatsheet.md)。
 
 `<prefix> m` の一覧は既定で `.gitignore` などの**無視設定に従う**ので、`.superpowers/` や
@@ -237,7 +237,7 @@ popup を占有すると、ブラウザで差分を読んでいる間ずっと�
 切り離し、返ってきた JSON の URL を `$BROWSER` へ渡している。**difit は呼ぶたびに別のサーバを
 立てる**（`mo` のように 1 つのサーバへ足していく作りではない）ので、`herdr-difit` は直前に自分が
 起動したものを落として、常に 1 つ・同じポートに保つ。ポートの決め方と手動での使い方は
-[difit チートシート](difit-cheatsheet.md)。
+[git 差分レビュー チートシート](git-diff-cheatsheet.md)。
 
 未追跡ファイルは git の既定では差分に出ないため、`.` と `working` を選んだときだけ
 `--include-untracked` を付けている（エージェントが作った新規ファイルを読み落とさないように）。

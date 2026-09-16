@@ -55,7 +55,7 @@
 #     portfwd 非対象のセッションでサーバを起動していると difit は立つのにブラウザが開かない。
 #     一瞬で popup が閉じると原因不明になるので、その場で理由と URL を出す。
 #
-# 関連: difit / difit-port / docs/difit-cheatsheet.md
+# 関連: difit / difit-port / docs/git-diff-cheatsheet.md
 set -euo pipefail
 
 # TTY があれば読める時間を作る

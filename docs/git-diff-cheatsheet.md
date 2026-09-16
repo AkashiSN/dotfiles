@@ -1,9 +1,6 @@
-# difit チートシート
+# git 差分レビュー チートシート
 
-[difit](https://github.com/yoshiko-pg/difit) は git の差分を **GitHub の PR 画面のような UI** で読む
-ローカル専用のレビューツール。行にコメントを付け、`Copy Prompt` でその文脈ごとエージェントへ
-渡せるのが gitui との違い。サーバは difit を動かしているホストに立ち、画面はブラウザへ出る
-（SSH 先で使うときは portfwd が中継して**手元 PC のブラウザ**が開く）。
+git の差分を読む・レビューする・コミットまで持っていくための 2 つのツール。**用途で使い分ける**。
 
 | ツール | 出す先 | 起動キー | 向いている場面 |
 | --- | --- | --- | --- |
@@ -14,23 +11,33 @@
 > **よく使う方（ブラウザ）を打ちやすい `d` に置いている**（`m` = mo / `shift+m` = glow と同じ並べ方）。
 > herdr 既定では `shift+d` が「ワークスペースを閉じる」なので、そちらは `shift+q` へ退避させている。
 
-- **導入**: npm グローバル（`.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl` の
+- **difit の導入**: npm グローバル（`.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl` の
   `NPM_GLOBALS`）。aqua に無いため npm 配布を使う。`chezmoi apply` で入る（node は fnm の
   LTS で、difit は node 21 以上を要求する）
-- **設定ファイルは無い**。挙動は CLI オプションだけで決まる
-- **コメントは動いているサーバが持つ**。ブラウザの `Copy Prompt` / `Copy All Prompt` で
-  エージェントへ渡す形が本筋
+- **gitui の導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `gitui-org/gitui`）
+- **設定**: difit に設定ファイルは無く、挙動は CLI オプションだけで決まる。gitui はテーマだけ
+  配っている（`dot_config/gitui/theme.ron`。詳細は [gitui](#gitui端末内-tui) の節）
 
 ---
 
-## `<prefix> d`（herdr の popup）
+## difit（手元 PC のブラウザ）
+
+[difit](https://github.com/yoshiko-pg/difit) は git の差分を **GitHub の PR 画面のような UI** で読む
+ローカル専用のレビューツール。行にコメントを付け、`Copy Prompt` でその文脈ごとエージェントへ
+渡せるのが gitui との違い。サーバは difit を動かしているホストに立ち、画面はブラウザへ出る
+（SSH 先で使うときは portfwd が中継して**手元 PC のブラウザ**が開く）。
+
+**コメントは動いているサーバが持つ**。ブラウザの `Copy Prompt` / `Copy All Prompt` で
+エージェントへ渡す形が本筋。
+
+### `<prefix> d`（herdr の popup）
 
 popup で動くのは `~/.local/bin/herdr-difit`（chezmoi ソース = `dot_local/bin/executable_herdr-difit`）。
 `fzf` で見たい差分を選ぶだけの橋渡しで、選び終わると popup は閉じ、表示は手元 PC のブラウザ側で続く。
 popup は**フォーカス中ペインの作業ディレクトリ**で開くので、エージェントを動かしているリポジトリの
 まま一覧が出る（git リポジトリの外だと理由を出して止まる）。
 
-### 選べるもの
+#### 選べるもの
 
 一覧は「未コミットの 3 通り」→「`git log`（新しい順）」の並び。1 列目がそのまま difit へ渡る引数。
 
@@ -42,7 +49,7 @@ popup は**フォーカス中ペインの作業ディレクトリ**で開くの�
 | コミット 1 つ | `<sha>` | そのコミットが入れた差分 |
 | コミット 2 つ（`Tab`） | `<新しい方> <古い方>` | その 2 コミット間の差分 |
 
-### キー（fzf の中で押す）
+#### キー（fzf の中で押す）
 
 | キー | 動作 |
 | --- | --- |
@@ -56,13 +63,13 @@ popup は**フォーカス中ペインの作業ディレクトリ**で開くの�
 - 3 つ以上選ぶとエラーで止まる。difit が受け取れるのは最大 2 つまで。
 - プレビューは `git diff` / `git show`（`--stat --patch`）。
 
-### 未追跡ファイル
+#### 未追跡ファイル
 
 git の既定では `git add` していないファイルは差分に出ない。エージェントが作った新規ファイルを
 読み落とすのが痛いので、**`.` と `working` を選んだときだけ `--include-untracked` を付けている**
 （コミットを選んだときは意味が無いので付けない）。
 
-### 選ぶたびに前のサーバは落ちる
+#### 選ぶたびに前のサーバは落ちる
 
 difit は `mo` と違い**呼ぶたびに別のサーバを立てる**。放っておくと選んだ回数ぶん node の
 プロセスが残るので、`herdr-difit` は起動した pid と URL を
@@ -77,9 +84,8 @@ difit は `mo` と違い**呼ぶたびに別のサーバを立てる**。放っ�
 - 2 つの差分を同時に開きたいときは popup ではなく[直接叩く](#直接叩く)（2 つ目は difit が
   ポートを繰り上げる。狙ったポートにしたいなら `--port` を明示する）。
 
----
 
-## 直接叩く
+### 直接叩く
 
 `~/.local/bin/difit` はラッパー。実体（npm グローバルの difit）を**ユーザごとのポートで**起動する。
 
@@ -115,9 +121,8 @@ difit --pr https://github.com/owner/repo/pull/123   # PR（GitHub Enterprise も
 > `difit --port 5000` と明示すればそちらが使われる。`--host` も同じ扱いで、呼び出し側が
 > 書いていないときだけラッパーが `--host 127.0.0.1` を足す（理由は[落とし穴](#落とし穴)）。
 
----
 
-## ポートの決め方（`difit-port`）
+### ポートの決め方（`difit-port`）
 
 `~/.local/bin/difit-port` が 1 行で返す。ラッパーがこの値を `--port` に渡す。
 
@@ -133,9 +138,8 @@ difit の既定は 4966 で、`mo` の帯（6275..6774）と重ならない 4966
 （[Markdown プレビュー チートシート](markdown-preview-cheatsheet.md) の `mo-port` と同じ考え方。
 ただし difit は他人のサーバへ**ぶら下がることはない** — 必ず自分のサーバを立てる）。
 
----
 
-## なぜ手元 PC のブラウザで開くのか
+### なぜ手元 PC のブラウザで開くのか
 
 `herdr-difit` は `--no-open` で difit を起動し、返ってきた JSON の `url` を自分で
 `$BROWSER` へ渡す。portfwd 対象セッションでは `$BROWSER=~/.local/bin/portfwd-open` になっている
@@ -154,9 +158,8 @@ difit 自身に開かせず `--no-open` にしているのは、**実際に list
 受け取ってから開きたい**ため。希望ポートが埋まっていると difit は繰り上げるので、
 `difit-port` が決めた値とずれることがあり、JSON の `url` が唯一の正解になる。
 
----
 
-## 落とし穴
+### 落とし穴
 
 - **popup で difit を直に動かすとペインが触れなくなる**。difit は前面に留まってサーバを持つので、
   herdr のセッションモーダルな popup を占有してしまう。`herdr-difit` が `--background` で
@@ -183,3 +186,144 @@ difit 自身に開かせず `--no-open` にしているのは、**実際に list
   選び直す必要は無い）。
 - **`--pr` は `gh` を呼ぶ**（無いと `spawnSync gh ENOENT`）。そのため GitHub Enterprise の
   PR URL でも差分が出る（その host に対して `gh` の認証が済んでいること）。
+
+---
+
+## gitui（端末内 TUI）
+
+ターミナルの git TUI [gitui](https://github.com/gitui-org/gitui)。端末内でサッと差分を見る /
+hunk 単位でステージしてコミットまで持っていく側。行コメント付きのレビューは difit に任せる。
+
+- **テーマ**: `~/.config/gitui/theme.ron`（chezmoi ソース = `dot_config/gitui/theme.ron`）
+  - 部分指定でデフォルトにマージされる。指定しないキーは gitui 既定色のまま。
+  - 下部コマンドバーを端末背景に透過（`cmdbar_bg: Reset`）して Catppuccin Mocha で
+    水色帯 + 白文字の低コントラストを解消している。
+
+> キー記法: 下部コマンドバーの記号 `⎋` = **Esc**、`⏎` = **Enter**、`^X` = **Ctrl+X**。
+> Shift 併用キーは表では `Shift+X` と記す。
+
+### 最重要: コミットメッセージ画面から抜ける／確定する
+
+コミットエディタ（`c` で開く）で迷いやすいポイント。下欄の記号の意味を覚える。
+
+| キー（下欄の表示） | 動作 |
+| --- | --- |
+| `Esc`（`⎋ close`） | **エディタを閉じる（キャンセル）**。記号 `⎋` が Esc。 |
+| `Ctrl+D`（`^D commit`） | **コミットを確定する**。 |
+| `Enter`（`⏎`） | メッセージ内で**改行**（確定ではない）。 |
+
+> 落とし穴: Enter は改行なので、押しても確定しない。**確定は Ctrl+D、中断は Esc**。
+> 「閉じられない」と感じたら Esc（`⎋`）。
+
+
+### push が bad credentials で失敗する
+
+gitui は **libgit2 経由で SSH 認証**し、SSH 鍵を **ssh-agent 経由でしか使えない**
+（`~/.ssh/id_ed25519` などの鍵ファイルを直読みしない。git CLI は直読みするので CLI では push できる）。
+そのため **ssh-agent が無い / 鍵が未登録**だと push が `push failed, bad credentials` になる。
+
+- 対処は zsh 側で自動化済み: 1Password が無いホストでは対話シェル起動時に通常の
+  `ssh-agent` を常駐させ既定鍵を `ssh-add` する（`dot_config/zsh/rc.d/25-ssh-agent.zsh`）。
+- 反映するには **新しいシェルを開く**（または `exec zsh`）→ その中から gitui を起動する。
+- 確認: `ssh-add -l` に鍵が出ていれば OK。出ていなければ `eval "$(ssh-agent -s)" && ssh-add` で手動登録。
+
+> 詳細は [zsh チートシート](zsh-cheatsheet.md#ssh-エージェント25-ssh-agentzsh)。
+
+
+### タブ切り替え
+
+| キー | タブ |
+| --- | --- |
+| `1` | Status（作業ツリー / ステージ） |
+| `2` | Log（コミット履歴） |
+| `3` | Files（ツリー） |
+| `4` | Stashing（stash 作成） |
+| `5` | Stashes（stash 一覧） |
+| `Tab` / `Shift+Tab` | 次 / 前のタブへトグル |
+
+
+### 共通
+
+| キー | 動作 |
+| --- | --- |
+| `↑ ↓ ← →` | 移動 / パネル間フォーカス移動 |
+| `Enter` | 選択項目を開く / ステージ・アンステージ |
+| `Esc`（`⎋`） | popup / 画面を閉じる |
+| `H` | ヘルプ（全キーバインド一覧） |
+| `Q` | gitui を終了 |
+| `Ctrl+C` | 強制終了 |
+| `F5` | 表示を更新（refresh） |
+
+
+### Status タブ（ステージング・コミット）
+
+| キー | 動作 |
+| --- | --- |
+| `Enter` | 選択ファイルをステージ / アンステージ |
+| `A` | すべてステージ |
+| `Shift+D` | 変更を破棄（reset item） |
+| `S` | 差分内の選択行だけステージ（hunk/line stage） |
+| `D` | 差分内の選択行だけ破棄（reset lines） |
+| `C` | コミットメッセージエディタを開く |
+| `Ctrl+A` | 直前コミットを amend |
+| `E` | 選択ファイルを `$EDITOR` で開く |
+
+> `S` / `D` は diff パネルにフォーカスがある時の行単位操作。ファイル一覧では
+> `Enter` がファイル単位のステージ／アンステージ。
+
+
+### Log タブ（履歴）
+
+| キー | 動作 |
+| --- | --- |
+| `Enter` | コミット詳細 / 差分を開く |
+| `Shift+S` | そのコミットを checkout |
+| `Shift+R` | そのコミットへ reset |
+| `Shift+B` | blame（Files 側で選択したファイル） |
+| `Y` | コミットハッシュをコピー |
+
+
+### ブランチ・リモート
+
+| キー | 動作 |
+| --- | --- |
+| `B` | ブランチ一覧を開く（選択・切替） |
+| `C` | 新規ブランチ作成（ブランチ一覧内） |
+| `Shift+D` | ブランチ削除（ブランチ一覧内） |
+| `P` | push |
+| `F` | pull |
+| `Shift+F` | fetch |
+
+> 同じ文字でも「どのパネル・popup にいるか」で意味が変わる（例: `C` は Status では
+> コミット、ブランチ一覧では新規作成、`Shift+D` は Status では破棄、ブランチ一覧では削除）。
+> 迷ったら常に**下部コマンドバーの表示**が現在の文脈での有効キー。
+
+
+### Stashing / Stashes
+
+| キー | 動作 |
+| --- | --- |
+| `S` | 現在の変更を stash に保存（Stashing タブ） |
+| `Enter` / `→` | stash を開く（Stashes タブ） |
+| `A` | stash を適用（apply） |
+| `Shift+D` | stash を破棄（drop） |
+
+
+### 検索・その他
+
+| キー | 動作 |
+| --- | --- |
+| `F` | ファイル検索（Files / Status のファイル絞り込み） |
+| `Ctrl+F` | commit hook（verify）のトグル |
+| `Y` | 選択内容をコピー |
+
+> キーバインドは `~/.config/gitui/key_bindings.ron` で上書き可能（本 dotfiles では未設定＝デフォルト）。
+> 記号は `theme.ron` ではなく key config 側の設定。現在の一覧は gitui 内で `H`（ヘルプ）でも確認できる。
+
+
+### 変更履歴・経緯
+
+- 下部コマンドバーの可読性対策として `theme.ron` を追加し、`cmdbar_bg` /
+  `cmdbar_extra_lines_bg` を `Reset`（端末背景に透過）、`command_fg` を `White` に設定。
+  背景に Catppuccin Mocha の ANSI Blue（水色 `#89b4fa`）が入ると白文字と低コントラスト
+  になり見にくかったため。ほかの色は gitui 既定にマージされる。

@@ -407,7 +407,7 @@ popup は herdr のプラグインとして宣言する（`dot_config/herdr/plug
 
 | 取り残される経路 | 誰が消すか |
 | --- | --- |
-| 別経路（手打ちの `aws login` など）で入り直した | statusLine。creds キャッシュの期限を見て、生きていれば自分で消す（[claude-compact-cheatsheet.md](claude-compact-cheatsheet.md#statusline-の表示)） |
+| 別経路（手打ちの `aws login` など）で入り直した | statusLine。creds キャッシュの期限を見て、生きていれば自分で消す（[claude-code-cheatsheet.md](claude-code-cheatsheet.md#statusline-の表示)） |
 | 認証せずに `aws-switch` で別プロファイルへ乗り換えた | `aws-switch`。切り替え成功後に切り替え元の marker を消す |
 
 statusLine の警告は `~/.aws/.aws-login-*.expired` を glob して並べるだけで現在のプロファイルとは

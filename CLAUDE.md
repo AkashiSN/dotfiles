@@ -42,8 +42,7 @@
 | `dot_config/herdr/config.toml` / `dot_config/yazi/*` / `dot_local/bin/executable_herdr-edit` / `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（ペインで動かすエージェント CLI の導入） | `docs/herdr-cheatsheet.md` |
 | `dot_local/bin/executable_herdr-mo` / `executable_mo` / `executable_mo-port`（markdown プレビュー） | `docs/markdown-preview-cheatsheet.md` |
 | `dot_config/ghostty/config` | `docs/ghostty-cheatsheet.md` |
-| `dot_config/gitui/theme.ron` | `docs/gitui-cheatsheet.md` |
-| `dot_local/bin/executable_herdr-difit` / `executable_difit` / `executable_difit-port` / `dot_config/herdr/config.toml`（`<prefix> d` / `shift+d`） / `.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl`（`NPM_GLOBALS` の difit） | `docs/difit-cheatsheet.md`（起動キーの使い分けは `docs/herdr-cheatsheet.md` / `docs/gitui-cheatsheet.md` も） |
+| `dot_local/bin/executable_herdr-difit` / `executable_difit` / `executable_difit-port` / `dot_config/gitui/theme.ron` / `dot_config/herdr/config.toml`（`<prefix> d` / `shift+d`） / `.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl`（`NPM_GLOBALS` の difit） | `docs/git-diff-cheatsheet.md`（difit / gitui。起動キーの使い分けは `docs/herdr-cheatsheet.md` も） |
 | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/zsh/rc.d/**` / `dot_config/shell/**` / `dot_bashrc` / `dot_bash_profile` | `docs/zsh-cheatsheet.md` |
 | `dot_local/bin/executable_git-aicommit` / `executable_gh-pr-aicreate`（git/gh の AI alias 含む） / `private_dot_claude/hooks/executable_pr-refresh-check.sh`（PR 更新確認フック） / `executable_block-session-url.sh`（セッション URL 混入ブロック） / `.chezmoiscripts/run_onchange_after_42-claude-managed-settings.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl`（attribution・hooks） | `docs/ai-git-cheatsheet.md` |
 | `dot_local/bin/executable_codex-bedrock` / `executable_codex-wrapper` / `executable_codex-spawn` / `executable_codex-appserver-evict` / `dot_codex/private_bedrock.config.toml`（codex の Bedrock 起動） / `executable_claude-bedrock` / `executable_claude-wrapper`（Claude Code の Bedrock 起動） | `docs/zsh-cheatsheet.md` |
@@ -55,10 +54,8 @@
 | `dot_config/uv/dot_python-version` / `dot_local/bin/executable_uv-cache-prune` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` | `docs/uv-cheatsheet.md` |
 | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） | `docs/shell-lint-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `run_after_46-agmsg-spawn-options.sh.tmpl` / `dot_local/bin/executable_codex-monitor.sh` / `private_dot_claude/skills/codex-review/SKILL.md` | `docs/agmsg-cheatsheet.md` |
-| `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces） | `docs/claude-plugins-cheatsheet.md` |
-| `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` / `modify_settings.json.tmpl`（statusLine・compact 系 hook） | `docs/claude-compact-cheatsheet.md` |
-| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph 関連） | `docs/codegraph-cheatsheet.md` |
-| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_CLAUDE.md`（graphify 関連） | `docs/graphify-cheatsheet.md` |
+| `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces / statusLine・compact 系 hook） / `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` | `docs/claude-code-cheatsheet.md`（plugin / compact 対策） |
+| `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph / graphify 関連） | `docs/knowledge-graph-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（agent-browser 関連） | `docs/agent-browser-cheatsheet.md` |
 
 新しいツールのキーバインド設定を追加したときは、`docs/` に新しいチートシートを作り、
