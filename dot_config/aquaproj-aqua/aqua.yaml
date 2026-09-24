@@ -57,7 +57,7 @@ packages:
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入)
   - name: aws/aws-cli@2.36.47
-  - name: kubernetes/kubernetes/kubectl@v1.37.0
+  - name: kubernetes/kubernetes/kubectl@v1.37.1
   - name: helm/helm@v4.3.0 # kubernetes package manager
   - name: terraform-linters/tflint@v0.64.0 # terraform linter (validate が見ない書き方の問題を拾う)
   # --- network / data utilities ---
