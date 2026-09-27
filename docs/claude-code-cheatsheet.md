@@ -46,6 +46,7 @@ Claude Code が起動時に自動で取得する（`~/.claude/plugins/cache/` �
 | `gopls-lsp` | `claude-plugins-official`（組み込み） | Go の LSP 連携 | なし |
 | `superpowers` | `claude-plugins-official`（組み込み） / `superpowers-marketplace` | ブレインストーミング・TDD などの process skill 群 | なし |
 | `natural-japanese` | `natural-japanese`（[coji/natural-japanese](https://github.com/coji/natural-japanese)） | 日本語文書の執筆・校正と AI 臭さの検出（`/natural-japanese`） | `uv` |
+| `drawio` | `drawio`（[jgraph/drawio-mcp](https://github.com/jgraph/drawio-mcp)） | `.drawio` 図の生成（`/drawio:drawio`。Mermaid / draw.io XML から作図、`url` 指定で app.diagrams.net を開く） | PNG / SVG / PDF 書き出しと Mermaid 変換は draw.io Desktop（無ければ XML と `url` 出力のみ） |
 
 `natural-japanese` の検査スクリプト（`lint.py` / `outline.py` / `terms.py`）は PEP 723 の
 インラインメタデータを持ち、`uv run` が実行時に sudachipy などを取ってくる。`uv` は aqua 管理
