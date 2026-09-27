@@ -1,0 +1,26 @@
+{{ if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "amd64") -}}
+{{-   $pin := include "dot_config/aquaproj-aqua/aqua.yaml" | regexFind "rossmacarthur/sheldon@v?[0-9][0-9.]*" -}}
+{{-   $version := $pin | trimPrefix "rossmacarthur/sheldon@" | trimPrefix "v" -}}
+#!/bin/sh
+# Intel Mac 用に sheldon を cargo でソースからビルドする。
+# sheldon は Intel Mac 向けのバイナリを配布しておらず、aqua registry も darwin/arm64 しか
+# 対象にしないため、aqua install では入らない。sheldon が無いと compinit が走らず、
+# 40-tools の complete / compdef が command not found になる。
+# 版は aqua.yaml のピンに揃える(Renovate が aqua.yaml を上げると再実行される)。
+# sheldon version: {{ $version }}
+set -eu
+
+{{ template "shell-log" }}
+step "sheldon {{ $version }} を cargo でビルド中(Intel Mac)"
+
+export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
+export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
+export PATH="$CARGO_HOME/bin:$PATH"
+
+# cargo は 32-rust-default が用意する。まだ無ければ何もしない。
+command -v cargo >/dev/null 2>&1 || exit 0
+
+# 同じ版が入っていれば cargo install は何もせず終わる。CARGO_HOME/bin は PATH で
+# aqua の bin より前にあるので、シェルからはこの sheldon が使われる。
+cargo install --locked --version "{{ $version }}" sheldon
+{{ end -}}

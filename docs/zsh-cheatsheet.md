@@ -512,6 +512,18 @@ MacPorts には cask に当たる仕組みが無いので、フォントはス�
 
 入っている版は `~/.local/state/macos-fonts/<名前>` に書いた版で判定する。
 
+### Intel でソースからビルドするもの（sheldon）
+
+sheldon は Intel Mac 向けのバイナリを配布しておらず（0.8.0 以降は `aarch64-apple-darwin` のみ）、
+aqua registry も `darwin/arm64` しか対象にしないので、`aqua install` では入らない。そこで Intel Mac だけ
+`run_onchange_after_33-sheldon-intel-mac.sh.tmpl` が `cargo install --locked sheldon` でビルドし、
+`$CARGO_HOME/bin`（PATH で aqua の bin より前）に置く。版は `aqua.yaml` の `rossmacarthur/sheldon@` の
+ピンから読むので、Renovate が aqua.yaml を上げると同じ版でビルドし直す。cargo は `32-rust-default` が用意する。
+
+sheldon が無いと `30-plugins` で compinit / bashcompinit が走らず、シェル起動時に
+`40-tools.zsh: command not found: complete` や `kubectl.zsh: command not found: compdef` が出る。
+その場合は `command -v sheldon` を確かめ、無ければ `chezmoi apply` を再実行する。
+
 ### 注意
 
 - **Intel Mac に Homebrew と MacPorts を同居させない。** Intel 版の Homebrew は `/usr/local` に入り、
@@ -526,6 +538,8 @@ MacPorts には cask に当たる仕組みが無いので、フォントはス�
   コード自体が削除される予定で、Homebrew 自身も Intel の利用者には MacPorts を案内している。
 - そのため Intel Mac は MacPorts へ移し、Apple Silicon は Homebrew のまま残した。それ以前は両方とも
   Homebrew で、Intel は `/usr/local` を prefix にしていた。
+- 移行直後、Intel Mac では sheldon が入らず（上記）compinit が走らなくなっていたため、cargo で
+  ビルドするスクリプトを足した。
 
 ---
 
