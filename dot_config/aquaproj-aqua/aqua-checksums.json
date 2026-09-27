@@ -46,58 +46,58 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-aarch64-apple-darwin.tar.gz",
-      "checksum": "0FFA53899F2970D24F14FBED8D8265C87180B159B7100794D97A1527DC60FA79",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-aarch64-apple-darwin.tar.gz",
+      "checksum": "33D35394499094CF6EB90F730DC82F11C0FAB05D176378AE4F67DE985ECC4146",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-aarch64-pc-windows-msvc.zip",
-      "checksum": "0AC8A56E66C3AA8F528F145CC77D59E419B007DA1D537356A0D10E4148F36E0E",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-aarch64-pc-windows-msvc.zip",
+      "checksum": "98F41E001AF9CCBBD16A9948B1214E711AF9BACFAA204951D831584DFE109FCF",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-aarch64-unknown-linux-musl.tar.gz",
-      "checksum": "57A4E072B6B74A4DD0036B7B253E056BDB70E02C68504CA6F2BFCA2707D03FB6",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "40D9FEB7210A6D984BB98B5F825AFDCF36216EE464A884E26C104F97226C7713",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-x86_64-apple-darwin.tar.gz",
-      "checksum": "BCCB4D49C5C9F7E69FD42DF2475730A08A641AF31B8E0EE5E775E3DD829C4686",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-x86_64-apple-darwin.tar.gz",
+      "checksum": "E98EA259A021C87D3A1F8BF18639D2E32DCD45CB2EF1AFCB41B13E295DE1E2B3",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-x86_64-pc-windows-msvc.zip",
-      "checksum": "7985E06CAF14B0077CB68DA41EDBF812E1D9654FE4C144D72B71138E96350129",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-x86_64-pc-windows-msvc.zip",
+      "checksum": "FE5EB06B2F185B0D8035E17DF9DF0C831E59B3C98F11170206500650218A0B76",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/ruff/0.16.8/ruff-x86_64-unknown-linux-musl.tar.gz",
-      "checksum": "E56AA612121DE356F37D05F3284CD806081FB72D5DBD4814B3810C5A23C562CC",
+      "id": "github_release/github.com/astral-sh/ruff/0.16.9/ruff-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "6A561ED4BC860472F7833DFB0F0B8285D3969FA627188C5678EA4AC2C462BBEE",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/uv/0.12.15/uv-aarch64-apple-darwin.tar.gz",
-      "checksum": "DC304B9ED1B24174572290FBA60AC3F6FE63C73A671F0439E62A91375841964D",
+      "id": "github_release/github.com/astral-sh/uv/0.12.19/uv-aarch64-apple-darwin.tar.gz",
+      "checksum": "A9A8DF1EEDEB192F2E47E40E2FAABFB387DB4B850209118786D42F89DDE3E0BA",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/uv/0.12.15/uv-aarch64-unknown-linux-musl.tar.gz",
-      "checksum": "93B801ABB146E6431FB0434346A0162E65D3F0D1CD7360144D04C43488FD7F7D",
+      "id": "github_release/github.com/astral-sh/uv/0.12.19/uv-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "AD8D8448A2FF642BA62C2F684D7DD22A03F8EB3FC9918C2C3E8EC975F4ED6710",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/uv/0.12.15/uv-x86_64-apple-darwin.tar.gz",
-      "checksum": "E9CA61775532368FE518AB03E7A354C7ECAB8CCB3C7D941C775FCC4A362B801B",
+      "id": "github_release/github.com/astral-sh/uv/0.12.19/uv-x86_64-apple-darwin.tar.gz",
+      "checksum": "CB5FA57BAFE68FC0FB94B17F06BEE0B0B9A7FEB94CCBD110445AFA0696E39273",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/uv/0.12.15/uv-x86_64-pc-windows-msvc.zip",
-      "checksum": "477BD99A84E34891F2BD4C9152DDEB74E971ACCCCBC59C0F0301F11F08A32D46",
+      "id": "github_release/github.com/astral-sh/uv/0.12.19/uv-x86_64-pc-windows-msvc.zip",
+      "checksum": "6DBB02D79E419522F1C500F0ADB1CDDCFF0CDA7D59B0D66EA7F5E3B4A1B2F5F0",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/astral-sh/uv/0.12.15/uv-x86_64-unknown-linux-musl.tar.gz",
-      "checksum": "999C0C3DA986953E508985C3932D283D2C62EB167B4F8D81E79F565E34104959",
+      "id": "github_release/github.com/astral-sh/uv/0.12.19/uv-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "DB7278C9F57981338FDDFF1FB250E11964BC0A4FAFCB9EED8303FDB117DC067B",
       "algorithm": "sha256"
     },
     {
@@ -156,53 +156,53 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.1/cloudflared-darwin-amd64.tgz",
-      "checksum": "FF0D3B51D5FF70ECEEF89D6B32145FEE985018A2174596A5DBE405E2766E2AC4",
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.3/cloudflared-darwin-amd64.tgz",
+      "checksum": "D1155D0837487F261183B15C1EAB6C4EBCAD9DC49B94675F1524C3564CEA3977",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.1/cloudflared-darwin-arm64.tgz",
-      "checksum": "C27AB8FD0AA489449E3D201EB02F957EF460A13B613662928B1B23394BF1BCFE",
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.3/cloudflared-darwin-arm64.tgz",
+      "checksum": "587C2CFB1C230FE36C7FA7727DA78BE459DAE028CABE8C001291999350F07095",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.1/cloudflared-linux-amd64",
-      "checksum": "03F1F25D1CC93B9AD6C60569D44060BC4F17ED97075760ED8CFCA4B12DCD68CC",
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.3/cloudflared-linux-amd64",
+      "checksum": "77E26D8D900E0B8469F416239D14B5F296525FDF79FEE6F511EF55609E3FBAC2",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.1/cloudflared-linux-arm64",
-      "checksum": "3D97437C71848BD8DF68041E12436B484A661D95073EA1937F01A845CE88FAA3",
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.3/cloudflared-linux-arm64",
+      "checksum": "AAEB2D7D0DA3614634C7E03AB13487A1522C2E79165ED2929CFE23D5E95B326D",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.1/cloudflared-windows-amd64.exe",
-      "checksum": "2837888CC0F5D58F15B6DC478376DE90B4D3BA5241C7947455D1E0A0DF429712",
+      "id": "github_release/github.com/cloudflare/cloudflared/2026.9.3/cloudflared-windows-amd64.exe",
+      "checksum": "F096265EC2FCBE9BB6E2D64268DB167CED3FCBB83D894BDB9E2FCDB26F2EA7E2",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/denoland/deno/v2.9.6/deno-aarch64-apple-darwin.zip",
-      "checksum": "213A2F304F04D3C9CB5220669AFAD138F60A5AAB1FE80962ABDEB8F35807A472",
+      "id": "github_release/github.com/denoland/deno/v2.9.7/deno-aarch64-apple-darwin.zip",
+      "checksum": "5CD46D6268F6F78F5D88BDC7159D20BD44CDAA4B3303474839F87EC6FE7AE25C",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/denoland/deno/v2.9.6/deno-aarch64-unknown-linux-gnu.zip",
-      "checksum": "9A46AFC6C392C7CD2FF71A31558935545B46408D0E87F7A86908C712721C046E",
+      "id": "github_release/github.com/denoland/deno/v2.9.7/deno-aarch64-unknown-linux-gnu.zip",
+      "checksum": "C832298B1AD4422481334855F6003E0F54145762C5A134F20A489511D2F65BBF",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/denoland/deno/v2.9.6/deno-x86_64-apple-darwin.zip",
-      "checksum": "7D4524B82BCC557FE020A1A5B56956ED42B992AE5B28026E8AD5D17329533F5F",
+      "id": "github_release/github.com/denoland/deno/v2.9.7/deno-x86_64-apple-darwin.zip",
+      "checksum": "95DAAFF11C116A52AD54785E7914C8E9C9CDCABA793C5ED929C74CA2D8E6259A",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/denoland/deno/v2.9.6/deno-x86_64-pc-windows-msvc.zip",
-      "checksum": "15E5300B0BA3C3695A7621D90160A746EC9E710228CEE639AFA9D580F6E3CD11",
+      "id": "github_release/github.com/denoland/deno/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+      "checksum": "A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/denoland/deno/v2.9.6/deno-x86_64-unknown-linux-gnu.zip",
-      "checksum": "394F07F4DA2BEBE6CE6F1E7CE0FA16429B29B08C35E3FAC3FE25972676DFF4B2",
+      "id": "github_release/github.com/denoland/deno/v2.9.7/deno-x86_64-unknown-linux-gnu.zip",
+      "checksum": "C6527F24F4B16031D3AE4FA9F658D5F11534C8D84CE7DC8502420280919C3490",
       "algorithm": "sha256"
     },
     {
@@ -791,18 +791,18 @@
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/AWSCLIV2-2.36.47.pkg",
-      "checksum": "F455B8C54F1DE775A7FE5730D68BEA00B14D9F402DDD1F9EBE9857B154F0E8E9",
+      "id": "http/awscli.amazonaws.com/AWSCLIV2-2.37.4.pkg",
+      "checksum": "6CBA8327461D2B804E575FD841272951EECB253B2CA94C8A58ACD19D5F283786",
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/awscli-exe-linux-aarch64-2.36.47.zip",
-      "checksum": "118EF53B6F5C652471FD299AF01C058901C1A53DB69C6B71A7BF3EBD93590969",
+      "id": "http/awscli.amazonaws.com/awscli-exe-linux-aarch64-2.37.4.zip",
+      "checksum": "869AA72B9BDB931A9158D0CEA9F4F0DC3F7AECF24EA1552DA549B87907D28AB2",
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/awscli-exe-linux-x86_64-2.36.47.zip",
-      "checksum": "44AB93F1C6E90E0A34DFE5DA6B798D99F2F6B41825E97022B3D409D93A65C615",
+      "id": "http/awscli.amazonaws.com/awscli-exe-linux-x86_64-2.37.4.zip",
+      "checksum": "0C59444563F4DF735EEB5481F6165F95DAE546C33761760D8BE9855D5CFE2D12",
       "algorithm": "sha256"
     },
     {
@@ -831,33 +831,33 @@
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/darwin/amd64/kubectl",
-      "checksum": "D5276C0F4FDE77FC446070290F345944A7F1FDA153DF6B960E5FDE93B7A9BCCD",
+      "id": "http/dl.k8s.io/v1.37.1/bin/darwin/amd64/kubectl",
+      "checksum": "6851381C486FF6EDD691623E3D65C87CB9A5B02887FF8FBBB38D8A031B748387",
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/darwin/arm64/kubectl",
-      "checksum": "583BEEDAEBE422E71D3F1A96ACEF8B1FEF86EA2F09A45AD01AA6C9CE287C1380",
+      "id": "http/dl.k8s.io/v1.37.1/bin/darwin/arm64/kubectl",
+      "checksum": "FD65982C97DDAD3106754B69FFA196D0E543AA591930AE52AED1ADFB92F8C77F",
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/linux/amd64/kubectl",
-      "checksum": "6129359F4E1F3848A5572CCB0B26CF28B8CA08CEF38C95A765B2F64A2C961A2F",
+      "id": "http/dl.k8s.io/v1.37.1/bin/linux/amd64/kubectl",
+      "checksum": "65691FF77EB6FA44C908B77A1082C9F092C3B9733B5CEFABEC0D1104890E21A8",
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/linux/arm64/kubectl",
-      "checksum": "922DF28DF248CC00A9E025F947704F1D1482DE64ECE54CFE57E61F19EAF1EEF3",
+      "id": "http/dl.k8s.io/v1.37.1/bin/linux/arm64/kubectl",
+      "checksum": "FF749F4B78D9C4F1EC87307DF9B50119ED819E2094AA9810CB9ACFFC3286C8C7",
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/windows/amd64/kubectl.exe",
-      "checksum": "4721B614A67BB4932A0369E61F4A323D8C6CA00943D3A2FF14837C124DA06F0E",
+      "id": "http/dl.k8s.io/v1.37.1/bin/windows/amd64/kubectl.exe",
+      "checksum": "14B93C4916A6F37A06FBC1F46B0A1D2404C4F9741BE09F00D6CAF8AF3B05F1D3",
       "algorithm": "sha256"
     },
     {
-      "id": "http/dl.k8s.io/v1.37.0/bin/windows/arm64/kubectl.exe",
-      "checksum": "C72D866C4EAE0F47AAC5CA6B864CF2CEE103CEB34FC1251663BECC0AA7A84BDF",
+      "id": "http/dl.k8s.io/v1.37.1/bin/windows/arm64/kubectl.exe",
+      "checksum": "1F0CE2BA3384A082EE846F74DC27F3877D7ECB03082EE3C0CD58C5FC027C2A1B",
       "algorithm": "sha256"
     },
     {
@@ -941,8 +941,8 @@
       "algorithm": "sha256"
     },
     {
-      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.564.0/registry.yaml",
-      "checksum": "91491145B8692C643CA31AEF6412B5BDC5CDAB3B45BBC52AF84A1D8EE34B0E49",
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.565.0/registry.yaml",
+      "checksum": "7E2ACD4E2EE5E784174B0AF2DC9B86A0985A41B31FDC3F2C2A52915555ACD4FE",
       "algorithm": "sha256"
     }
   ]
