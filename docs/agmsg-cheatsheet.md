@@ -21,7 +21,7 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
   - `~/.claude/commands/agmsg.md`（Claude Code スラッシュコマンド）
   - `~/.codex/config.toml`（Codex のサンドボックス writable_roots 追記。Codex 導入済みの場合）
 - `sqlite3`（メッセージ DB）と `git`（setup.sh の clone）が必須。どちらも
-  before_10（パッケージ前提）で導入される。macOS は brew formula の `sqlite` / `git`、
+  before_10（パッケージ前提）で導入される。macOS は brew formula の `sqlite` / `git`（Intel は port の `sqlite3` / `git`）、
   Linux はディストリのパッケージマネージャ（Ubuntu: `apt install zsh git sqlite3`、
   AL2023: `dnf install zsh git sqlite`）で導入する。
 

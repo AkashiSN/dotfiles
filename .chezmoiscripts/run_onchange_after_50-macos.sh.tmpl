@@ -7,8 +7,11 @@ set -eu
 {{ template "shell-log" }}
 step "macOS 設定を適用中 (Finder/補完権限/1Password)"
 
-HOMEBREW_PATH={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
-chmod 755 "$HOMEBREW_PATH/share/zsh" "$HOMEBREW_PATH/share/zsh/site-functions" 2>/dev/null || true
+{{ if eq .chezmoi.arch "arm64" -}}
+# Homebrew の zsh 補完ディレクトリはグループ書き込み可で作られ、compinit の compaudit に
+# 弾かれる。Intel Mac の MacPorts(/opt/local)は root 所有なので対象外。
+chmod 755 /opt/homebrew/share/zsh /opt/homebrew/share/zsh/site-functions 2>/dev/null || true
+{{ end -}}
 
 # nvim-treesitter のパーサビルド用に C コンパイラ(Xcode Command Line Tools)を確保
 xcode-select -p >/dev/null 2>&1 || xcode-select --install || true
