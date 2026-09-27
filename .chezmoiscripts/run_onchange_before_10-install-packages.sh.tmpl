@@ -6,18 +6,18 @@
 set -eu
 
 {{ template "shell-log" }}
-step "システムパッケージを準備中 (brew/apt・aqua・ffmpeg)"
+step "システムパッケージを準備中 (brew/port/apt・aqua・ffmpeg)"
 
 PREFIX="$HOME/.local"
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"
 
 {{ if eq .chezmoi.os "darwin" -}}
-# --- macOS: Homebrew (GNU userland + a few system tools not in aqua) ---
+{{   if eq .chezmoi.arch "arm64" -}}
+# --- macOS (Apple Silicon): Homebrew (GNU userland + a few system tools not in aqua) ---
 if ! command -v brew >/dev/null 2>&1; then
 	/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
-BREW_PREFIX={{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}
-eval "$($BREW_PREFIX/bin/brew shellenv)"
+eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # Homebrew formula（aqua に無いシステムツール / GNU userland）。
 # 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
@@ -55,11 +55,9 @@ for formula in "${FORMULAE[@]}"; do
 	brew ls --versions "$formula" >/dev/null 2>&1 || brew install --yes "$formula"
 done
 
-# Homebrew cask（GUI アプリ / フォント）。
+# Homebrew cask（GUI アプリ / フォント）。Ghostty は手動で入れるので管理しない。
 # 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
 CASKS=(
-	# ターミナル
-	ghostty
 	# フォント: symbols-only-nerd-font は nvim のアイコン用、plemol-jp は日本語表示用
 	font-symbols-only-nerd-font
 	font-plemol-jp
@@ -70,6 +68,120 @@ CASKS=(
 for cask in "${CASKS[@]}"; do
 	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --yes --cask "$cask"
 done
+{{-   else -}}
+# --- macOS (Intel): MacPorts (GNU userland + a few system tools not in aqua) ---
+# Homebrew は Intel Mac を Tier 3 扱いにしており bottle を配らない(更新のたびにソースビルド
+# になる)ため、Intel では MacPorts を使う。Homebrew と同じ機械に同居させると、MacPorts の
+# ビルドが /usr/local の Homebrew のライブラリを拾うので混在させない。
+# フォントは MacPorts に無い(cask 相当が無い)ので、配布元から直接入れる。
+
+# MacPorts の pkg とポートのビルドには Xcode Command Line Tools が要る。
+# xcode-select --install は GUI のダイアログを出して即座に戻るので、完了を待てない。
+if ! xcode-select -p >/dev/null 2>&1; then
+	xcode-select --install || true
+	echo "Xcode Command Line Tools のインストール完了後に chezmoi apply を再実行してください" >&2
+	exit 1
+fi
+
+PORT=/opt/local/bin/port
+if [ ! -x "$PORT" ]; then
+	# pkg は macOS のバージョンごとに分かれている(MacPorts-<ver>-15-Sequoia.pkg など)。
+	# 11 以降はメジャー番号、10.x は 10.15 のように 2 段で名前に入る。
+	osver=$(sw_vers -productVersion)
+	case "$osver" in
+	10.*) osver=${osver%.*} ;;
+	*) osver=${osver%%.*} ;;
+	esac
+	pkg_url=$(curl -fsSL https://api.github.com/repos/macports/macports-base/releases/latest |
+		grep -o "https://[^\"]*-${osver}-[A-Za-z]*\.pkg" | head -n 1)
+	if [ -z "$pkg_url" ]; then
+		echo "macOS ${osver} 向けの MacPorts の pkg が見つかりません" >&2
+		exit 1
+	fi
+	tmp=$(mktemp -d)
+	curl -fsSL -o "$tmp/MacPorts.pkg" "$pkg_url"
+	sudo installer -pkg "$tmp/MacPorts.pkg" -target /
+	rm -rf "$tmp"
+	sudo "$PORT" -N selfupdate
+fi
+
+# MacPorts のポート（aqua に無いシステムツール / GNU userland）。Homebrew の FORMULAE と
+# グループを揃えてある。名前が違うものはコメントに Homebrew 側の名前を書く。
+# GNU userland は g 接頭辞付きで入り、接頭辞なしの別名は /opt/local/libexec/gnubin に並ぶ。
+PORTS=(
+	# GNU userland: BSD 版コマンドを GNU 版へ置き換え
+	coreutils
+	diffutils
+	ed
+	findutils
+	gawk
+	gsed   # gnu-sed
+	gnutar # gnu-tar
+	grep
+	gzip
+	# 基本ツール: shell / 端末多重化 / バージョン管理 / ダウンローダ
+	zsh
+	bash
+	# tmux: 対話用の端末多重化 + vim-tmux-navigator 連携(libevent/ncurses 依存のため aqua でなく system 導入)
+	tmux
+	git
+	wget
+	# 排他ロック: aws-login の多重ログイン防止用 (Linux は util-linux に同梱、macOS は未同梱)
+	flock
+	# agmsg: メッセージ DB 用 sqlite3 CLI (macOS は標準搭載するが依存として明示導入)
+	sqlite3 # sqlite
+	# aqua 補助: .pkg/.dmg 形式パッケージ(aws-cli 等)の展開に必要
+	unar
+	# メディア
+	ffmpeg
+	# デバイス連携: adb / fastboot 等 (Homebrew では cask)
+	android-platform-tools
+)
+
+missing=()
+for p in "${PORTS[@]}"; do
+	"$PORT" -q installed "$p" 2>/dev/null | grep -q '(active)' || missing+=("$p")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+	sudo "$PORT" -N install "${missing[@]}"
+fi
+
+# aqua は MacPorts に無いので、Linux と同じく単一バイナリを ~/.local/bin に置く。
+if [ ! -x "$PREFIX/bin/aqua" ]; then
+	curl -fsSL -o /tmp/aqua.tar.gz https://github.com/aquaproj/aqua/releases/latest/download/aqua_darwin_amd64.tar.gz
+	tar xf /tmp/aqua.tar.gz -C /tmp aqua
+	mv /tmp/aqua "$PREFIX/bin/aqua"
+	chmod +x "$PREFIX/bin/aqua"
+	rm -f /tmp/aqua.tar.gz
+fi
+
+# フォント（Homebrew では cask）。版を上げるとこのスクリプトが再実行され、入っている版と
+# 違うものだけ入れ直す。版は Renovate が追う(renovate.json の customManagers)。
+# Ghostty は Apple Silicon と同じく手動で入れるので管理しない。
+# zip 内の .ttf をすべて ~/Library/Fonts へ置く。入れた版は状態ファイルに残す
+# (フォント自体から版を読むのは手間なので)。
+font_state="${XDG_STATE_HOME:-$HOME/.local/state}/macos-fonts"
+install_fonts() { # <名前> <版> <zip の URL>
+	[ "$(cat "$font_state/$1" 2>/dev/null)" = "$2" ] && return 0
+	tmp=$(mktemp -d)
+	curl -fsSL -o "$tmp/fonts.zip" "$3"
+	unzip -q -o "$tmp/fonts.zip" -d "$tmp/x"
+	mkdir -p "$HOME/Library/Fonts" "$font_state"
+	find "$tmp/x" -name '*.ttf' -exec cp {} "$HOME/Library/Fonts/" \;
+	printf '%s\n' "$2" >"$font_state/$1"
+	rm -rf "$tmp"
+}
+# nvim のアイコン用
+# renovate: datasource=github-releases depName=ryanoasis/nerd-fonts extractVersion=^v(?<version>.+)$
+NERD_FONTS_VERSION=3.5.1
+install_fonts symbols-only-nerd-font "$NERD_FONTS_VERSION" \
+	"https://github.com/ryanoasis/nerd-fonts/releases/download/v${NERD_FONTS_VERSION}/NerdFontsSymbolsOnly.zip"
+# 日本語表示用
+# renovate: datasource=github-releases depName=yuru7/PlemolJP extractVersion=^v(?<version>.+)$
+PLEMOLJP_VERSION=3.1.0
+install_fonts plemol-jp "$PLEMOLJP_VERSION" \
+	"https://github.com/yuru7/PlemolJP/releases/download/v${PLEMOLJP_VERSION}/PlemolJP_v${PLEMOLJP_VERSION}.zip"
+{{-   end }}
 {{- else -}}
 # --- Linux: system packages + aqua prebuilt binary + ffmpeg static build ---
 # aqua/ffmpeg は単一バイナリで導入するが、それ以外はディストリのパッケージマネージャで入れる

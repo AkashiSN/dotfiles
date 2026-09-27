@@ -40,7 +40,8 @@ aws-switch <profile>
   ように名前に `AWS` を含む別の変数を `.env` に置いても巻き込まれない。
 - 必要パッケージ（aqua 管理）: `direnv`、`peco`、`aws` CLI v2。
 - `flock`（aws-login の多重ログイン防止）は **aqua に無い**。Linux は `util-linux` 同梱、
-  macOS は Homebrew で導入する（`run_onchange_before_10-install-packages.sh.tmpl` の FORMULAE）。
+  macOS は Apple Silicon が Homebrew、Intel が MacPorts で導入する
+  （`run_onchange_before_10-install-packages.sh.tmpl` の FORMULAE / PORTS）。
 
 ### 初期セットアップ
 

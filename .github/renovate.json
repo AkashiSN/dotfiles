@@ -4,6 +4,16 @@
     "config:recommended",
     "github>aquaproj/aqua-renovate-config#2.13.0"
   ],
+  "customManagers": [
+    {
+      "description": "Intel Mac で配布元から直接入れるフォントの版。直前の行の `# renovate:` コメントで取得元を指定する",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.chezmoiscripts/run_onchange_before_10-install-packages\\.sh\\.tmpl$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\n[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "1password/cli は GitHub リリースを持たず Renovate が版を解決できない(no-result)ため更新対象から除外する",

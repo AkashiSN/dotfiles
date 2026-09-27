@@ -8,6 +8,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_config/shell/env.sh.tmpl` で設定。zsh・bash 共通、非インタラクティブ実行にも適用）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_config/shell/env.sh.tmpl` で設定。全シェル/スクリプトに適用）
 - Python: `~/.local/bin` を `dot_config/shell/env.sh.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`env.sh` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）や bash でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
+- macOS のパッケージ: Apple Silicon は **Homebrew**、Intel Mac は **MacPorts**（[macOS のパッケージ管理](#macos-のパッケージ管理)）
 - Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
 - Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_config/shell/env.sh.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
 - 構成: 環境変数と alias は zsh・bash 共通の `~/.config/shell/{env,aliases}.sh`（[シェルの役割分担](#シェルの役割分担)）。`dot_zshrc` はローダーで、対話専用の実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
@@ -36,7 +37,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `ls` | `ls -G`（色付き） |
 | `ll` | `ls -lG` |
 | `la` | `ls -laG` |
-| `brew` | Homebrew を素の PATH で実行 |
+| `brew` | Homebrew を素の PATH で実行（Apple Silicon。Intel は MacPorts なので使わない） |
 
 ### Linux
 
@@ -462,6 +463,72 @@ placement レコード（`despawn --force` が読む）は herdr driver が書�
 
 ---
 
+## macOS のパッケージ管理
+
+aqua に無いシステムツール（GNU userland / zsh / tmux / git / ffmpeg など）と GUI アプリ・フォントは、
+Mac のアーキテクチャで入れ方を分けている。実体は `.chezmoiscripts/run_onchange_before_10-install-packages.sh.tmpl`。
+
+| | Apple Silicon（arm64） | Intel（amd64） |
+| --- | --- | --- |
+| パッケージマネージャ | Homebrew（`/opt/homebrew`） | MacPorts（`/opt/local`） |
+| システムツール | `FORMULAE`（brew formula） | `PORTS`（port） |
+| GNU 版コマンドの PATH | formula ごとの `opt/<pkg>/libexec/gnubin` | `/opt/local/libexec/gnubin` にまとまっている |
+| aqua 本体 | brew formula | `~/.local/bin/aqua`（Linux と同じく単一バイナリ） |
+| GUI アプリ・フォント | `CASKS`（brew cask） | 配布元から直接（下表） |
+| adb / fastboot | cask `android-platform-tools` | port `android-platform-tools` |
+
+Ghostty はどちらのアーキテクチャでも手動で入れる運用で、スクリプトでは扱わない。
+
+MacPorts は初回に GitHub の最新リリースから macOS のバージョンに合う pkg（`MacPorts-<ver>-15-Sequoia.pkg`
+など）を選んで入れる。pkg もポートのビルドも Xcode Command Line Tools を前提にしているので、未導入なら
+インストーラを起動してスクリプトを止める。完了後に `chezmoi apply` をもう一度実行する。ポートの導入と
+MacPorts の pkg のインストールは `sudo` を使う。
+
+### Homebrew と MacPorts で名前が違うもの
+
+| Homebrew | MacPorts |
+| --- | --- |
+| `gnu-sed` | `gsed` |
+| `gnu-tar` | `gnutar` |
+| `sqlite` | `sqlite3` |
+| `aqua` | （無い。`~/.local/bin` に直接置く） |
+| cask `android-platform-tools` | `android-platform-tools` |
+
+MacPorts の GNU userland は `gsed` / `gtar` / `gls` のように g 接頭辞付きで入り、接頭辞なしの別名が
+`/opt/local/libexec/gnubin`（man は `gnubin/man`）に並ぶ。`env.sh` はここを PATH / MANPATH の先頭に
+置くので、`sed` / `tar` / `ls` は GNU 版になる。
+
+### Intel で配布元から直接入れるもの
+
+MacPorts には cask に当たる仕組みが無いので、フォントはスクリプトが直接ダウンロードして入れる。
+版はスクリプト内の `*_VERSION` に固定してあり、直前の `# renovate:` コメントを見て Renovate が更新 PR を
+出す（`.github/renovate.json` の `customManagers`）。版が上がるとスクリプトが再実行され、入っている版と
+違うものだけ入れ直す。
+
+| 対象 | 入手元 | 入れ先 |
+| --- | --- | --- |
+| Symbols Nerd Font | `ryanoasis/nerd-fonts` の `NerdFontsSymbolsOnly.zip` | `~/Library/Fonts` |
+| PlemolJP | `yuru7/PlemolJP` の `PlemolJP_v<ver>.zip` | `~/Library/Fonts` |
+
+入っている版は `~/.local/state/macos-fonts/<名前>` に書いた版で判定する。
+
+### 注意
+
+- **Intel Mac に Homebrew と MacPorts を同居させない。** Intel 版の Homebrew は `/usr/local` に入り、
+  MacPorts はソースからビルドするときに `/usr/local` のライブラリやヘッダを拾ってしまう。
+- MacPorts の pkg はインストール時に `~/.zprofile` へ `/opt/local/bin` を足すことがある。PATH は
+  `env.sh` が通すので、足されても重複は `typeset -U` で消える。
+
+### 経緯
+
+- 2026-09 の Homebrew 7.0.0 で、Intel Mac（x86_64）が Tier 3 に下がった。Intel 向けの bottle を作る CI が
+  止まり、formula が更新されるたびにソースビルドになる（特に ffmpeg が重い）。2027-09 には Intel 対応の
+  コード自体が削除される予定で、Homebrew 自身も Intel の利用者には MacPorts を案内している。
+- そのため Intel Mac は MacPorts へ移し、Apple Silicon は Homebrew のまま残した。それ以前は両方とも
+  Homebrew で、Intel は `/usr/local` を prefix にしていた。
+
+---
+
 ## シェルの役割分担
 
 ログインシェルは **zsh のまま**。一方 Claude Code の Bash ツールは
@@ -483,7 +550,8 @@ placement レコード（`despawn --force` が読む）は herdr driver が書�
 ```
 
 `~/.config/shell/env.sh` の実体は chezmoi テンプレート（`dot_config/shell/env.sh.tmpl`）。
-Homebrew の prefix がアーキテクチャで変わるためテンプレートにしてある。
+macOS のパッケージの置き場所がアーキテクチャで変わる（Apple Silicon は Homebrew の `/opt/homebrew`、
+Intel は MacPorts の `/opt/local`）ためテンプレートにしてある。
 
 ### なぜ Claude は bash なのか
 

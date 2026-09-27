@@ -7,7 +7,9 @@ declaratively with [aqua](https://aquaproj.github.io/); zsh plugins with
 
 ## Setup
 
-On a fresh machine (macOS: install [Homebrew](https://brew.sh/) first):
+On a fresh machine (macOS: the package script installs [Homebrew](https://brew.sh/) on
+Apple Silicon and [MacPorts](https://www.macports.org/) on Intel; on Intel, install the
+Xcode Command Line Tools first with `xcode-select --install`):
 
 ```sh
 sh -c "$(curl -fsLS https://get.chezmoi.io/lb)" -- init --apply AkashiSN
