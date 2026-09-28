@@ -64,7 +64,7 @@ Host ix2215-tokyo
     PubkeyAcceptedAlgorithms +ssh-rsa
 
 Host develop-server
-    HostName        develop-server
+    HostName        172.16.100.2
     User            ubuntu
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
     DynamicForward  127.0.0.1:55887
@@ -78,7 +78,7 @@ Host develop-server
 {{- end }}
 
 Host truenas
-    HostName        truenas
+    HostName        172.16.100.10
     User            admin
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
 
