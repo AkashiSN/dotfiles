@@ -39,7 +39,7 @@ packages:
   # markdown ビューア (ブラウザ)。mermaid / 全文検索 / live reload が要るとき用。
   # pkg/browser 経由で xdg-open を呼ぶため、SSH 先では $BROWSER=portfwd-open が効き
   # 手元 PC のブラウザで開く。
-  - name: k1LoW/mo@v1.6.8
+  - name: k1LoW/mo@v1.6.9
   # --- editor: neovim + 検索バックエンド (fzf-lua) / linter / formatter ---
   - name: neovim/neovim@v0.12.5
   - name: BurntSushi/ripgrep@15.2.0
