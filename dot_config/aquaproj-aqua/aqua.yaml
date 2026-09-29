@@ -25,7 +25,7 @@ packages:
     # この bootstrap タグだけ先に検証なしで入れてから gh auth login する。
     tags:
       - bootstrap
-  - name: x-motemen/ghq@v1.10.1
+  - name: x-motemen/ghq@v1.11.2
   - name: gitui-org/gitui@v0.28.1 # git TUI (herdr の popup から差分確認・ステージング)
   # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer / file manager ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
