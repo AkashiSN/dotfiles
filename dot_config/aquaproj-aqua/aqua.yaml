@@ -63,7 +63,7 @@ packages:
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.9.3
   - name: jqlang/jq@jq-1.8.2
-  - name: mikefarah/yq@v4.53.6
+  - name: mikefarah/yq@v4.54.1
   # --- AI エージェント補助 ---
   # AI エージェント向けブラウザ自動化 CLI (Rust 製・CDP 直結。Node/Playwright 不要)。
   # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。
