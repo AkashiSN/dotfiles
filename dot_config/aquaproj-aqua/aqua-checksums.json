@@ -771,23 +771,23 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.06.09/yt-dlp.exe",
-      "checksum": "3A48CB955D55C8821B60CCBDBBC6F61BC958F2F3D3B7AD5EAF3D83A543293A27",
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.08.19/yt-dlp.exe",
+      "checksum": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.06.09/yt-dlp_linux",
-      "checksum": "BF8AAC79B72287A6D2043074415132558B43743A8F9461A22B0141E90F16CE66",
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.08.19/yt-dlp_linux",
+      "checksum": "58162F9BFDC27458EA47BFCB311CF47028F17D8154A8BF7D689861D46399230A",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.06.09/yt-dlp_linux_aarch64",
-      "checksum": "CABD246445BDFDE0EDA0DFE68BBE90354BE83F3FDBBF077DF11A2EA55F41CDBD",
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.08.19/yt-dlp_linux_aarch64",
+      "checksum": "B16E4DAB368A816CD05D477D698A605A6AE87CCEE1C8FFD38FA21D7254141FCC",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.06.09/yt-dlp_macos",
-      "checksum": "B82C3626952E6C14EAF654CC565866775FFD0B9FFB7021628AC59B42C2F4F244",
+      "id": "github_release/github.com/yt-dlp/yt-dlp/2026.08.19/yt-dlp_macos",
+      "checksum": "0F192B7EC147AB6288885D6351D9AB67367640029B4377576EF46DD79CF7B202",
       "algorithm": "sha256"
     },
     {

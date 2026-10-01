@@ -69,7 +69,7 @@ packages:
   # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。
   - name: vercel-labs/agent-browser@v0.38.1
   # --- local registry (standard registry に無いもの) ---
-  - name: yt-dlp/yt-dlp@2026.06.09 # media downloader
+  - name: yt-dlp/yt-dlp@2026.08.19 # media downloader
     registry: local
   - name: wez/atomicparsley@20221229.172126.d813aa6 # yt-dlp 用メタデータ書込
     registry: local
