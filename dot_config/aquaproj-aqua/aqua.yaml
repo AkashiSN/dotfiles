@@ -30,7 +30,7 @@ packages:
   # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer / file manager ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.27.0 # prompt
-  - name: direnv/direnv@v2.37.1
+  - name: direnv/direnv@v2.38.2
   - name: junegunn/fzf@v0.74.5
   - name: peco/peco@v0.6.0
   - name: herdrdev/herdr@v0.9.5 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
