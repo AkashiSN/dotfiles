@@ -196,6 +196,18 @@ TUI が立ったあとで `credential_process`（`aws-login`）がログイン U
 限らないので、リージョンやモデルを変えるときは `bedrock-mantle.<region>.api.aws/openai/v1/responses`
 へ実際に投げて 200 が返ることを確認する。
 
+### 素の `~/.codex/config.toml` は初回だけ撒く
+
+`dot_codex/create_config.toml` は `~/.codex/config.toml` が無いときに初期値を置くだけで、既にあれば
+`.chezmoiignore` で内容もモードも管理から外す。codex が実行時に `projects` / `tui` などを追記し、
+自分の決めたモードで書き直すため、chezmoi が何かを管理し続けると `chezmoi apply` のたびに
+「.codex/config.toml has changed since chezmoi last wrote it?」と聞かれる。
+
+> **経緯**: `create_` でもモードだけは管理され続ける。最初は `private_`（0600）を宣言していて、
+> codex が 0644 で書き直すたびに差分になったので `private_` を外した。その後 codex が 0600 で
+> 書き直すようになり逆向きの差分（`old mode 100600 / new mode 100644`）が出たため、モードを
+> 追いかけるのをやめ、既存ファイルは丸ごと ignore するようにした。
+
 ### `codex-bedrock` が一時 `CODEX_HOME` を使う理由
 
 Bedrock 設定を渡す経路に `--profile` は使えない。`--profile` は runtime コマンド専用で `codex app-server`

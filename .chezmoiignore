@@ -5,6 +5,12 @@ docs
 **/.DS_Store
 **/__pycache__
 
+# ~/.codex/config.toml は初期値を撒くだけ（dot_codex/create_config.toml）。展開後は codex が
+# 自分のモードで書き直すので、既にあれば内容もモードも管理しない。
+{{- if stat (joinPath .chezmoi.homeDir ".codex/config.toml") }}
+.codex/config.toml
+{{- end }}
+
 {{- if ne .chezmoi.os "darwin" }}
 Library
 .config/ghostty
