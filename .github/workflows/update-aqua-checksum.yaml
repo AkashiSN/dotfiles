@@ -21,9 +21,9 @@ jobs:
           # PR のソースブランチ(Renovate ブランチは同一リポジトリ)を出して push し戻す。
           ref: ${{ github.head_ref }}
       # update-checksum-action は aqua 本体を入れないので先に導入する。
-      - uses: aquaproj/aqua-installer@v4.0.5
+      - uses: aquaproj/aqua-installer@v4.1.0
         with:
-          aqua_version: v2.63.0
+          aqua_version: v2.64.0
         env:
           AQUA_GITHUB_TOKEN: ${{ github.token }}
       # aqua.yaml はリポジトリ直下ではなくこのディレクトリにある。
