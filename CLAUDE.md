@@ -51,6 +51,7 @@
 | `dot_local/bin/executable_aws-auth-handoff` / `executable_herdr-api` / `dot_config/herdr/plugins/**`（認証切れを herdr の popup へ委譲する一式） | `docs/aws-cheatsheet.md` / `docs/herdr-cheatsheet.md` |
 | `dot_local/bin/executable_portfwd` / `executable_portfwd-open` / `private_dot_ssh/private_config.tmpl`（portfwd 関連） / `.chezmoiscripts/run_onchange_after_55-portfwd-launchd.sh.tmpl` / `run_after_56-portfwd-schtask.ps1.tmpl` / `Library/LaunchAgents/com.snishi.portfwd.plist.tmpl` | `docs/portfwd-cheatsheet.md` |
 | `dot_local/bin/executable_dji_workflow.py` | `docs/dji-cheatsheet.md` |
+| `dot_local/bin/executable_sd-archive` / `executable_organize-media` / `dot_local/libexec/sd-archive/block-automount.swift` / `.chezmoiscripts/run_onchange_after_51-sd-archive-build.sh.tmpl` / `run_onchange_before_10-install-packages.sh.tmpl`（ddrescue / exiftool） | `docs/sd-archive-cheatsheet.md` |
 | `dot_terraformrc.tmpl` / `dot_local/bin/executable_tf-cache-prune` / `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（tflint） | `docs/terraform-cheatsheet.md` |
 | `dot_config/uv/dot_python-version` / `dot_local/bin/executable_uv-cache-prune` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` | `docs/uv-cheatsheet.md` |
 | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） | `docs/shell-lint-cheatsheet.md` |

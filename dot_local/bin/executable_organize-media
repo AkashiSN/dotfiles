@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""
+organize-media — sd-archive で取り出したファイルから写真・動画を探し、
+撮影日ごとのフォルダへ「コピー」して整理する（アーカイブ側は一切変更しない）。
+
+  ライブラリ/
+    2014/
+      2014-08-15/
+        IMG_0123.JPG
+        MVI_0124.MOV
+    _unknown-date/
+      card007/...        ← 撮影日が判定できなかったもの（元の階層のまま）
+    .organize-log.csv    ← どのカードのどのファイルから来たかの記録（重複判定にも使う）
+
+使い方:
+  organize-media <アーカイブ> <ライブラリ> [--dry-run] [--cards card001 card002 ...]
+  例) organize-media ~/sd-archive ~/Pictures/SD-Library --dry-run
+  （exiftool が必要。chezmoi の install-packages で導入）
+
+撮影日の決め方（上から順に、有効な日付が見つかった最初のもの）:
+  EXIF:DateTimeOriginal → QuickTime:CreationDate(Apple) → H264:DateTimeOriginal(AVCHD)
+  → XMP:DateTimeOriginal → EXIF:CreateDate → QuickTime:CreateDate → QuickTime:MediaCreateDate
+  → RIFF:DateTimeOriginal(AVI) → XMP:DateCreated → File:FileModifyDate(ファイル更新日時)
+  ※ min-year より前、または未来の日付は「無効」とみなして次の候補へ。
+
+同じ内容のファイル（SHA-256が一致）は、別のカードにあっても1回だけコピーする。
+何度実行しても、コピー済みのものはスキップされる。
+"""
+
+import argparse
+import csv
+import datetime as dt
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+MEDIA_EXTS = {
+    # 画像
+    "jpg", "jpeg", "jpe", "heic", "heif", "png", "gif", "bmp", "tif", "tiff", "webp",
+    # RAW
+    "cr2", "cr3", "crw", "nef", "nrw", "arw", "srf", "sr2", "orf", "rw2", "raf",
+    "dng", "pef", "x3f", "srw", "3fr", "kdc", "dcr", "mrw", "rwl",
+    # 動画
+    "mov", "mp4", "m4v", "3gp", "3g2", "avi", "mts", "m2ts", "mpg", "mpeg",
+    "wmv", "asf", "mkv", "mod", "tod", "vob",
+}
+
+DATE_TAGS = [
+    "EXIF:DateTimeOriginal",
+    "QuickTime:CreationDate",
+    "H264:DateTimeOriginal",
+    "XMP:DateTimeOriginal",
+    "EXIF:CreateDate",
+    "QuickTime:CreateDate",
+    "QuickTime:MediaCreateDate",
+    "RIFF:DateTimeOriginal",
+    "XMP:DateCreated",
+    "File:FileModifyDate",
+]
+
+DATE_RE = re.compile(r"(\d{4})[:\-](\d{2})[:\-](\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+LOG_FIELDS = ["card", "source", "dest", "date", "date_tag", "sha256", "status"]
+
+
+def parse_date(value, min_year):
+    if not isinstance(value, str):
+        return None
+    m = DATE_RE.search(value)
+    if not m:
+        return None
+    try:
+        d = dt.datetime(*map(int, m.groups()))
+    except ValueError:
+        return None
+    if d.year < min_year or d > dt.datetime.now() + dt.timedelta(days=1):
+        return None
+    return d
+
+
+def pick_date(meta, min_year):
+    for tag in DATE_TAGS:
+        d = parse_date(meta.get(tag), min_year)
+        if d:
+            return d, tag
+    return None, None
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4 * 1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def is_media(path):
+    name = path.name
+    if name.startswith("._") or name.startswith("."):
+        return False
+    return path.suffix.lower().lstrip(".") in MEDIA_EXTS
+
+
+def read_metadata(files_dir, quicktime_utc):
+    """カード1枚分のメタデータを exiftool でまとめて取得する"""
+    cmd = ["exiftool", "-json", "-a", "-G0", "-r", "-m", "-q", "-q",
+           "-charset", "filename=utf8"]
+    if quicktime_utc:
+        cmd += ["-api", "QuickTimeUTC"]
+    for ext in sorted(MEDIA_EXTS):
+        cmd += ["-ext", ext]
+    cmd += ["-DateTimeOriginal", "-CreateDate", "-CreationDate", "-MediaCreateDate",
+            "-DateCreated", "-FileModifyDate", str(files_dir)]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if not res.stdout.strip():
+        return {}
+    try:
+        items = json.loads(res.stdout)
+    except json.JSONDecodeError:
+        print("  ⚠️ exiftool の出力を読めませんでした", file=sys.stderr)
+        return {}
+    return {str(Path(i["SourceFile"]).resolve()): i for i in items}
+
+
+def unique_dest(dest):
+    if not dest.exists():
+        return dest
+    stem, suffix = dest.stem, dest.suffix
+    n = 1
+    while True:
+        cand = dest.with_name(f"{stem}_{n}{suffix}")
+        if not cand.exists():
+            return cand
+        n += 1
+
+
+def load_log(log_path):
+    known, seen = {}, set()
+    if log_path.exists():
+        with open(log_path, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                seen.add((row["card"], row["source"]))
+                if row.get("status") == "copied":
+                    known[row["sha256"]] = row["dest"]
+    return known, seen
+
+
+def main():
+    ap = argparse.ArgumentParser(description="取り込んだSDカードの写真・動画を撮影日別に整理コピーする")
+    ap.add_argument("archive", type=Path, help="sd-archive の保存先（card001/ などがある場所）")
+    ap.add_argument("library", type=Path, help="整理先ライブラリ")
+    ap.add_argument("--cards", nargs="*", help="対象カードを限定（例: card001 card003）")
+    ap.add_argument("--dry-run", action="store_true", help="コピーせず、何が起きるかだけ表示")
+    ap.add_argument("--min-year", type=int, default=1995, help="これより前の日付は無効とみなす（既定 1995）")
+    ap.add_argument("--quicktime-utc", action="store_true",
+                    help="動画の QuickTime:CreateDate を UTC として扱う（iPhone等。既定は現地時刻扱い）")
+    args = ap.parse_args()
+
+    if shutil.which("exiftool") is None:
+        sys.exit("エラー: exiftool が見つかりません。brew install exiftool を実行してください")
+
+    archive = args.archive.expanduser().resolve()
+    library = args.library.expanduser().resolve()
+    log_path = library / ".organize-log.csv"
+
+    cards = sorted(p for p in archive.glob("card[0-9][0-9][0-9]") if (p / "files").is_dir())
+    if args.cards:
+        wanted = set(args.cards)
+        cards = [c for c in cards if c.name in wanted]
+    if not cards:
+        sys.exit("対象のカードが見つかりません")
+
+    known, seen = load_log(log_path)
+    totals = {"copied": 0, "duplicate": 0, "unknown-date": 0, "done-before": 0}
+
+    log_file = None
+    writer = None
+    if not args.dry_run:
+        library.mkdir(parents=True, exist_ok=True)
+        new_log = not log_path.exists()
+        log_file = open(log_path, "a", newline="", encoding="utf-8")
+        writer = csv.DictWriter(log_file, fieldnames=LOG_FIELDS)
+        if new_log:
+            writer.writeheader()
+
+    try:
+        for card in cards:
+            files_dir = (card / "files").resolve()
+            print(f"\n== {card.name} ==")
+            meta_by_path = read_metadata(files_dir, args.quicktime_utc)
+
+            sources = sorted(p for p in files_dir.rglob("*") if p.is_file() and is_media(p))
+            print(f"  メディアファイル: {len(sources)} 件")
+
+            for src in sources:
+                rel = src.relative_to(files_dir)
+                if (card.name, str(rel)) in seen:
+                    totals["done-before"] += 1   # 前回までの実行で処理済み
+                    continue
+                digest = sha256(src)
+
+                if digest in known:
+                    status, dest, date, tag = "duplicate", Path(known[digest]), None, None
+                else:
+                    meta = meta_by_path.get(str(src.resolve()), {})
+                    date, tag = pick_date(meta, args.min_year)
+                    if date:
+                        folder = library / f"{date:%Y}" / f"{date:%Y-%m-%d}"
+                        status = "copied"
+                    else:
+                        folder = library / "_unknown-date" / card.name / rel.parent
+                        status = "copied"
+                        totals["unknown-date"] += 1
+                    dest = unique_dest(folder / src.name)
+
+                    if not args.dry_run:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dest)   # 更新日時も保持
+                        if sha256(dest) != digest:
+                            dest.unlink(missing_ok=True)
+                            raise RuntimeError(f"コピー後のハッシュ不一致: {src}")
+                    known[digest] = str(dest.relative_to(library)) if dest.is_absolute() else str(dest)
+
+                totals[status] += 1
+                dest_rel = dest.relative_to(library) if dest.is_absolute() else dest
+                mark = "＝" if status == "duplicate" else "→"
+                print(f"  {rel} {mark} {dest_rel}" + (f"  [{tag}]" if tag else "  [重複]" if status == "duplicate" else ""))
+
+                if writer:
+                    writer.writerow({
+                        "card": card.name, "source": str(rel), "dest": str(dest_rel),
+                        "date": date.isoformat(sep=" ") if date else "",
+                        "date_tag": tag or "", "sha256": digest, "status": status,
+                    })
+            if log_file:
+                log_file.flush()
+    finally:
+        if log_file:
+            log_file.close()
+
+    print("\n---- 集計 ----")
+    print(f"  コピー        : {totals['copied']} 件（うち撮影日不明 {totals['unknown-date']} 件）")
+    print(f"  重複スキップ  : {totals['duplicate']} 件")
+    print(f"  前回までに処理済み: {totals['done-before']} 件")
+    if args.dry_run:
+        print("  （--dry-run のため実際にはコピーしていません）")
+
+
+if __name__ == "__main__":
+    main()

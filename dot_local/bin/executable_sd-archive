@@ -1,0 +1,537 @@
+#!/bin/bash
+# sd-archive — SDカードを1枚ずつ丸ごとイメージ化して保存し、中のファイルも取り出す
+#
+# 使い方:
+#   sd-archive <保存先ディレクトリ> [作業ディレクトリ]
+#   sd-archive --resume <cardNNN> <保存先ディレクトリ> [作業ディレクトリ]
+#   例) sd-archive ~/sd-archive
+#   例) sd-archive /Volumes/nas/sd-archive ~/sd-work
+#   例) sd-archive --resume card002 ~/sd-archive
+#
+#   --resume は、読めない箇所が残った cardNNN を同じ mapfile で続きから読み直す
+#   （別のカードリーダーで再挑戦するときなど）。挿したカードが cardNNN と同じものか
+#   （容量と、読めている範囲の中身）を確かめてから、ddrescue で読み残しだけを読む。
+#   card.img の穴埋め・card.map・card.sha256・files/・files.sha256 を更新し、
+#   info.txt と log.txt には追記する。1 枚処理したら終了する。
+#
+#   カードを直接読むため root で動く。一般ユーザで起動すると sudo で自分を起動し直す
+#   （sudo の secure_path に ~/.local/bin が無く、`sudo sd-archive` では見つからないため）。
+#
+#   作業ディレクトリを指定すると、イメージ化・照合・ファイル取り出しは
+#   すべて作業ディレクトリ上で行い、完了後に保存先へ転送 → ハッシュで
+#   転送結果を検証 → 作業ディレクトリ側を削除する。
+#   （保存先がNASなど遅い／切れやすい場所のときに使う）
+#
+# 環境変数:
+#   VERIFY=0   カード本体とのハッシュ照合（2回目の全読み込み）を省略する
+#
+# 保存される内容（1枚ごと）:
+#   <保存先>/card001/
+#     card.img       カード全体のセクタイメージ
+#     card.map       ddrescue のマップ（読めなかった箇所の記録）
+#     card.sha256    イメージのハッシュ（shasum -c で検証できる）
+#     info.txt       メモ・日時・diskutil info・照合結果
+#     files/         イメージから取り出したファイル
+#     files.sha256   取り出したファイル1つずつのハッシュ
+#     log.txt        処理ログ
+#
+# 前提: ddrescue（chezmoi の install-packages で導入）
+#       ~/.local/libexec/sd-archive/block-automount（chezmoi apply 時にビルド）
+
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+VERIFY="${VERIFY:-1}"
+usage() {
+	echo "使い方: $(basename "$0") [--resume cardNNN] <保存先ディレクトリ> [作業ディレクトリ]"
+	exit 1
+}
+ARGS=("$@") # sudo で起動し直すときに元の引数を渡す
+RESUME=""
+if [[ "${1:-}" == "--resume" ]]; then
+	RESUME="${2:-}"
+	[[ "$RESUME" =~ ^card[0-9]{3}$ ]] || usage
+	shift 2
+fi
+DEST="${1:-}"
+WORK="${2:-}"
+
+# ---------- 事前チェック ----------
+[[ -n "$DEST" ]] || usage
+if [[ $EUID -ne 0 ]]; then
+	echo "カードを直接読むため sudo で起動し直します"
+	exec sudo -- /usr/bin/env VERIFY="$VERIFY" "$0" "${ARGS[@]}"
+fi
+if ! command -v ddrescue >/dev/null 2>&1; then
+	echo "エラー: ddrescue が見つかりません。先に brew install ddrescue を実行してください"
+	exit 1
+fi
+
+OWNER="${SUDO_USER:-root}"
+# root で作ったフォルダは一般ユーザが触れなくなるので、新しく作ったときは持ち主を戻す
+if [[ ! -d "$DEST" ]]; then
+	mkdir -p "$DEST"
+	chown "$OWNER" "$DEST"
+fi
+DEST="$(cd "$DEST" && pwd)"
+if [[ -n "$WORK" ]]; then
+	mkdir -p "$WORK"
+	WORK="$(cd "$WORK" && pwd)"
+	if [[ "$WORK" == "$DEST" ]]; then
+		WORK=""
+	fi
+fi
+
+ATTACHED_DEV=""
+BLOCKER_PID=""
+CLAIMED=""
+LABEL_CLAIMED=""
+CUR_DIR="" # 処理中の cardNNN。途中で止まっても持ち主を戻す
+cleanup() {
+	release_disk
+	[[ -n "$CUR_DIR" && -d "$CUR_DIR" ]] && chown -R "$OWNER" "$CUR_DIR" 2>/dev/null
+	[[ -n "$LABEL_CLAIMED" ]] && rm -rf "$LABEL_CLAIMED"
+	if [[ -n "$ATTACHED_DEV" ]]; then
+		hdiutil detach "$ATTACHED_DEV" -force >/dev/null 2>&1 || true
+	fi
+	if [[ -n "$BLOCKER_PID" ]]; then
+		kill "$BLOCKER_PID" >/dev/null 2>&1 || true
+	fi
+}
+trap cleanup EXIT
+
+# 自動マウントのブロック（~/.local/libexec/sd-archive/block-automount があれば起動）。
+# sudo 下では HOME が root のものになりうるので、スクリプトの場所から辿る。
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BLOCKER="$SCRIPT_DIR/../libexec/sd-archive/block-automount"
+if [[ -x "$BLOCKER" ]]; then
+	"$BLOCKER" >>"$DEST/block-automount.log" 2>&1 &
+	BLOCKER_PID=$!
+	sleep 1
+	chown "$OWNER" "$DEST/block-automount.log" 2>/dev/null || true
+	if kill -0 "$BLOCKER_PID" 2>/dev/null; then
+		echo "自動マウントをブロック中（ログ: $DEST/block-automount.log）"
+	else
+		echo "⚠️ block-automount の起動に失敗しました。ログを確認してください"
+		BLOCKER_PID=""
+	fi
+else
+	echo "⚠️ block-automount が見つからないため、自動マウントは防げません"
+fi
+
+# 接続中の物理ディスク一覧（/dev/diskN のみ）
+list_disks() {
+	diskutil list physical 2>/dev/null | awk '/^\/dev\/disk[0-9]+/{print $1}' | sort
+}
+
+# diskutil info から項目を1つ取り出す
+info_field() {
+	# $1: diskutil info の出力, $2: 項目名
+	echo "$1" | awk -v key="$2" -F': +' '
+    { k=$1; sub(/^ +/, "", k) }
+    k==key { print $2; exit }'
+}
+
+# ddrescue マップ中の「正常に読めていない」ブロック数。
+# $1: mapfile, $2: カードの容量（バイト。空なら全行を数える）
+# -s で容量を渡すと、容量より先が「?」の行として残るので数えない。
+# 位置は 0x 付きの 16 進なので、BSD awk ではなく bash の算術で比べる。
+bad_blocks() {
+	local pos st first=1 c=0
+	while read -r pos _ st _; do
+		case "$pos" in '' | '#'*) continue ;; esac
+		if [[ "$first" -eq 1 ]]; then # 先頭は現在位置・状態の行
+			first=0
+			continue
+		fi
+		[[ "$st" == "+" ]] && continue
+		[[ -n "${2:-}" ]] && ((pos >= $2)) && continue
+		c=$((c + 1))
+	done <"$1"
+	echo "$c"
+}
+
+# 未使用の cardNNN を保存先に mkdir（-p なし）で作って予約し、その名前を返す。
+# mkdir は「作れた 1 プロセスだけが成功する」ので、同時に動く sd-archive 同士で番号が重ならない。
+# 同時に動かすときは、保存先と作業ディレクトリをそろえる。
+reserve_label() {
+	local i=1 label
+	while :; do
+		label="$(printf 'card%03d' "$i")"
+		if [[ -z "$WORK" || ! -e "$WORK/$label" ]] && mkdir "$DEST/$label" 2>/dev/null; then
+			chown "$OWNER" "$DEST/$label"
+			printf '%s' "$label"
+			return 0
+		fi
+		i=$((i + 1))
+	done
+}
+
+# 同時に動く sd-archive 同士で、同じカードを掴まないための予約。
+# /var/run は root だけが書けて再起動で消えるので、ローカルのデバイスの予約に使う。
+CLAIM_ROOT="/var/run/sd-archive"
+mkdir -p "$CLAIM_ROOT"
+
+# 予約用のディレクトリ $1 を作る。他のプロセスが予約中なら失敗する。
+# 予約したプロセスが落ちて残った予約は、PID が生きていなければ取り直す。
+try_claim() {
+	local d="$1" pid
+	if ! mkdir "$d" 2>/dev/null; then
+		pid="$(cat "$d/pid" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 1
+		fi
+		rm -rf "$d"
+		mkdir "$d" 2>/dev/null || return 1
+	fi
+	echo $$ >"$d/pid"
+}
+
+claim_disk() {
+	try_claim "$CLAIM_ROOT/$(basename "$1")" || return 1
+	CLAIMED="$CLAIM_ROOT/$(basename "$1")"
+}
+
+release_disk() {
+	if [[ -n "$CLAIMED" ]]; then
+		rm -rf "$CLAIMED"
+		CLAIMED=""
+	fi
+}
+
+log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
+
+# 挿したカードが既存のイメージと同じものかを確かめる（--resume 用）。
+# mapfile で読めている（+）最初の範囲から最大 1MiB を、カードとイメージの両方から読んで比べる。
+# $1: 生デバイス, $2: card.img, $3: card.map, $4: カードの容量（バイト）
+same_card() {
+	local raw="$1" img="$2" map="$3" bytes="$4" pos sz st first=1 len a b
+	while read -r pos sz st _; do
+		case "$pos" in '' | '#'*) continue ;; esac
+		if [[ "$first" -eq 1 ]]; then
+			first=0
+			continue
+		fi
+		[[ "$st" == "+" ]] && ((pos < bytes)) && break
+		pos=""
+	done <"$map"
+	[[ -n "$pos" ]] || return 1 # 読めている範囲が無ければ比べられない
+	len=$((sz < 1048576 ? sz : 1048576))
+	a="$(/bin/dd if="$raw" bs=512 skip=$((pos / 512)) count=$((len / 512)) 2>/dev/null | shasum -a 256 | awk '{print $1}')" || return 1
+	b="$(/bin/dd if="$img" bs=512 skip=$((pos / 512)) count=$((len / 512)) 2>/dev/null | shasum -a 256 | awk '{print $1}')" || return 1
+	[[ "$a" == "$b" ]]
+}
+
+# ddrescue が異常終了したとき（カードリーダーがエラーで切れたなど）の後始末。
+# ここまでのイメージと mapfile は残るので、--resume で続きから読める。
+ddrescue_stopped() {
+	echo >>"$LOG"
+	log "$1: ⚠️ ddrescue が途中で止まりました。ここまでのイメージと card.map は残っています"
+	echo "   カードを抜き、次のコマンドで続きから読めます:"
+	echo "   sd-archive --resume $1 $DEST${WORK:+ $WORK}"
+	echo "   （読めない箇所が多いカードは、USB リーダーより内蔵スロットの方が早く諦めて先へ進む）"
+	diskutil eject "$new" >/dev/null 2>&1 || true
+	release_disk
+	chown -R "$OWNER" "$CUR_DIR"
+}
+
+# ---------- 1枚分の処理 ----------
+process_card() {
+	local before after new
+	before="$(list_disks)"
+
+	echo
+	echo "=============================================="
+	echo " SDカードを挿してください（ロックスイッチは LOCK 側に）"
+	echo " ※「初期化」ダイアログが出たら必ず［無視］を押す"
+	echo "=============================================="
+
+	# 新しく現れたディスクのうち、他の sd-archive が予約していないものを待つ
+	local cand
+	new=""
+	while [[ -z "$new" ]]; do
+		sleep 2
+		after="$(list_disks)"
+		while IFS= read -r cand; do
+			[[ -z "$cand" ]] && continue
+			if claim_disk "$cand"; then
+				new="$cand"
+				break
+			fi
+		done < <(comm -13 <(echo "$before") <(echo "$after"))
+	done
+	sleep 3 # マウント処理が落ち着くのを待つ
+
+	local info size media ro proto
+	info="$(diskutil info "$new")"
+	size="$(info_field "$info" "Disk Size")"
+	media="$(info_field "$info" "Device / Media Name")"
+	# 項目名は macOS によって "Media Read-Only" と "Read-Only Media" がある
+	ro="$(info_field "$info" "Media Read-Only")"
+	[[ -n "$ro" ]] || ro="$(info_field "$info" "Read-Only Media")"
+	proto="$(info_field "$info" "Protocol")"
+
+	echo
+	echo "検出: $new"
+	echo "  名前    : ${media:-不明}"
+	echo "  接続    : ${proto:-不明}"
+	echo "  容量    : ${size:-不明}"
+	echo "  読み取り専用: ${ro:-不明}"
+
+	local mounted
+	mounted="$(mount | grep -Ec "^${new}(s[0-9]+)? " || true)"
+
+	if [[ "$mounted" -gt 0 ]]; then
+		echo
+		echo "⚠️  カードのボリュームがマウントされています（macOSが書き込んだ可能性あり）。"
+	fi
+	if [[ "$ro" != "Yes" ]]; then
+		echo
+		if [[ -n "$BLOCKER_PID" && "$mounted" -eq 0 ]]; then
+			echo "ℹ️  書き込み可能なカードですが、マウントは阻止済みです（生読み込みのみ行います）。"
+		else
+			echo "⚠️  書き込み可能な状態です（ロックスイッチが効いていない可能性）。"
+			echo "   一度抜いてスイッチを確認するのがおすすめです。"
+		fi
+	fi
+
+	local bytes label dir raw memo
+	bytes="$(echo "$size" | sed -n 's/.*(\([0-9]*\) Bytes).*/\1/p')"
+	raw="${new/disk/rdisk}"
+
+	if [[ -n "$RESUME" ]]; then
+		# --- 続きから読み直す: 同じカードかを確かめる ---
+		label="$RESUME"
+		dir="$RESUME_DIR"
+		# 途中で止めたイメージは ddrescue が書いたところまでの大きさしかないので、
+		# card.img ではなく info.txt に最初に記録した容量と比べる
+		local orig
+		orig="$(grep -m1 'Disk Size:' "$dir/info.txt" | sed -n 's/.*(\([0-9]*\) Bytes).*/\1/p')"
+		if [[ -z "$bytes" || -z "$orig" || "$orig" != "$bytes" ]]; then
+			echo
+			echo "エラー: 容量が $label の記録（${orig:-不明} バイト）と違います（別のカードです）。カードを抜いてください。"
+			release_disk
+			return 0
+		fi
+		if ! same_card "$raw" "$dir/card.img" "$dir/card.map" "$bytes"; then
+			echo
+			echo "エラー: 読めている範囲の中身が $label/card.img と違います（別のカードです）。カードを抜いてください。"
+			release_disk
+			return 0
+		fi
+		echo "  照合    : $label と同じカードです（読めている範囲の先頭が一致）"
+		echo
+		read -r -p "$label を続きから読み直しますか？ 続行するなら yes と入力: " ans
+		if [[ "$ans" != "yes" ]]; then
+			echo "スキップしました。カードを抜いてください。"
+			release_disk
+			return 0
+		fi
+		LOG="$dir/log.txt"
+		CUR_DIR="$dir"
+		mkdir -p "$dir/.mnt"
+		echo >>"$LOG" # 前回が途中で止まると、ddrescue の出力が改行なしで終わっている
+		{
+			echo
+			echo "---- resume $(date '+%Y-%m-%d %H:%M:%S %z') ----"
+			echo "device: $new"
+			echo
+			echo "---- diskutil info ----"
+			echo "$info"
+			echo
+		} >>"$dir/info.txt"
+		log "$label: 続きから読み直し（$new, ${media:-不明}）"
+	else
+		echo
+		read -r -p "このディスクをイメージ化しますか？ 続行するなら yes と入力: " ans
+		if [[ "$ans" != "yes" ]]; then
+			echo "スキップしました。カードを抜いてください。"
+			release_disk
+			return 0
+		fi
+
+		# 空き容量チェック（カード容量より空きが少なければ中止）
+		local base avail
+		base="${WORK:-$DEST}"
+		avail=$(($(df -k "$base" | awk 'NR==2{print $4}') * 1024))
+		if [[ -n "$bytes" && "$avail" -lt $((bytes + bytes / 10)) ]]; then
+			echo "エラー: $base の空き容量が足りません（必要: 約 $((bytes / 1024 / 1024)) MB + 取り出し分, 空き: $((avail / 1024 / 1024)) MB）"
+			echo "カードを抜いてください。"
+			release_disk
+			return 0
+		fi
+
+		label="$(reserve_label)"
+		dir="${WORK:-$DEST}/$label"
+		mkdir -p "$dir/files" "$dir/.mnt"
+		LOG="$dir/log.txt"
+		CUR_DIR="$dir"
+
+		read -r -p "メモ（どの機器・いつ頃など。空でも可）: " memo
+
+		{
+			echo "label: $label"
+			echo "memo: $memo"
+			echo "date: $(date '+%Y-%m-%d %H:%M:%S %z')"
+			echo "device: $new"
+			echo
+			echo "---- diskutil info ----"
+			echo "$info"
+			echo
+		} >"$dir/info.txt"
+	fi
+
+	log "$label: アンマウント $new"
+	diskutil unmountDisk "$new" | tee -a "$LOG"
+
+	# --- イメージ化（--resume では同じ mapfile で読み残しだけを読む） ---
+	log "$label: イメージ化（1回目：読める所を先に全部読む）"
+	# macOS では ddrescue が /dev/rdiskN の大きさを取れず、進捗と残り時間が出ない。
+	# diskutil の容量を -s で渡す。
+	local size_opt=()
+	[[ -n "$bytes" ]] && size_opt=(-s "$bytes")
+	if ! ddrescue ${size_opt[@]+"${size_opt[@]}"} -n "$raw" "$dir/card.img" "$dir/card.map" 2>&1 | tee -a "$LOG"; then
+		ddrescue_stopped "$label"
+		return 0
+	fi
+
+	local bad
+	bad="$(bad_blocks "$dir/card.map" "$bytes")"
+	if [[ "$bad" -gt 0 ]]; then
+		log "$label: 未読の箇所 $bad ブロック → 再試行"
+		if ! ddrescue ${size_opt[@]+"${size_opt[@]}"} -r3 "$raw" "$dir/card.img" "$dir/card.map" 2>&1 | tee -a "$LOG"; then
+			ddrescue_stopped "$label"
+			return 0
+		fi
+		bad="$(bad_blocks "$dir/card.map" "$bytes")"
+	fi
+
+	# --- ハッシュと照合 ---
+	local img_hash dev_hash result
+	log "$label: イメージのハッシュ計算"
+	img_hash="$(shasum -a 256 "$dir/card.img" | awk '{print $1}')"
+	echo "$img_hash  card.img" >"$dir/card.sha256"
+
+	if [[ "$bad" -gt 0 ]]; then
+		result="不完全（読めなかったブロック: ${bad}。詳細は card.map）"
+	elif [[ "$VERIFY" == "1" ]]; then
+		log "$label: カード本体を再読み込みして照合"
+		# shasum に生デバイスを直接読ませると 8KB 単位の読み込みになり遅いので、dd でまとめて読む。
+		# PATH 上の GNU dd は bs=4m を受け付けないので、/bin/dd に数値で渡す。
+		if ! dev_hash="$(/bin/dd if="$raw" bs=4194304 2>>"$LOG" | shasum -a 256 | awk '{print $1}')"; then
+			result="照合失敗（カード本体を読み切れませんでした。log.txt を確認）"
+		elif [[ "$img_hash" == "$dev_hash" ]]; then
+			result="OK（カード本体と完全一致）"
+		else
+			result="不一致！（img=${img_hash} dev=${dev_hash}）"
+		fi
+	else
+		result="読み取りエラーなし（本体との照合は省略）"
+	fi
+
+	{
+		echo "---- result ----"
+		echo "sha256(card.img): $img_hash"
+		echo "verify: $result"
+	} >>"$dir/info.txt"
+	log "$label: 照合結果 → $result"
+
+	log "$label: カードを取り出し"
+	diskutil eject "$new" | tee -a "$LOG" || true
+	# カードはもう無いので予約を外す（同じ diskN が次のカードに割り当てられうる）
+	release_disk
+
+	# --- イメージからファイルを取り出す ---
+	# files/ はイメージから作り直せるので、--resume では前回の分を消して取り出し直す
+	rm -rf "$dir/files"
+	mkdir -p "$dir/files"
+	log "$label: イメージを読み取り専用でマウント"
+	local att mp name
+	if att="$(hdiutil attach -readonly -nobrowse \
+		-imagekey diskimage-class=CRawDiskImage \
+		-mountroot "$dir/.mnt" "$dir/card.img" 2>&1)"; then
+		echo "$att" >>"$LOG"
+		ATTACHED_DEV="$(echo "$att" | awk '$1 ~ /^\/dev\/disk[0-9]+$/ {print $1; exit}')"
+
+		local found=0
+		while IFS= read -r mp; do
+			[[ -z "$mp" ]] && continue
+			found=1
+			name="$(basename "$mp")"
+			log "$label: ファイルをコピー: $name"
+			# .Spotlight-V100 は root でも読めない（macOS が保護している）。中身は card.img に残る。
+			rsync -rt --exclude=/.Spotlight-V100 "$mp/" "$dir/files/$name/" 2>&1 | tee -a "$LOG" ||
+				log "$label: ⚠️ 一部コピーに失敗（log.txt を確認）"
+		done < <(echo "$att" | awk -F'\t' 'NF>=3 { m=$NF; sub(/[ \t]+$/, "", m); if (m != "") print m }')
+
+		[[ "$found" -eq 0 ]] && log "$label: ⚠️ マウントできるパーティションがありませんでした（イメージは保存済み）"
+
+		hdiutil detach "$ATTACHED_DEV" >/dev/null 2>&1 || hdiutil detach "$ATTACHED_DEV" -force >/dev/null 2>&1 || true
+		ATTACHED_DEV=""
+	else
+		echo "$att" >>"$LOG"
+		log "$label: ⚠️ イメージをマウントできませんでした（イメージ自体は保存済み）"
+	fi
+	rmdir "$dir/.mnt" 2>/dev/null || true
+
+	log "$label: 取り出したファイルのハッシュ一覧を作成"
+	(cd "$dir/files" && find . -type f -exec shasum -a 256 {} +) >"$dir/files.sha256"
+
+	chown -R "$OWNER" "$dir"
+
+	# --- 作業ディレクトリから保存先へ転送 ---
+	# --resume で保存先のものを直接読み直したときは転送しない（転送後に dir を消すため、
+	# dir が保存先そのものだとアーカイブを消してしまう）。
+	local final="$DEST/$label"
+	if [[ -n "$WORK" && "$dir" != "$final" ]]; then
+		log "$label: 保存先へ転送 → $final"
+		if rsync -rt "$dir/" "$final/" 2>&1 | tee -a "$LOG" &&
+			(cd "$final" && shasum -a 256 -c card.sha256 >/dev/null) &&
+			{ [[ ! -s "$final/files.sha256" ]] || (cd "$final/files" && shasum -a 256 -c ../files.sha256 >/dev/null); }; then
+			log "$label: 転送後のハッシュ検証OK → 作業ディレクトリを削除"
+			cp "$LOG" "$final/log.txt"
+			rm -rf "$dir"
+			dir="$final"
+			LOG="$final/log.txt"
+			chown -R "$OWNER" "$dir"
+		else
+			log "$label: ⚠️ 転送または検証に失敗。作業ディレクトリに残しています: $dir"
+		fi
+	fi
+
+	echo
+	echo "✅ $label 完了: $result"
+	echo "   保存先: $dir"
+}
+
+# ---------- メインループ ----------
+echo "保存先: $DEST"
+if [[ -n "$RESUME" ]]; then
+	# 作業ディレクトリに残っていればそちら（転送前に止まったもの）、無ければ保存先のものを読み直す
+	if [[ -n "$WORK" && -d "$WORK/$RESUME" ]]; then
+		RESUME_DIR="$WORK/$RESUME"
+	else
+		RESUME_DIR="$DEST/$RESUME"
+	fi
+	if [[ ! -f "$RESUME_DIR/card.img" || ! -f "$RESUME_DIR/card.map" ]]; then
+		echo "エラー: $RESUME_DIR に card.img と card.map がありません"
+		exit 1
+	fi
+	# 同じ cardNNN を 2 つのプロセスで読み直さない
+	if ! try_claim "$CLAIM_ROOT/$(echo "$RESUME_DIR" | tr / _)"; then
+		echo "エラー: $RESUME は別の sd-archive が読み直し中です"
+		exit 1
+	fi
+	LABEL_CLAIMED="$CLAIM_ROOT/$(echo "$RESUME_DIR" | tr / _)"
+	echo "続きから読み直す: $RESUME_DIR"
+	process_card
+	echo "終了しました。"
+	exit 0
+fi
+while :; do
+	process_card
+	echo
+	read -r -p "次のカードを処理しますか？ [Y/n]: " cont
+	[[ "$cont" =~ ^[Nn] ]] && break
+done
+echo "終了しました。"
