@@ -1,0 +1,23 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/sh
+# sd-archive の自動マウント阻止ツール block-automount を Swift ソースからビルドする。
+# run_onchange: 下のソースのハッシュが変わると再ビルドする。
+# source hash: {{ include "dot_local/libexec/sd-archive/block-automount.swift" | sha256sum }}
+set -eu
+
+{{ template "shell-log" }}
+step "sd-archive の block-automount をビルド中"
+
+DIR="$HOME/.local/libexec/sd-archive"
+
+# swiftc は Xcode Command Line Tools に入っている。無ければ飛ばし、sd-archive は
+# 自動マウントを防げない旨を警告して動く。
+if ! xcrun --find swiftc >/dev/null 2>&1; then
+	echo "swiftc が無いため block-automount のビルドを飛ばします（xcode-select --install 後に chezmoi apply を再実行）" >&2
+	exit 0
+fi
+
+xcrun swiftc -O "$DIR/block-automount.swift" -o "$DIR/block-automount.tmp"
+mv -f "$DIR/block-automount.tmp" "$DIR/block-automount"
+echo "sd-archive: block-automount をビルドしました ($DIR/block-automount)"
+{{- end }}
