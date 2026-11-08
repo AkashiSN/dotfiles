@@ -201,6 +201,19 @@ release_disk() {
 
 log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
 
+# カード $1 を取り出した直後に、次のカードを待つときの基準（NEXT_SEEN）を取る。
+# 取り出し後はファイルの取り出しなどが続き、その間に次のカードを挿されることがある。
+# 「次のカードを処理しますか？」に答えた時点で基準を取ると、挿したカードが基準に入って検出できない。
+# 取り出したディスクが一覧から消えるのを少し待ち、消えなくても基準からは除く。
+mark_ejected() {
+	local _
+	for _ in 1 2 3 4 5; do
+		list_disks | grep -qxF "$1" || break
+		sleep 1
+	done
+	NEXT_SEEN="$(list_disks | grep -vxF "$1" || true)"
+}
+
 # 挿したカードが既存のイメージと同じものかを確かめる（--resume 用）。
 # mapfile で読めている（+）最初の範囲から最大 1MiB を、カードとイメージの両方から読んで比べる。
 # $1: 生デバイス, $2: card.img, $3: card.map, $4: カードの容量（バイト）
@@ -222,6 +235,93 @@ same_card() {
 	[[ "$a" == "$b" ]]
 }
 
+# 照合でイメージとカード本体のハッシュが食い違ったときに、違う箇所を探して直す。
+# カードを 64MiB ずつ読み直してイメージと比べ、違うチャンクはカードからさらに 2 回読む。
+# 2 回が一致し、そのデータで直したイメージのハッシュが照合時のハッシュとも一致したとき
+# （カードが同じ値を 4 回返したとき）だけイメージを直す。直らなければ元に戻す。
+# $1: 生デバイス, $2: card.img, $3: 照合時のカードのハッシュ, $4: 一時ディレクトリ
+# 結果: 戻り値 0 ならイメージはカードと一致（REPAIR_FIXED=1 ならイメージを直した）。
+#       REPAIR_MSG に説明を入れる。
+REPAIR_CHUNK=67108864 # 64MiB（/bin/dd の bs=4MiB × 16）
+REPAIR_MAX_CHUNKS=8   # これより多く違うなら、一時的な読み違いではないとみなして直さない
+repair_image() {
+	local raw="$1" img="$2" want="$3" tmp="$4"
+	local bs=4194304 cnt=16 size n i a b got exp new
+	local bad=() hashes=() lbas="" nbytes=0 nsec
+	REPAIR_FIXED=0
+	REPAIR_MSG=""
+	size=$(/usr/bin/stat -f %z "$img")
+	n=$(((size + REPAIR_CHUNK - 1) / REPAIR_CHUNK))
+	mkdir -p "$tmp"
+
+	# 1 周目: カードの各チャンクのハッシュをイメージと比べる
+	for ((i = 0; i < n; i++)); do
+		if ! a="$(/bin/dd if="$raw" bs=$bs skip=$((i * cnt)) count=$cnt 2>>"$LOG" | shasum -a 256 | awk '{print $1}')"; then
+			REPAIR_MSG="カードを読み直せませんでした（チャンク ${i}）"
+			return 1
+		fi
+		b="$(/bin/dd if="$img" bs=$bs skip=$((i * cnt)) count=$cnt 2>/dev/null | shasum -a 256 | awk '{print $1}')"
+		if [[ "$a" != "$b" ]]; then
+			bad+=("$i")
+			hashes+=("$a")
+			if ((${#bad[@]} > REPAIR_MAX_CHUNKS)); then
+				REPAIR_MSG="違う範囲が多すぎるため直していません（64MiB 単位で ${REPAIR_MAX_CHUNKS} か所超）"
+				return 1
+			fi
+		fi
+	done
+	if ((${#bad[@]} == 0)); then
+		REPAIR_MSG="読み直したカードはイメージと一致。照合時の読み込みだけが食い違った"
+		return 0
+	fi
+
+	# 違うチャンクをカードからさらに 2 回読み、1 周目も含めて 3 回とも同じか確かめる
+	local k=0
+	for i in "${bad[@]}"; do
+		exp=$((size - i * REPAIR_CHUNK))
+		if ((exp > REPAIR_CHUNK)); then
+			exp=$REPAIR_CHUNK
+		fi
+		/bin/dd if="$raw" bs=$bs skip=$((i * cnt)) count=$cnt of="$tmp/c$i.r1" 2>>"$LOG" || true
+		/bin/dd if="$raw" bs=$bs skip=$((i * cnt)) count=$cnt of="$tmp/c$i.r2" 2>>"$LOG" || true
+		/bin/dd if="$img" bs=$bs skip=$((i * cnt)) count=$cnt of="$tmp/c$i.orig" 2>/dev/null
+		got=$(/usr/bin/stat -f %z "$tmp/c$i.r1" 2>/dev/null || echo 0)
+		if [[ "$got" -ne "$exp" ]]; then
+			REPAIR_MSG="カードを読み直せませんでした（チャンク ${i}）"
+			return 1
+		fi
+		if ! cmp -s "$tmp/c$i.r1" "$tmp/c$i.r2" ||
+			[[ "$(shasum -a 256 <"$tmp/c$i.r1" | awk '{print $1}')" != "${hashes[$k]}" ]]; then
+			REPAIR_MSG="カードが読むたびに違う値を返すため直していません（チャンク ${i}。カードかリーダーの不調）"
+			return 1
+		fi
+		k=$((k + 1))
+	done
+
+	# 直して、照合時のハッシュと一致するか確かめる。一致しなければ元に戻す
+	for i in "${bad[@]}"; do
+		/bin/dd if="$tmp/c$i.r1" of="$img" bs=$bs seek=$((i * cnt)) conv=notrunc 2>/dev/null
+	done
+	new="$(shasum -a 256 "$img" | awk '{print $1}')"
+	if [[ "$new" != "$want" ]]; then
+		for i in "${bad[@]}"; do
+			/bin/dd if="$tmp/c$i.orig" of="$img" bs=$bs seek=$((i * cnt)) conv=notrunc 2>/dev/null
+		done
+		REPAIR_MSG="読み直したデータで直しても照合時のハッシュと一致しないため、元に戻しました"
+		return 1
+	fi
+
+	for i in "${bad[@]}"; do
+		nbytes=$((nbytes + $(cmp -l "$tmp/c$i.orig" "$tmp/c$i.r1" | wc -l)))
+		lbas="${lbas:+$lbas,}$(cmp -l "$tmp/c$i.orig" "$tmp/c$i.r1" |
+			awk -v base=$((i * REPAIR_CHUNK)) '{ s = int((base + $1 - 1) / 512); if (!(s in seen)) { seen[s] = 1; printf "%s%d", (n++ ? "," : ""), s } }')"
+	done
+	nsec=$(echo "$lbas" | tr ',' '\n' | grep -c .)
+	REPAIR_FIXED=1
+	REPAIR_MSG="イメージの ${nsec} セクタ（${nbytes} バイト）がカードと違っていたので、カードから読み直したデータで直した（LBA: ${lbas}）"
+	return 0
+}
+
 # ddrescue が異常終了したとき（カードリーダーがエラーで切れたなど）の後始末。
 # ここまでのイメージと mapfile は残るので、--resume で続きから読める。
 ddrescue_stopped() {
@@ -232,13 +332,19 @@ ddrescue_stopped() {
 	echo "   （読めない箇所が多いカードは、USB リーダーより内蔵スロットの方が早く諦めて先へ進む）"
 	diskutil eject "$new" >/dev/null 2>&1 || true
 	release_disk
+	mark_ejected "$new"
 	chown -R "$OWNER" "$CUR_DIR"
 }
 
 # ---------- 1枚分の処理 ----------
 process_card() {
-	local before after new
-	before="$(list_disks)"
+	local seen cur new
+	if [[ -n "${NEXT_SEEN+x}" ]]; then
+		seen="$NEXT_SEEN"
+		unset NEXT_SEEN
+	else
+		seen="$(list_disks)"
+	fi
 
 	echo
 	echo "=============================================="
@@ -246,19 +352,22 @@ process_card() {
 	echo " ※「初期化」ダイアログが出たら必ず［無視］を押す"
 	echo "=============================================="
 
-	# 新しく現れたディスクのうち、他の sd-archive が予約していないものを待つ
+	# 新しく現れたディスクのうち、他の sd-archive が予約していないものを待つ。
+	# macOS は抜いたカードの diskN を次のカードに使い回すので、seen に入っていたディスクも
+	# 一度消えたら外し、同じ diskN で現れたカードを新しいカードとして扱う。
 	local cand
 	new=""
 	while [[ -z "$new" ]]; do
 		sleep 2
-		after="$(list_disks)"
+		cur="$(list_disks)"
+		seen="$(comm -12 <(echo "$seen") <(echo "$cur"))"
 		while IFS= read -r cand; do
 			[[ -z "$cand" ]] && continue
 			if claim_disk "$cand"; then
 				new="$cand"
 				break
 			fi
-		done < <(comm -13 <(echo "$before") <(echo "$after"))
+		done < <(comm -13 <(echo "$seen") <(echo "$cur"))
 	done
 	sleep 3 # マウント処理が落ち着くのを待つ
 
@@ -423,7 +532,19 @@ process_card() {
 		elif [[ "$img_hash" == "$dev_hash" ]]; then
 			result="OK（カード本体と完全一致）"
 		else
-			result="不一致！（img=${img_hash} dev=${dev_hash}）"
+			log "$label: ⚠️ ハッシュが食い違いました（img=${img_hash} dev=${dev_hash}）→ カードを読み直して違う箇所を探します"
+			if repair_image "$raw" "$dir/card.img" "$dev_hash" "$dir/.repair"; then
+				if [[ "$REPAIR_FIXED" == "1" ]]; then
+					img_hash="$dev_hash"
+					echo "$img_hash  card.img" >"$dir/card.sha256"
+					result="OK（カード本体と完全一致。${REPAIR_MSG}）"
+				else
+					result="OK（${REPAIR_MSG}）"
+				fi
+			else
+				result="不一致！（img=${img_hash} dev=${dev_hash}。${REPAIR_MSG}）"
+			fi
+			rm -rf "$dir/.repair"
 		fi
 	else
 		result="読み取りエラーなし（本体との照合は省略）"
@@ -440,6 +561,7 @@ process_card() {
 	diskutil eject "$new" | tee -a "$LOG" || true
 	# カードはもう無いので予約を外す（同じ diskN が次のカードに割り当てられうる）
 	release_disk
+	mark_ejected "$new"
 
 	# --- イメージからファイルを取り出す ---
 	# files/ はイメージから作り直せるので、--resume では前回の分を消して取り出し直す
