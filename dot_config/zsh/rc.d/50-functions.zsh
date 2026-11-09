@@ -100,7 +100,9 @@ function claude () {
     set -- --remote-control
   fi
   local wrapper=$HOME/.local/bin/claude-wrapper
-  # ${commands[claude]} は PATH 上の実体(この関数ではなく外部コマンド)。
+  # ${commands[claude]} は PATH 上の実体(この関数ではなく外部コマンド)。zsh が覚えた場所の
+  # 実体が消えていたら(インストール先が変わったときなど)、PATH を引き直す。
+  [[ -n ${commands[claude]} && ! -x ${commands[claude]} ]] && rehash
   if [[ -x $wrapper && -n ${commands[claude]} ]]; then
     $wrapper ${commands[claude]} "$@"
     return
