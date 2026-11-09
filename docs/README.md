@@ -21,7 +21,7 @@
 | sd-archive（SD カードのイメージ化 → 撮影日別整理） | [sd-archive-cheatsheet.md](sd-archive-cheatsheet.md) | `dot_local/bin/sd-archive` / `organize-media` / `dot_local/libexec/sd-archive/block-automount.swift` |
 | agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |
 | コード知識グラフ（CodeGraph / graphify） | [knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md` |
-| Claude Code の設定（plugin / compact 対策 / statusLine） | [claude-code-cheatsheet.md](claude-code-cheatsheet.md) | `private_dot_claude/modify_settings.json.tmpl` / `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` |
+| Claude Code の設定（plugin / compact 対策 / statusLine / worktree） | [claude-code-cheatsheet.md](claude-code-cheatsheet.md) | `private_dot_claude/modify_settings.json.tmpl` / `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `worktree-enter-reminder.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` |
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
 | work 用 dotfiles との同期 | [work-sync.md](work-sync.md) | （運用手順。`cloudsa-dotfiles` との共有スクリプト全般） |
 

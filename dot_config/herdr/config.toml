@@ -137,13 +137,21 @@ close_workspace = "prefix+shift+q"  # ← 設定
 # height = "80%"
 
 # ← 設定: エージェントのペインを見ながら差分確認 / ファイル探索をするための popup。
-# popup はフォーカス中ペインの作業ディレクトリで起動するので、そのリポジトリのまま開く。
+# どの popup も herdr-here を挟み、フォーカス中ペインの前面プロセスの cwd で起動する。
+# Claude Code が worktree へ移っていれば、元のリポジトリではなくその worktree で開く
+# (popup 自体はペインのシェルの cwd で開くため、そのままでは worktree に追随しない)。
 # タブ/ペイン構成を変えないモーダルなので、閉じれば元のレイアウトに戻る。
 # alt 併用のバインドは端末(ghostty)依存で効かないことがあるため単一キーにする。
 #
 # description は上の雛形(= `herdr --default-config`)に載っていないが実在する任意項目で、
 # ヘルプ(prefix+?)の一覧に出るラベルになる。省略すると全部が "custom command" と表示され
 # 区別が付かないので必ず書く。ヘルプは `/` で絞り込めるため、英語の短いラベルにしておく。
+#
+# command の書き分け: chezmoi が配る自作スクリプト(~/.local/bin の herdr-*)は $HOME 絶対パス、
+# aqua 管理のツール(gitui / yazi / glow)はコマンド名だけで PATH から引く。
+# aqua の bin の中身は aqua-proxy で、絶対パスで呼んでも AQUA_GLOBAL_CONFIG が無ければ
+# バージョンを解決できない。PATH 頼みをやめても環境変数に頼る点は変わらないうえ、
+# AQUA_ROOT_DIR 次第で変わる内部パスを直書きすることになるので、絶対パスにしない。
 # 差分も markdown と同じく出す先で 2 つに分ける: 腰を据えて読む・コメントを付けるなら
 # ブラウザ(difit)、ステージやコミットまで手を動かすなら端末内(gitui)。d / shift+d で並べる。
 #
@@ -154,7 +162,7 @@ close_workspace = "prefix+shift+q"  # ← 設定
 [[keys.command]]
 key = "prefix+d"     # ← 設定: diff (ブラウザ)
 type = "popup"
-command = "$HOME/.local/bin/herdr-difit"
+command = "$HOME/.local/bin/herdr-here $HOME/.local/bin/herdr-difit"
 description = "difit (code review in browser)"
 width = "90%"
 height = "90%"
@@ -162,7 +170,7 @@ height = "90%"
 [[keys.command]]
 key = "prefix+shift+d"  # ← 設定: diff (端末内)
 type = "popup"
-command = "gitui"
+command = "$HOME/.local/bin/herdr-here gitui"
 description = "gitui (git diff / commit)"
 width = "90%"
 height = "90%"
@@ -170,7 +178,7 @@ height = "90%"
 [[keys.command]]
 key = "prefix+f"     # ← 設定: files
 type = "popup"
-command = "yazi"
+command = "$HOME/.local/bin/herdr-here yazi"
 description = "yazi (file manager)"
 width = "90%"
 height = "90%"
@@ -187,17 +195,17 @@ height = "90%"
 [[keys.command]]
 key = "prefix+m"     # ← 設定: markdown (ブラウザ)
 type = "popup"
-command = "$HOME/.local/bin/herdr-mo"
+command = "$HOME/.local/bin/herdr-here $HOME/.local/bin/herdr-mo"
 description = "mo (markdown in browser)"
 width = "90%"
 height = "90%"
 
-# 引数を渡さない glow は起動時のディレクトリ以下の md を一覧するので、popup の cwd が
-# そのままエージェントのリポジトリになる。
+# 引数を渡さない glow は起動時のディレクトリ以下の md を一覧するので、herdr-here が移した
+# cwd がそのままエージェントのリポジトリ(worktree)になる。
 [[keys.command]]
 key = "prefix+shift+m"  # ← 設定: markdown (端末内)
 type = "popup"
-command = "glow"
+command = "$HOME/.local/bin/herdr-here glow"
 description = "glow (markdown viewer)"
 width = "90%"
 height = "90%"

@@ -8,6 +8,7 @@
 | `settings.json` の `enabledPlugins` / `extraKnownMarketplaces` / `hooks` / `statusLine` | `private_dot_claude/modify_settings.json.tmpl`（`MANAGED`） |
 | hook 本体 | `private_dot_claude/hooks/executable_*.sh`（`~/.claude/hooks/` へ展開） |
 | `/compact-prep` スキル | `private_dot_claude/skills/compact-prep/SKILL.md`（`~/.claude/skills/compact-prep/` へ展開） |
+| worktree へ移らせる指示 | `private_dot_claude/modify_CLAUDE.md`（`~/.claude/CLAUDE.md`）+ `hooks/executable_worktree-enter-reminder.sh`（下の「worktree を作ったらセッションごと移る」） |
 
 > `~/.claude/settings.json` は Claude Code 自身が書き戻すため、chezmoi 側は
 > `modify_settings.json.tmpl` で **`MANAGED` に書いたキーだけ**を所有する。ここにある設定を
@@ -188,3 +189,28 @@ Claude Code 側の登録状況は `/hooks` と `/status` で確認できる。
 
 - `~/.claude/skills/` には `graphify install` が置く `graphify/` も同居するが、chezmoi は
   管理外のものを消さない（[knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md#graphify)）。
+
+---
+
+## worktree を作ったらセッションごと移る
+
+herdr の popup（`<prefix> d` の difit など）は `herdr-here` 経由で **claude プロセスの cwd** を起点に開く
+（[herdr チートシート](herdr-cheatsheet.md) の「カスタムコマンド（popup）」）。Claude がシェルの
+`git worktree add` で worktree を作り、`cd` や `git -C` で外から作業すると cwd が元のリポジトリのままになり、
+popup から worktree の差分が見えない。そこで 2 段で `EnterWorktree` へ誘導している。
+
+| 段 | 置き場 | 中身 |
+| --- | --- | --- |
+| 指示 | `private_dot_claude/modify_CLAUDE.md` の「worktree を作ったらセッションごと移る」 | 作るなら `EnterWorktree`（`name`）。`git worktree add` で作ったものへは直後に `EnterWorktree`（`path`）で移る |
+| hook | `hooks/executable_worktree-enter-reminder.sh`（`PostToolUse`、matcher `Bash`） | `git [-C <dir>] worktree add` を含む Bash の後、作った worktree のパスを示して移動を促す（`additionalContext`）。パスが解けなければ `git worktree list` で確かめさせる。`jq` が無ければ無出力で終わる |
+
+hook の登録はユーザ層（`modify_settings.json.tmpl` の `MANAGED.hooks.PostToolUse`。`pr-refresh-check.sh` と同じエントリ）。
+policy 層にも書くと hooks は全ソースがマージされて二重に走るので、こちらだけに置く。
+
+```sh
+# 動作確認: worktree のパスを示す additionalContext が返るか
+mkdir -p /tmp/wt-test/x
+printf '{"tool_input":{"command":"git worktree add -b foo x"},"cwd":"/tmp/wt-test"}' \
+  | ~/.claude/hooks/worktree-enter-reminder.sh | jq -r .hookSpecificOutput.additionalContext
+```
+

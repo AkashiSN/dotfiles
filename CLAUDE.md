@@ -39,7 +39,7 @@
 | --- | --- |
 | `dot_config/nvim/**` | `docs/nvim-cheatsheet.md` |
 | `dot_tmux.conf` | `docs/tmux-cheatsheet.md` |
-| `dot_config/herdr/config.toml` / `dot_config/yazi/*` / `dot_local/bin/executable_herdr-edit` / `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（ペインで動かすエージェント CLI の導入） | `docs/herdr-cheatsheet.md` |
+| `dot_config/herdr/config.toml` / `dot_config/yazi/*` / `dot_local/bin/executable_herdr-edit` / `executable_herdr-here` / `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（ペインで動かすエージェント CLI の導入） | `docs/herdr-cheatsheet.md` |
 | `dot_local/bin/executable_herdr-mo` / `executable_mo` / `executable_mo-port`（markdown プレビュー） | `docs/markdown-preview-cheatsheet.md` |
 | `dot_config/ghostty/config` | `docs/ghostty-cheatsheet.md` |
 | `dot_local/bin/executable_herdr-difit` / `executable_difit` / `executable_difit-port` / `dot_config/gitui/theme.ron` / `dot_config/herdr/config.toml`（`<prefix> d` / `shift+d`） / `.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl`（`NPM_GLOBALS` の difit） | `docs/git-diff-cheatsheet.md`（difit / gitui。起動キーの使い分けは `docs/herdr-cheatsheet.md` も） |
@@ -56,7 +56,7 @@
 | `dot_config/uv/dot_python-version` / `dot_local/bin/executable_uv-cache-prune` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` | `docs/uv-cheatsheet.md` |
 | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） | `docs/shell-lint-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `run_after_46-agmsg-spawn-options.sh.tmpl` / `dot_local/bin/executable_codex-monitor.sh` / `private_dot_claude/skills/codex-review/SKILL.md` | `docs/agmsg-cheatsheet.md` |
-| `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces / statusLine・compact 系 hook） / `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `private_dot_claude/skills/compact-prep/SKILL.md` | `docs/claude-code-cheatsheet.md`（plugin / compact 対策） |
+| `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces / statusLine・compact 系 hook・worktree hook） / `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `executable_worktree-enter-reminder.sh` / `private_dot_claude/modify_CLAUDE.md`（worktree の指示） / `private_dot_claude/skills/compact-prep/SKILL.md` | `docs/claude-code-cheatsheet.md`（plugin / compact 対策 / worktree） |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph / graphify 関連） | `docs/knowledge-graph-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（agent-browser 関連） | `docs/agent-browser-cheatsheet.md` |
 

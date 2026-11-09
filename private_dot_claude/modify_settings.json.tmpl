@@ -83,6 +83,11 @@ MANAGED=$(cat <<'JSON'
             "statusMessage": "PR の更新要否を確認中",
             "timeout": 20,
             "type": "command"
+          },
+          {
+            "command": "bash '{{ .chezmoi.homeDir }}/.claude/hooks/worktree-enter-reminder.sh'",
+            "timeout": 10,
+            "type": "command"
           }
         ],
         "matcher": "Bash"
