@@ -8,6 +8,7 @@
 | `settings.json` の `enabledPlugins` / `extraKnownMarketplaces` / `hooks` / `statusLine` | `private_dot_claude/modify_settings.json.tmpl`（`MANAGED`） |
 | hook 本体 | `private_dot_claude/hooks/executable_*.sh`（`~/.claude/hooks/` へ展開） |
 | `/compact-prep` スキル | `private_dot_claude/skills/compact-prep/SKILL.md`（`~/.claude/skills/compact-prep/` へ展開） |
+| `/git-commit` / `/gh-pr-create` スキル | `private_dot_claude/skills/{git-commit,gh-pr-create}/SKILL.md`（下の「配っているスキル」） |
 | worktree へ移らせる指示 | `private_dot_claude/modify_CLAUDE.md`（`~/.claude/CLAUDE.md`）+ `hooks/executable_worktree-enter-reminder.sh`（下の「worktree を作ったらセッションごと移る」） |
 
 > `~/.claude/settings.json` は Claude Code 自身が書き戻すため、chezmoi 側は
@@ -214,3 +215,21 @@ printf '{"tool_input":{"command":"git worktree add -b foo x"},"cwd":"/tmp/wt-tes
   | ~/.claude/hooks/worktree-enter-reminder.sh | jq -r .hookSpecificOutput.additionalContext
 ```
 
+---
+
+## 配っているスキル
+
+| スキル | 中身 |
+| --- | --- |
+| `compact-prep` | 圧縮前に作業状態を state file へ退避する（`/compact-prep`）。上の「コンテキスト圧縮（compact）対策」 |
+| `codex-review` | agmsg 経由で codex にレビューを依頼し、受け取って片付ける。[agmsg チートシート](agmsg-cheatsheet.md) |
+| `git-commit` | 変更からコミットメッセージを作ってコミットし、確認のうえ push する（`/git-commit`）。デフォルトブランチ上ならブランチを切る |
+| `gh-pr-create` | draft の PR を作る。同じブランチの OPEN な PR があれば説明を更新する（`/gh-pr-create [base]`）。base の省略時はリポジトリの規約、なければデフォルトブランチ |
+
+`git-commit` / `gh-pr-create` はどのリポジトリでも使えるよう、書き方を固定していない。対象リポジトリの
+`CLAUDE.md` / `CONTRIBUTING.md` / PR テンプレート / 既存のコミットに従う。**リポジトリ固有の決まり
+（scope の付け方、統合ブランチ、用語）はそのリポジトリの `CLAUDE.md` に書く。** 同じ名前のスキルや
+コマンドをリポジトリの `.claude/` に置いても、個人スキルが優先されて効かない。
+
+シェルから非対話で回す `git aicommit` / `gh pr aicreate`（[ai-git-cheatsheet.md](ai-git-cheatsheet.md)）とは別物で、
+こちらは Claude Code のセッションの中で使う。
