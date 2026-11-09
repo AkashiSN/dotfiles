@@ -96,9 +96,9 @@ export CLAUDE_CODE_ENABLE_AUTO_MODE=1
 # そのまま継承されるので、AWS を操作する側 (aws-mcp-launch など) はこれを当てにせず
 # ~/.env から読み直すこと。
 export AWS_REGION="${CLAUDE_CODE_BEDROCK_REGION:-us-east-1}"
-export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-5[1m]}"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5[1m]}"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_CODE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_CODE_BEDROCK_OPUS_MODEL:-global.anthropic.claude-opus-5-5[1m]}"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_CODE_BEDROCK_SONNET_MODEL:-global.anthropic.claude-sonnet-5-5[1m]}"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_CODE_BEDROCK_HAIKU_MODEL:-global.anthropic.claude-haiku-5-5[1m]}"
 export ANTHROPIC_MODEL="$ANTHROPIC_DEFAULT_OPUS_MODEL"
 
 exec "$CLAUDE" "$@"
