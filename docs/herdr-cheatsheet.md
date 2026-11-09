@@ -321,7 +321,7 @@ yazi 内で `.` を押せば一時的にトグルできる。
 
 **chezmoi で自動導入**している（手動で `herdr integration install` を叩く必要はない）:
 
-- `.chezmoiscripts/run_onchange_after_45-herdr-integration.sh.tmpl` が `chezmoi apply` 時に
+- `.chezmoiscripts/run_after_45-herdr-integration.sh.tmpl` が `chezmoi apply` のたびに
   `herdr integration install claude` / `... codex` を実行する。install が書くのは以下（**chezmoi 管理外**・
   herdr がバージョン管理する実行時ファイル）:
   - claude: `~/.claude/hooks/herdr-agent-state.sh`（フック本体・マシン固有パスなしのポータブル）
@@ -338,9 +338,8 @@ yazi 内で `.` を押せば一時的にトグルできる。
 | `herdr integration install <agent>` | フックを導入 / 最新版へ更新（claude/codex/pi/… 対応） |
 | `herdr integration uninstall <agent>` | フックを除去 |
 
-> herdr 本体を更新してフック版が上がったとき（`status --outdated-only` に出る）は、
-> `run_onchange_after_45-herdr-integration.sh.tmpl` 内の `herdr-integration-marker:` の日付を書き換えると
-> 既存マシンでも `chezmoi apply` で再導入されて最新版に揃う。
+> herdr 本体を更新してフック版が上がったとき（`status --outdated-only` に出る）も、
+> 次の `chezmoi apply` で再導入されて最新版に揃う。
 
 ---
 
