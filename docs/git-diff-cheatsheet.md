@@ -13,7 +13,8 @@ git の差分を読む・レビューする・コミットまで持っていく�
 
 - **difit の導入**: npm グローバル（`.chezmoiscripts/run_onchange_after_30-node-default.sh.tmpl` の
   `NPM_GLOBALS`）。aqua に無いため npm 配布を使う。`chezmoi apply` で入る（node は fnm の
-  LTS で、difit は node 21 以上を要求する）
+  LTS で、difit は node 21 以上を要求する）。版は `NPM_GLOBALS` に固定してあり、Renovate が更新 PR を出す
+  （[Renovate チートシート](renovate-cheatsheet.md)）
 - **gitui の導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `gitui-org/gitui`）
 - **設定**: difit に設定ファイルは無く、挙動は CLI オプションだけで決まる。gitui はテーマだけ
   配っている（`dot_config/gitui/theme.ron`。詳細は [gitui](#gitui端末内-tui) の節）

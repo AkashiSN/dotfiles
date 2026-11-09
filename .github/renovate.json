@@ -4,6 +4,9 @@
     "config:recommended",
     "github>aquaproj/aqua-renovate-config#2.13.0"
   ],
+  "ignorePresets": ["group:monorepos"],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["* 0-8 * * 1"],
   "customManagers": [
     {
       "description": "Intel Mac で配布元から直接入れるフォントの版。直前の行の `# renovate:` コメントで取得元を指定する",
@@ -12,9 +15,28 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\n[A-Z_]+_VERSION=(?<currentValue>\\S+)"
       ]
+    },
+    {
+      "description": "fnm の node へ入れる npm グローバル CLI（NPM_GLOBALS=\"$NPM_GLOBALS <pkg>@<ver>\"）",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.chezmoiscripts/run_onchange_after_30-node-default\\.sh\\.tmpl$/"],
+      "matchStrings": [
+        "NPM_GLOBALS=\"\\$NPM_GLOBALS (?<depName>(?:@[^/\\s\"]+/)?[^@\\s\"]+)@(?<currentValue>[^\\s\"]+)\""
+      ],
+      "datasourceTemplate": "npm"
     }
   ],
   "packageRules": [
+    {
+      "description": "minor / patch は種別（aqua / npm / フォント / GitHub Actions）を問わず 1 本の PR にまとめる。新しい PR を作るのは月曜 0〜8 時台だけ（既存 PR の rebase は毎回の実行で行う）",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "deps",
+      "commitMessagePrefix": "chore(deps):",
+      "commitMessageAction": "",
+      "commitMessageTopic": "依存を更新する",
+      "commitMessageExtra": "",
+      "group": { "commitMessageTopic": "依存を更新する" }
+    },
     {
       "description": "1password/cli は GitHub リリースを持たず Renovate が版を解決できない(no-result)ため更新対象から除外する",
       "matchPackageNames": ["1password/cli"],
