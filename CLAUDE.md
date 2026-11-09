@@ -58,6 +58,7 @@
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（agmsg 関連） / `run_after_46-agmsg-spawn-options.sh.tmpl` / `dot_local/bin/executable_codex-monitor.sh` / `private_dot_claude/skills/codex-review/SKILL.md` | `docs/agmsg-cheatsheet.md` |
 | `private_dot_claude/modify_settings.json.tmpl`（enabledPlugins / extraKnownMarketplaces / statusLine・compact 系 hook・worktree hook） / `private_dot_claude/hooks/executable_statusline.sh` / `executable_compact-recovery.sh` / `executable_userpromptsubmit-compact-*.sh` / `executable_worktree-enter-reminder.sh` / `private_dot_claude/modify_CLAUDE.md`（worktree の指示） / `private_dot_claude/skills/{compact-prep,git-commit,gh-pr-create}/SKILL.md` | `docs/claude-code-cheatsheet.md`（plugin / compact 対策 / worktree / スキル） |
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph / graphify 関連） | `docs/knowledge-graph-cheatsheet.md` |
+| `.chezmoi.toml.tmpl`（`chezmoi init` のプロンプトと `[data]`） / `dot_gitconfig.tmpl`（git identity） | `docs/multi-user-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（agent-browser 関連） | `docs/agent-browser-cheatsheet.md` |
 | `.github/renovate.json` / `.github/workflows/update-aqua-checksum.yaml` | `docs/renovate-cheatsheet.md` |
 

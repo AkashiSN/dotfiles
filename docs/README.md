@@ -24,6 +24,7 @@
 | Claude Code の設定（plugin / compact 対策 / statusLine / worktree / スキル） | [claude-code-cheatsheet.md](claude-code-cheatsheet.md) | `private_dot_claude/modify_settings.json.tmpl` / `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `worktree-enter-reminder.sh` / `private_dot_claude/skills/{compact-prep,git-commit,gh-pr-create}/SKILL.md` |
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
 | Renovate（依存の更新 PR） | [renovate-cheatsheet.md](renovate-cheatsheet.md) | `.github/renovate.json` / `.github/workflows/update-aqua-checksum.yaml` |
+| マルチユーザ（2 人目のユーザの始め方 / git identity） | [multi-user-cheatsheet.md](multi-user-cheatsheet.md) | `.chezmoi.toml.tmpl` / `dot_gitconfig.tmpl` |
 | work 用 dotfiles との同期 | [work-sync.md](work-sync.md) | （運用手順。`cloudsa-dotfiles` との共有スクリプト全般） |
 
 > これらは chezmoi のソースリポジトリ内のドキュメントで、ホームへは展開されない

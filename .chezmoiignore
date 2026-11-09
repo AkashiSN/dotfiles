@@ -63,3 +63,4 @@ Documents
 .ssh/allowed_signers
 .ssh/config
 {{- end }}
+tests

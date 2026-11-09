@@ -1,3 +1,7 @@
+{{- /* chezmoi データ未設定（chezmoi init 前）でも従来の値で展開する */ -}}
+{{- $name := dig "git" "name" "AkashiSN" . -}}
+{{- $email := dig "git" "email" "btorntireinvynriy@gmail.com" . -}}
+{{- $signingkey := dig "git" "signingkey" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip" . -}}
 [core]
 	autocrlf = input
 	editor = nvim
@@ -11,7 +15,7 @@
 [color]
 	ui = true
 
-{{- if eq .chezmoi.os "darwin" }}
+{{- if and $signingkey (eq .chezmoi.os "darwin") }}
 
 [commit]
 	gpgsign = true
@@ -30,14 +34,16 @@
 	rebase = false
 
 [user]
-	name = AkashiSN
-	email = btorntireinvynriy@gmail.com
-	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip
+	name = {{ $name }}
+	email = {{ $email }}
+{{- if $signingkey }}
+	signingkey = {{ $signingkey }}
+{{- end }}
 
 [gpg]
 	format = ssh
 
-{{- if eq .chezmoi.os "darwin" }}
+{{- if and $signingkey (eq .chezmoi.os "darwin") }}
 
 [gpg "ssh"]
 	program = "op-ssh-sign"
