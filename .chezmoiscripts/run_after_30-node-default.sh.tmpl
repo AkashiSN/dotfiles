@@ -8,7 +8,7 @@
 #   lts-latest の alias が指す版だけで、fnm 自体とプロジェクト（.nvmrc）用の他の版は残す。
 #   掃除を終えたら ~/.cache/dotfiles/node-home.cleaned を置き、以後はユーザが自分で fnm default を
 #   付け直しても消さない。ユーザ単位の導入をしたときにこの印を外す。
-# - 共有側が揃っていない間（sudo を使えなかったなど）: 従来どおり fnm で LTS の Node を用意し、
+# - 共有側が揃っていない間（sudo を使えなかったなど）: fnm で LTS の Node をユーザ単位で用意し、
 #   同じ NPM_GLOBALS（bootstrap/23-shared-npm.sh の一覧）を npm でユーザ単位に入れる。fnm の Node は消さない。
 #   一覧か手順が変わったときだけ流す（~/.cache/dotfiles/node-user.key。成功したときだけ進める）。
 # run_after: chezmoi apply のたびに実行する。

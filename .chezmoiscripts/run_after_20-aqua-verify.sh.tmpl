@@ -3,7 +3,7 @@
 # ホームの aqua の pkgs / bin を、共有ストア (/opt/aquaproj-aqua) への symlink にそろえる。
 # run_after（毎回実行）。aqua の実体は共有側に 1 つだけ置き、install は run_after_15 の
 # 共有ストア更新（bootstrap/20-shared-aqua.sh）だけが行う。ここでは install しない。
-# 共有側がまだ使えない（sudo を使えなかった）間は、ホームの aqua を従来どおりユーザ単位で install する。
+# 共有側がまだ使えない（sudo を使えなかった）間は、ホームの設定でホームの aqua へユーザ単位で install する。
 set -eu
 
 DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}

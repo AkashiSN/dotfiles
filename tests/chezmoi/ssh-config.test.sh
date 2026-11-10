@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# personal=false で個人のホスト・鍵を出さず、既定（true）では従来どおり出すこと。
+# personal=false で個人のホスト・鍵を出さず、既定（true）では出すこと。
 set -u
 # shellcheck source=../lib.sh
 . "$(dirname "$0")/../lib.sh"
@@ -30,7 +30,7 @@ for f in .ssh/1password_AkashiSN.pub .ssh/1password_su-nishi.pub .ssh/allowed_si
 done
 assert_contains "$managed_false" ".ssh/config" ".ssh/config managed when personal=false"
 
-# chezmoi.toml に personal が無い（init 前）場合も従来どおり
+# chezmoi.toml に personal が無い（init 前）場合も既定（true）と同じに出す
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 : >"$tmp/chezmoi.toml"

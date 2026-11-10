@@ -5,7 +5,7 @@
 #   版のディレクトリはユーザ所有のまま、その中の terraform だけを共有の実体への symlink にする
 #   （.chezmoitemplates/tenv-link.sh）。共有が覆う版でホームに実ファイルがあれば、動いていない限り
 #   symlink に替える。共有が覆わない版と provider のキャッシュ (~/.cache/terraform) は残す。
-# - 共有側が揃っていない間: 何もしない（tenv が従来どおり必要な版を自分で取る。ホームのものは消さない）。
+# - 共有側が揃っていない間: 何もしない（tenv が必要な版をユーザの TENV_ROOT へ自分で取る。ホームのものは消さない）。
 # run_after: chezmoi apply のたびに実行する（共有側に版が増えたときや、動いている間は替えずに次へ回すため）。
 set -eu
 
@@ -15,7 +15,6 @@ DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
 # shellcheck source=/dev/null
 . "$DOTFILES_SRC/.chezmoitemplates/tenv-link.sh"
 {{ template "shell-log" }}
-
 SHARED_TENV=/opt/tenv
 SHARED_TENV_KEY=/opt/dotfiles-shared/keys/21
 

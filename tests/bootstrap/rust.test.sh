@@ -220,7 +220,7 @@ shared_line="$(printf '%s\n' "$envsh" | grep -n '_path_prepend /opt/cargo/bin' |
 user_line="$(printf '%s\n' "$envsh" | grep -n '_path_prepend "$CARGO_HOME/bin"' | cut -d: -f1)"
 [ -n "$shared_line" ] && [ -n "$user_line" ] && [ "$shared_line" -lt "$user_line" ] || fail "env.sh: PATH では \$CARGO_HOME/bin が /opt/cargo/bin より先でない"
 echo "PASS: env.sh: PATH では \$CARGO_HOME/bin の後ろに /opt/cargo/bin"
-# 実際に env.sh を評価して、揃っていないときは従来のまま
+# 実際に env.sh を評価して、揃っていないときは RUSTUP_HOME がホームのままであること
 envtest() {
 	# 揃い判定のパスを一時ディレクトリへ差し替えて評価する。
 	printf '%s\n' "$envsh" | sed -e "s#/opt/dotfiles-shared/keys/25#$tmp/shared/keys/25#g" -e "s#/opt/cargo/bin#$tmp/shared/cargo/bin#g" -e "s#/opt/rustup#$tmp/shared/rustup#g" >"$tmp/env.eval.sh"

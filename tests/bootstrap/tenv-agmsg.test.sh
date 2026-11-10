@@ -334,9 +334,9 @@ run40() {
 	: >"$CALLS"
 	HOME="$tmp/h40" XDG_DATA_HOME="" XDG_CONFIG_HOME="" XDG_CACHE_HOME="" PATH="$stubs:/usr/bin:/bin" bash "$script40" 2>&1
 }
-# 共有側なし: 従来どおり setup.sh をユーザ単位で取る
+# 共有側なし: setup.sh をユーザ単位で取る
 run40 >/dev/null || fail "run_after_40 (共有なし) が失敗"
-assert_contains "$(cat "$CALLS")" "setup.sh" "agmsg: 共有側が無ければ従来どおり setup.sh"
+assert_contains "$(cat "$CALLS")" "setup.sh" "agmsg: 共有側が無ければユーザ単位で setup.sh"
 # 共有側あり: current/install.sh を流し、setup.sh は取らない
 mkdir -p "$tmp/s40/agmsg/9.9.9" "$tmp/s40/keys"
 cat >"$tmp/s40/agmsg/9.9.9/install.sh" <<'FAKE'
