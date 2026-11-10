@@ -188,21 +188,19 @@ MCP が使えない場面（別のエージェント、シェルから直接）�
 
 ### 導入（chezmoi）
 
-- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾で、CodeGraph に続けて
-  `uv tool install graphifyy` → `graphify install` を実行する（PyPI 上のパッケージ名は
-  **graphifyy**、コマンド名は `graphify`）。`graphify install` が claude の設定を書き換える
-  ため、claude 本体を入れた**後**（同スクリプトの最後）に置く。
-- uv 本体は aqua 管理（`astral-sh/uv`）なので、同スクリプトで aqua の bin を PATH に足している。
-  uv が無い環境ではブロックごとスキップする。
-- **バージョン追従／固定**はスクリプト中の `GRAPHIFY_VERSION` で切り替える。`latest` なら
-  毎回 `uv tool install --upgrade` で最新へ、版を書けば（例 `0.9.13`）そこにピンする。
-  値を書き換えるとマーカー（`~/.cache/dotfiles/ai-graphify.key`）が変わり、既存マシンでも再実行される。
+- 実体（`graphifyy[sql,terraform]`）は uv tool で入る。共有側が揃っていれば root が `/opt/uv` に置き
+  （`bootstrap/24-shared-uv.sh` の `UV_TOOLS`。版もそこで固定し、Renovate が上げる）、揃っていなければ
+  `run_after_35-uv-tools.sh.tmpl` がユーザ単位で入れる（[uv-cheatsheet.md](uv-cheatsheet.md)）。
+  PyPI 上のパッケージ名は **graphifyy**、コマンド名は `graphify`。
+- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾は取得せず、`graphify install` による
+  ユーザ単位の登録だけを行う（PATH に `graphify` が無ければ警告して次の apply で再試行する）。
+  `graphify install` が claude の設定を書き換えるため、claude 本体を入れた**後**に置く。
+  登録のマーカー（`~/.cache/dotfiles/ai-graphify.key`）は `UV_TOOLS` の graphifyy のピンを含み、版が上がると登録し直す。
 - **`.sql` / `.tf` のパーサーは extra で入れる。** SQL 抽出器（`graphify/extractors/sql.py`）が
   import する `tree_sitter_sql` と、HCL 用の `tree_sitter_hcl` は graphifyy 本体の依存では
   なく extra（`sql` / `terraform`）。入れないと `.sql` / `.tf` は
   `tree_sitter_sql not installed` 相当のエラーでスキップされる（他言語の tree-sitter 文法は
-  同梱されている）。そのため `uv tool install "graphifyy[sql,terraform]"` で導入する
-  （スクリプト中の `GRAPHIFY_EXTRAS`）。
+  同梱されている）。そのため `UV_TOOLS` の行は `graphifyy[sql,terraform]==<版>` と extra を付けて書く。
 - `graphify install`（グローバル）が書き換える chezmoi 管理外のもの:
   - `~/.claude/skills/graphify/SKILL.md`（スキル本体。`/graphify` の実体）
   - `~/.claude/CLAUDE.md` の `# graphify` 登録セクション

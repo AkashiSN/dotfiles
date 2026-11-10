@@ -219,6 +219,7 @@ assert_eq "$before" "$(cd "$tmp/runhome" && find . | sort | grep -v '^./.cache/d
 assert_contains "$c" "codegraph install --yes" "登録: codegraph install --yes"
 assert_contains "$c" "codegraph telemetry off" "登録: codegraph telemetry off"
 assert_contains "$c" "graphify install" "登録: graphify install"
+assert_not_contains "$c" "uv tool install" "graphify を uv tool で入れない（共有か run_after_35 の役目）"
 assert_contains "$c" "kiro-cli integrations uninstall -s dotfiles" "登録: kiro のシェル統合を外す"
 assert_contains "$c" "setup.sh" "agmsg を導入する"
 assert_not_contains "$c" "claude.ai/install.sh" "公式インストーラ(claude)を使わない"
@@ -229,13 +230,12 @@ out="$(run40)" || fail "2 回目の run_after_40 が失敗" "$out"
 c="$(cat "$CALLS")"
 assert_not_contains "$c" "setup.sh" "2 回目: agmsg を取り直さない"
 assert_not_contains "$c" "codegraph install" "2 回目: codegraph 登録を省く"
-assert_not_contains "$c" "uv tool install" "2 回目: graphify を取り直さない"
 assert_contains "$c" "kiro-cli integrations uninstall" "2 回目も kiro の統合解除は流す（冪等で軽い）"
 echo "PASS: 通し実行とマーカーによる省略"
 
 # ---- 途中のコマンドが失敗して最後が成功しても、マーカーを進めない ----
 rm -rf "$tmp/runhome/.cache/dotfiles"
-FAKE_FAIL="curl:-fsSL codegraph:install uv:tool" run40 >/dev/null || fail "失敗するステップがあっても apply は止めない"
+FAKE_FAIL="curl:-fsSL codegraph:install graphify:install" run40 >/dev/null || fail "失敗するステップがあっても apply は止めない"
 for k in agmsg codegraph graphify; do
 	[ ! -e "$tmp/runhome/.cache/dotfiles/ai-$k.key" ] || fail "$k: 途中が失敗したのにマーカーを進めた"
 done

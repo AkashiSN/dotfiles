@@ -191,6 +191,6 @@ work の `docs/claude-settings.md` に足された「popup へ来るのはログ
 | Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` の custom manager。CodeArtifact・自前 workflow・`/opt` 向けの manager（Kiro / Rust / agmsg / uv tool）は取り込まない |
 
 取り込まなかったもの: `/opt` へ寄せる複数ユーザ化（共有 aqua ストア、`/opt/npm-global` / `/opt/uv` /
-`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系と `/opt/npm-global`（`bootstrap/23-shared-npm.sh`）は取り込んだ）は、Mac での設計を
+`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系と `/opt/npm-global`（`bootstrap/23-shared-npm.sh`）、`/opt/uv`（`bootstrap/24-shared-uv.sh`）は取り込んだ。uv の `UV_TOOLS` は work の AWS MCP サーバー（`mcp-proxy-for-aws-cli` / `awslabs.aws-pricing-mcp-server`）を入れず、ansible と graphifyy だけ。Renovate の uv の manager は取り込んだ）は、Mac での設計を
 別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
 sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。

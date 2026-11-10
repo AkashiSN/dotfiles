@@ -1,0 +1,90 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# 既定の Python と uv で入れる CLI（ansible / graphify）を、このユーザで使える状態にする。
+# - 共有側が揃っている間: 実体は root が /opt/uv に置く（bootstrap/24-shared-uv.sh。Python の版は
+#   dot_config/uv/dot_python-version、ツールの版は UV_TOOLS で固定）。PATH は ~/.config/shell/env.sh が通す。
+#   ここでは取得せず、ホームに残った uv の Python と、共有へ移したツールを消すだけを行う
+#   （.chezmoitemplates/uv-cleanup.sh）。ユーザが自分で入れたツールは残す。
+# - 共有側が揃っていない間（sudo を使えなかったなど）: 従来どおり uv の Python と同じ UV_TOOLS
+#   （bootstrap/24-shared-uv.sh の一覧）をユーザ単位で入れる。ホームのものは消さない。
+#   一覧か Python の版が変わったときだけ流す（~/.cache/dotfiles/uv-user.key。成功したときだけ進める）。
+# run_after: chezmoi apply のたびに実行する。
+set -eu
+set -o pipefail
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/uv-cleanup.sh"
+{{ template "shell-log" }}
+step "既定の Python と uv の CLI を確認中"
+
+SHARED_UV=/opt/uv
+SHARED_UV_KEY=/opt/dotfiles-shared/keys/24
+
+# UV_TOOLS の行（1 行 1 パッケージ）を bootstrap/24-shared-uv.sh から読む。
+# shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
+specs="$(sed -n 's/^UV_TOOLS="\$UV_TOOLS \(.*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/24-shared-uv.sh" | tr '\n' ' ')"
+specs="${specs% }"
+
+# 共有の uv が使えるのは、bin が在り、揃え終えた印のキーも在るときだけ。
+if [ -d "$SHARED_UV/bin" ] && [ -f "$SHARED_UV_KEY" ]; then
+	# 共有へ移したツール名（uv の正規化名: 小文字、. と _ は -。extra と版は除く）。
+	moved=""
+	for spec in $specs; do
+		name="${spec%%==*}"
+		name="${name%%\[*}"
+		moved="$moved $(printf '%s' "$name" | tr '[:upper:]._' '[:lower:]--')"
+	done
+	# shellcheck disable=SC2086
+	uv_cleanup_home "${XDG_DATA_HOME:-$HOME/.local/share}/uv" "$HOME/.local/bin" $moved
+	# 後で共有側が使えなくなったとき、ユーザ単位の導入をやり直せるようマーカーを消す。
+	rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/uv-user.key"
+	exit 0
+fi
+
+warn "共有の uv ($SHARED_UV) がまだ揃っていません。Python と uv の CLI をユーザ単位で入れます"
+note "端末から chezmoi apply を実行して sudo を通すと、共有側が作られます"
+
+# uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
+if ! command -v uv >/dev/null 2>&1; then
+	warn "uv が見つかりません。ユーザ単位の Python と CLI は入れません"
+	exit 0
+fi
+if [ -z "$specs" ]; then
+	warn "bootstrap/24-shared-uv.sh から UV_TOOLS を読めません。ユーザ単位の uv の CLI は入れません"
+	exit 0
+fi
+
+# Python の版の宣言は dot_config/uv/dot_python-version 1 か所だけにして、展開時に埋め込む。
+py_version={{ include "dot_config/uv/dot_python-version" | trim | quote }}
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+marker="$cache_dir/uv-user.key"
+key="$(pins_key <(printf 'uv-user-1\n%s\n%s\n' "$py_version" "$specs"))"
+if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+	note "ユーザ単位の Python と uv の CLI は変更が無いため省きます"
+	exit 0
+fi
+
+# 既定の Python を導入し、python / python3 / python3.N を ~/.local/bin へ置く(--default)。
+# ~/.local/bin は .zshenv で /usr/bin より前に入るので、python3 は macOS 同梱の 3.9 ではなくこれになる
+# （codex-bedrock は tomllib のある 3.11+ を探す）。--default は experimental なため preview feature を明示する。
+# どれかが失敗したら非 0 で終え、マーカーは進めない。
+install_user_uv() {
+	local spec
+	uv python install "$py_version" --default --preview-features python-install-default || return 1
+	for spec in $specs; do
+		uv tool install "$spec" || return 1
+	done
+}
+if install_user_uv; then
+	mkdir -p "$cache_dir"
+	printf '%s\n' "$key" >"$marker"
+else
+	warn "ユーザ単位の Python と uv の CLI の導入に失敗しました。次の apply で再試行します"
+fi
+{{- end }}

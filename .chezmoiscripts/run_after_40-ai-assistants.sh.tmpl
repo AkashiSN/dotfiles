@@ -152,29 +152,28 @@ once_step codegraph "$cg_key" register_codegraph
 # 取り込む知識グラフ生成ツール。CodeGraph が呼び出し関係の精密な追跡を担うのに対し、
 # graphify はプロジェクト全体の概念マップを作るので併用する(docs/knowledge-graph-cheatsheet.md)。
 # PyPI 上のパッケージ名は graphifyy、コマンド名は graphify。
-# latest だと版が変わったとき(下の値を書き換えたとき)だけ --upgrade で取り直す。固定したいときは版を書く(例: 0.9.13)。
-GRAPHIFY_VERSION="latest"
+# 実体は uv tool で入る: 共有側が揃っていれば root が /opt/uv に置き（bootstrap/24-shared-uv.sh の UV_TOOLS。
+# extra の sql / terraform と版もそこで固定）、揃っていなければ run_after_35 がユーザ単位で入れる。
+# ここでは取得せず、ユーザ単位の登録だけを行う。
 # `graphify install`(グローバル)は ~/.claude/skills/graphify/SKILL.md を置き、
 # ~/.claude/CLAUDE.md に登録行を追記する(プロンプトなし)。登録行は
 # private_dot_claude/modify_CLAUDE.md の USER_BLOCK に宣言済みのため no-change になる。
 # PreToolUse フックを書き込むのは `graphify install --project` の方で、
 # grep/Read への割り込みは codegraph prompt-hook と二重になるため入れていない。
 # グラフ本体と git フックはリポジトリごとに手動で入れる(`/graphify .` / `graphify hook install`)。
-# SQL / HCL のパーサーは graphifyy の必須依存ではなく extra なので、明示的に入れる
-# (無いと .sql / .tf は「tree_sitter_sql not installed」相当でスキップされる)。
-# terraform extra が tree-sitter-hcl を連れてくる。
-GRAPHIFY_EXTRAS="[sql,terraform]"
-install_graphify() {
-	if ! command -v uv >/dev/null 2>&1; then
-		warn "uv が無いため graphify を入れられません（aqua の install を待ちます）"
+# 共有の uv の bin は env.sh と同じ条件で PATH に足す（ここは env.sh を読まない）。
+if [ -d /opt/uv/bin ] && [ -f /opt/dotfiles-shared/keys/24 ]; then
+	export PATH="/opt/uv/bin:$PATH"
+fi
+register_graphify() {
+	if ! command -v graphify >/dev/null 2>&1; then
+		warn "graphify が見つかりません（共有の uv か、run_after_35 のユーザ単位の導入を待ちます）"
 		return 1
-	fi
-	if [ "$GRAPHIFY_VERSION" = "latest" ]; then
-		uv tool install --upgrade "graphifyy$GRAPHIFY_EXTRAS" || return 1
-	else
-		uv tool install "graphifyy$GRAPHIFY_EXTRAS==$GRAPHIFY_VERSION" || return 1
 	fi
 	graphify install
 }
-once_step graphify "$GRAPHIFY_VERSION $GRAPHIFY_EXTRAS" install_graphify
+# キーは再登録マーカーと、UV_TOOLS の graphifyy のピン（版が上がったら登録し直す）。
+# shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
+gf_pin="$(sed -n 's/^UV_TOOLS="\$UV_TOOLS \(graphifyy[^ "]*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/24-shared-uv.sh" 2>/dev/null || true)"
+once_step graphify "register-1 $gf_pin" register_graphify
 {{- end }}

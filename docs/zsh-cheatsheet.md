@@ -280,7 +280,7 @@ model = "gpt-5.6-sol"   # ← 以降はテーブル部扱いになり、落と�
 値がそのまま出ているかまで確かめてから書き出す。
 
 `tomllib` は Python 3.11 以降の標準ライブラリ。macOS 同梱の `python3` は 3.9 なので、
-`run_onchange_after_35-uv-tools.sh.tmpl` が `uv python install` で 3.11+ を 1 つ確保する
+共有の uv（`/opt/uv/bin`。揃っていない間は `run_after_35-uv-tools.sh.tmpl` がユーザ単位に入れる `~/.local/bin`）の `python3` が 3.11+ を確保する
 （[uv チートシート](uv-cheatsheet.md#uv-管理の-python)）。合成に third-party パッケージは使わない
 （オフラインで動かなくなるのを避けるため）。実 config で実測 15ms 程度。
 

@@ -13,7 +13,7 @@
 | zsh / bash | [zsh-cheatsheet.md](zsh-cheatsheet.md) | `dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/` / `dot_bashrc` |
 | AI Git / PR | [ai-git-cheatsheet.md](ai-git-cheatsheet.md) | `dot_local/bin/git-aicommit` / `gh-pr-aicreate` / `private_dot_claude/hooks/pr-refresh-check.sh` |
 | Terraform（provider キャッシュ / tflint） | [terraform-cheatsheet.md](terraform-cheatsheet.md) | `dot_terraformrc.tmpl` / `dot_local/bin/tf-cache-prune` / `dot_config/aquaproj-aqua/aqua.yaml` |
-| uv（既定の Python / ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `dot_config/uv/dot_python-version` / `.chezmoiscripts/run_onchange_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |
+| uv（既定の Python / ツール / キャッシュ） | [uv-cheatsheet.md](uv-cheatsheet.md) | `dot_config/uv/dot_python-version` / `bootstrap/24-shared-uv.sh` / `.chezmoiscripts/run_after_35-uv-tools.sh.tmpl` / `dot_local/bin/uv-cache-prune` |
 | シェルスクリプト lint / format | [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml`（shellcheck / shfmt） |
 | AWS プロファイル切替 | [aws-cheatsheet.md](aws-cheatsheet.md) | `dot_local/bin/aws-switch` / `aws-login` / `aws-logout` / `dot_aws/create_config.tmpl` |
 | portfwd（SSH ブラウザ自動FW） | [portfwd-cheatsheet.md](portfwd-cheatsheet.md) | `dot_local/bin/portfwd` / `portfwd-open` / `private_dot_ssh/private_config.tmpl` |
