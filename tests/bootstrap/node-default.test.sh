@@ -8,6 +8,7 @@ set -eu
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+dtmp="$tmp/difit"
 
 cfg="$tmp/chezmoi.toml"
 chezmoi_config "$cfg"
@@ -197,5 +198,21 @@ if [ ! -d /proc/self ]; then
 	assert_default_only_removed "止まった次回"
 	echo "PASS: macOS 形式の ps（リンクのパスだけ）でも動作中を見て、実体を消さない"
 fi
+
+# ---- ~/.local/bin/difit: 共有側は実体とキーの両方が在るときだけ使う ----
+dw="$dtmp/difit-wrapper"
+mkdir -p "$dtmp"
+sed -e "s#^shared_difit=.*#shared_difit=$dtmp/dshared/current/bin/difit#" \
+	-e "s#^shared_key=.*#shared_key=$dtmp/dshared/keys/23#" "$REPO/dot_local/bin/executable_difit" >"$dw"
+grep -q "^shared_key=$dtmp/dshared" "$dw" || fail "difit: 共有側のパスの差し替えに失敗"
+mkdir -p "$dtmp/dshared/current/bin" "$dtmp/dfnm/aliases/default/bin"
+printf '#!/bin/sh\necho shared\n' >"$dtmp/dshared/current/bin/difit"
+printf '#!/bin/sh\necho fnm\n' >"$dtmp/dfnm/aliases/default/bin/difit"
+chmod +x "$dtmp/dshared/current/bin/difit" "$dtmp/dfnm/aliases/default/bin/difit"
+rundifit() { FNM_DIR="$dtmp/dfnm" bash "$dw" --port 1 --host 127.0.0.1; }
+assert_eq "fnm" "$(rundifit)" "difit: キーが無ければ fnm の default を使う"
+mkdir -p "$dtmp/dshared/keys"
+echo k >"$dtmp/dshared/keys/23"
+assert_eq "shared" "$(rundifit)" "difit: 実体とキーが在れば共有側を使う"
 
 echo "ALL PASS"

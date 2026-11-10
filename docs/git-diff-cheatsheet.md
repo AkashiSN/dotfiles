@@ -15,8 +15,9 @@ git の差分を読む・レビューする・コミットまで持っていく�
   実体は `/opt/npm-global/current/bin/difit`、Node は共有 aqua の `nodejs/node`）。aqua に無いため npm 配布を使う。
   `chezmoi apply` が sudo で置く（difit は node 21 以上を要求する）。版は `NPM_GLOBALS` に固定してあり、Renovate が更新 PR を出す
   （[Renovate チートシート](renovate-cheatsheet.md)）。共有側が揃っていない間（sudo を使えなかったなど）は
-  `run_after_30-node-default.sh.tmpl` が従来どおり fnm の LTS へユーザ単位で入れ、`~/.local/bin/difit`（ラッパー）は
-  共有側の実体があればそちら、無ければ fnm の `aliases/default` の下の実体を呼ぶ。詳細は
+  `run_after_30-node-default.sh.tmpl` が fnm の LTS へユーザ単位で入れ、`~/.local/bin/difit`（ラッパー）は
+  共有側が揃っていれば（実体 `/opt/npm-global/current/bin/difit` と印のキー `/opt/dotfiles-shared/keys/23` の
+  両方が在る。`env.sh` が PATH に通す条件と同じ）そちら、揃っていなければ fnm の `aliases/default` の下の実体を呼ぶ。詳細は
   [共有ストア](shared-store-cheatsheet.md#npm-の-clibootstrap23-shared-npmsh)
 - **gitui の導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `gitui-org/gitui`）
 - **設定**: difit に設定ファイルは無く、挙動は CLI オプションだけで決まる。gitui はテーマだけ
