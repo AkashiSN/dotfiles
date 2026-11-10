@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Apple Silicon の Homebrew を複数ユーザで共有するための共通定義。POSIX sh。
 # .chezmoiscripts の before_05 / before_10 が template "homebrew-shared.sh" で取り込む。
 # テンプレートの記法は含めない（tests/ からそのまま source できる）。
@@ -13,10 +14,10 @@ brew_shared() {
 	)
 }
 
-# prefix（既定 /opt/homebrew）がグループ共有の状態か。
-# 真の条件は全部: グループが $BREW_GROUP、グループに書き込み可、ディレクトリが setgid、
-# かつ現在のプロセスが $BREW_GROUP に属する（グループへ追加した直後の未ログインは偽）。
-homebrew_shared_ok() {
+# homebrew_fs_shared [prefix]
+# prefix（既定 /opt/homebrew）のファイルシステムがグループ共有の状態か。
+# 真の条件は全部: グループが $BREW_GROUP、グループに書き込み可、ディレクトリが setgid。
+homebrew_fs_shared() {
 	_hs_prefix="${1:-/opt/homebrew}"
 	[ -d "$_hs_prefix" ] || return 1
 	# PATH に GNU coreutils があっても書式が変わらないよう、macOS は /usr/bin/stat を使う。
@@ -33,6 +34,23 @@ homebrew_shared_ok() {
 	?????w*) ;;
 	*) return 1 ;;
 	esac
-	[ -g "$_hs_prefix" ] || return 1
+	[ -g "$_hs_prefix" ]
+}
+
+# homebrew_member_now
+# 現在のプロセスが $BREW_GROUP に属するか（グループへ追加した直後の未ログインは偽）。
+homebrew_member_now() {
 	id -Gn | tr ' ' '\n' | grep -qx "$BREW_GROUP"
+}
+
+# homebrew_member_registered
+# ユーザがディレクトリサービス上で $BREW_GROUP に登録済みか（再ログイン前でも真）。
+homebrew_member_registered() {
+	dseditgroup -o checkmember -m "$(id -un)" "$BREW_GROUP" >/dev/null 2>&1
+}
+
+# homebrew_shared_ok [prefix]
+# ファイルシステムが共有済みで、かつ現在のプロセスが $BREW_GROUP に属するか。
+homebrew_shared_ok() {
+	homebrew_fs_shared "${1:-/opt/homebrew}" && homebrew_member_now
 }

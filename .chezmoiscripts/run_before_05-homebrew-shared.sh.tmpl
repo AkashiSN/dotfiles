@@ -21,6 +21,13 @@ if [ ! -d "$PREFIX" ]; then
 	exit 0
 fi
 
+# 共有の設定もグループへの登録も済んでいて、再ログインを待っているだけなら sudo は要らない。
+if homebrew_fs_shared "$PREFIX" && homebrew_member_registered; then
+	notice "グループ ${BREW_GROUP} への追加は、再ログイン後に有効になります"
+	note "再ログインしてから chezmoi apply をもう一度実行してください"
+	exit 0
+fi
+
 # sudo のパスワードを聞けない環境（TTY なし・資格情報キャッシュなし）では進めない。
 if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
 	notice "Homebrew の共有設定を飛ばしました（sudo を使えません）"
@@ -50,7 +57,7 @@ sudo chmod -R g+w "$PREFIX" || give_up "chmod g+w"
 sudo find "$PREFIX" -type d -exec chmod g+s {} + || give_up "setgid"
 
 # グループへ追加しただけでは、すでに動いているプロセスの所属は変わらない。
-if ! id -Gn | tr ' ' '\n' | grep -qx "$BREW_GROUP"; then
+if ! homebrew_member_now; then
 	notice "グループ ${BREW_GROUP} への追加は、再ログイン後に有効になります"
 	note "再ログインしてから chezmoi apply をもう一度実行してください"
 fi
