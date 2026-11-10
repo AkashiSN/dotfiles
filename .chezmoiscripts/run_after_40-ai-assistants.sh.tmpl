@@ -95,9 +95,12 @@ fi
 # claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできるようにするツール。
 # claude/codex の設定(~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml)を
 # 書き換えるため、両者を入れた後に導入する。
-# setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
-# ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
-# 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
+# - 共有側が揃っている間: 配布物は root が /opt/agmsg/current に置く（bootstrap/22-shared-agmsg.sh。版と
+#   commit はそこで固定）。ここでは取得せず、その install.sh を流して ~/.agents/skills/agmsg へ入れる
+#   （導入済みなら --update）。マーカーのキーに版と commit を含めるので、共有側の版が上がると流し直す。
+# - 共有側が揃っていない間: setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
+#   ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
+#   再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
 # agmsg-reinstall-marker: 2026-06-19
 # メッセージ DB 用の sqlite3 は before_10(パッケージ前提)で導入済み。
 # Codex monitor モード(beta): install.sh が ~/.codex/config.toml の writable_roots に
@@ -105,6 +108,20 @@ fi
 # 10-path.zsh で PATH 前段に入れている。
 # 実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
 # 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
+SHARED_AGMSG=/opt/agmsg
+SHARED_AGMSG_KEY=/opt/dotfiles-shared/keys/22
+# 共有の agmsg が使えるのは、current の install.sh が実行でき、揃え終えた印のキーも在るときだけ。
+agmsg_shared_ready() {
+	[ -f "$SHARED_AGMSG_KEY" ] && [ -x "$SHARED_AGMSG/current/install.sh" ] && [ -f "$SHARED_AGMSG/current/VERSION" ]
+}
+# 失敗したら非 0 で終える（once_step がマーカーを進めない）。
+install_agmsg_shared() {
+	local args=(--cmd agmsg)
+	if [ -d "$HOME/.agents/skills/agmsg" ]; then
+		args+=(--update)
+	fi
+	bash "$SHARED_AGMSG/current/install.sh" "${args[@]}" || return 1
+}
 # 取得が失敗したときに bash へ空の入力を渡して成功扱いにならないよう、先に一時ファイルへ落とす。
 install_agmsg() {
 	local tmp rc=0 args=(--cmd agmsg)
@@ -120,7 +137,13 @@ install_agmsg() {
 	rm -f "$tmp"
 	return "$rc"
 }
-once_step agmsg "2026-06-19" install_agmsg
+if agmsg_shared_ready; then
+	agmsg_key="shared-1 $(tr -d '[:space:]' <"$SHARED_AGMSG/current/VERSION") $(cat "$SHARED_AGMSG/current/.agmsg-commit" 2>/dev/null || true)"
+	once_step agmsg "$agmsg_key" install_agmsg_shared
+else
+	warn "共有の agmsg ($SHARED_AGMSG) がまだ揃っていません。ユーザ単位で入れます"
+	once_step agmsg "user-1 2026-06-19" install_agmsg
+fi
 
 # --- CodeGraph (github.com/colbymchenry/codegraph) ---
 # コードベースの事前インデックス(知識グラフ)を MCP 経由でエージェントに渡し、

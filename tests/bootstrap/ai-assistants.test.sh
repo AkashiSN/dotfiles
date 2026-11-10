@@ -185,7 +185,9 @@ echo "PASS: 既定の ai_provided は aqua pkgs の実体の有無で決める"
 cfg="$tmp/chezmoi.toml"
 chezmoi_config "$cfg"
 script="$tmp/run40.sh"
-chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl" >"$script"
+# 実機の共有側 (/opt) があっても影響されないよう、agmsg の共有側のパスは存在しない場所へ差し替える。
+chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl" |
+	sed -e "s#^SHARED_AGMSG=.*#SHARED_AGMSG=$tmp/none/agmsg#" -e "s#^SHARED_AGMSG_KEY=.*#SHARED_AGMSG_KEY=$tmp/none/keys/22#" >"$script"
 bash -n "$script" || fail "描画したスクリプトの構文エラー"
 stubs="$tmp/stubs"
 mkdir -p "$stubs"

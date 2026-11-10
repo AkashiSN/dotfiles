@@ -17,6 +17,18 @@
       ]
     },
     {
+      "description": "共有ストアへ置く agmsg（AGMSG_VERSION=\"<ver>\" とその tag の commit。直後の行の AGMSG_COMMIT も currentDigest として一緒に上げる）",
+      "customType": "regex",
+      "managerFilePatterns": ["/^bootstrap/22-shared-agmsg\\.sh$/"],
+      "matchStrings": [
+        "AGMSG_VERSION=\"(?<currentValue>[^\"]+)\"\\nAGMSG_COMMIT=\"(?<currentDigest>[0-9a-f]{40})\""
+      ],
+      "depNameTemplate": "fujibee/agmsg",
+      "datasourceTemplate": "github-tags",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "autoReplaceStringTemplate": "AGMSG_VERSION=\"{{{newValue}}}\"\nAGMSG_COMMIT=\"{{{newDigest}}}\""
+    },
+    {
       "description": "共有ストアへ入れる npm の CLI（NPM_GLOBALS=\"$NPM_GLOBALS <pkg>@<ver>\"）",
       "customType": "regex",
       "managerFilePatterns": ["/^bootstrap/23-shared-npm\\.sh$/"],

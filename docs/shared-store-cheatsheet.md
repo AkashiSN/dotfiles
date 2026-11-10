@@ -224,6 +224,57 @@ sudo rm -f /opt/dotfiles-shared/keys/25
 rm ~/.cache/dotfiles/rust-user.key
 ```
 
+## Terraform の版（`bootstrap/21-shared-tenv.sh`）
+
+Terraform の版を、共有 aqua の `tenv` で入れて `/opt/tenv` に置く。
+
+| パス | 内容 |
+| --- | --- |
+| `bootstrap/21-shared-tenv.sh` | ステップ |
+| `bootstrap/tenv-versions.txt` | 入れる版（1 行 1 版、`#` 以降はコメント）。プロジェクトの `required_version` と揃える |
+| `/opt/tenv/Terraform/<版>/terraform` | `TENV_ROOT=/opt/tenv`。版ごとの実体 |
+| `/opt/dotfiles-shared/keys/21` | key（版の一覧のハッシュ 12 桁） |
+
+- **導入**: root が、ルートへ移り、共有 aqua の `tenv`（`AQUA_BIN` と共有側の `AQUA_*`）を `TENV_ROOT=/opt/tenv` / `TENV_VALIDATION=sha` で `tenv terraform install <版>`。各版の `terraform` が実行できると確かめてからキーを書く。失敗したら（元から無かった版の dir を消し）ほかの版とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または `tenv` が無いときは明確なメッセージで失敗する。
+- **GC**: 一覧に無い版を、動いていなければ消す（実行ファイルが版の下、パスに `/Terraform/<版>/` を含む、`ps` の引数に含む。macOS の `ps` は symlink 経由で起動したホームのパスを出すので、これで照合する）。動いていれば次回に回す。provider はユーザのキャッシュ（`~/.cache/terraform/plugin-cache`）から動くので対象外。
+- **ユーザ側**（`run_after_21-tenv-verify.sh.tmpl`、毎回実行。`.chezmoitemplates/tenv-link.sh`）: 揃っている間（`keys/21` と `/opt/tenv/Terraform` が在る）、`~/.tenv/Terraform/<版>/terraform` を共有の実体への symlink にする。版のディレクトリはユーザ所有のままで、tenv が書く `last-use.txt` はホーム側に残る。共有が覆う版でホームに実ファイルがあれば、動いていなければ symlink に替える（動いていれば次回）。共有が覆わない版は残す。揃っていない間は何もしない（従来どおり tenv が自分で取る）。`env.sh` の変更は無い。使い方は [terraform-cheatsheet.md](terraform-cheatsheet.md#共有-tenv-ストア)。
+
+手で確かめる・やり直す:
+
+```sh
+ls /opt/tenv/Terraform; cat /opt/dotfiles-shared/keys/21
+readlink ~/.tenv/Terraform/*/terraform
+terraform version                       # tenv-versions.txt の版
+# 共有側を作り直す（root）。次の apply で食い違いとして検出され、揃え直される
+sudo rm -f /opt/dotfiles-shared/keys/21
+```
+
+## agmsg の配布物（`bootstrap/22-shared-agmsg.sh`）
+
+agmsg のソースを、版と commit を固定して `/opt/agmsg/<版>` に置く。各ユーザはここの `install.sh` を流して `~/.agents/skills/agmsg` へ入れる。
+
+| パス | 内容 |
+| --- | --- |
+| `bootstrap/22-shared-agmsg.sh` | ステップ。版は `AGMSG_VERSION="<ver>"` と、直後の行の `AGMSG_COMMIT="<40桁>"`（Renovate が一緒に上げる） |
+| `/opt/agmsg/<版>` | 配布物（`.git` なし。`.agmsg-commit` に取得した commit） |
+| `/opt/agmsg/current` | 使う版を指す symlink（`<版>` への相対リンク）。`swap_symlink` で原子的に付け替える |
+| `/opt/dotfiles-shared/keys/22` | key（版と commit のハッシュ 12 桁） |
+
+- **導入**: root が、ルートへ移り、一時ディレクトリへ `git clone --depth 1 --branch v<版>` する。取得した `HEAD` が `AGMSG_COMMIT` と違えば、一時ディレクトリを捨て、`current` もキーもそのまま非 0 で終わる。一致すれば `.git` を消して `<版>` に置き、`current` を付け替えてキーを書く。同じ版が同じ commit で在れば取り直さない。
+- **GC**: 現行と 1 つ前の版は残し、それ以前を、動いていなければ消す（`ps` の引数に `/agmsg/<版>/` を含む、実行ファイルが版の下）。agmsg は bash のスクリプトなので、パスは引数に出る。各ユーザの導入物は複製なので、古い版を消しても動き続ける。
+- **ユーザ側**（`run_after_40-ai-assistants.sh.tmpl`）: 揃っている間（`keys/22` と `current/install.sh` が在る）は `current/install.sh --cmd agmsg`（導入済みなら `--update`）を流す。マーカー（`~/.cache/dotfiles/ai-agmsg.key`）のキーは `shared-1 <版> <commit>` で、版が上がると流し直す。失敗したらマーカーを進めない。揃っていない間は従来の `setup.sh`（キーは `user-1 <日付>`）。
+
+手で確かめる・やり直す:
+
+```sh
+readlink /opt/agmsg/current; cat /opt/agmsg/current/VERSION /opt/agmsg/current/.agmsg-commit
+cat ~/.agents/skills/agmsg/VERSION
+# 共有側を作り直す（root）。次の apply で食い違いとして検出され、揃え直される
+sudo rm -f /opt/dotfiles-shared/keys/22
+# ユーザ側をやり直す
+rm ~/.cache/dotfiles/ai-agmsg.key
+```
+
 ## AI エージェントの CLI（`aqua.yaml` と `run_after_40-ai-assistants.sh.tmpl`）
 
 Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は、共有 aqua ストア（上の節）に入る。

@@ -7,22 +7,26 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
 
 ## 導入（chezmoi）
 
-- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾で、claude / codex
-  本体の導入に続けて公式 `setup.sh` を curl ワンライナーで実行して導入する
-  （`curl -fsSL .../setup.sh | bash -s -- --cmd agmsg`、既存導入なら `--update`）。
+- 配布物は root が `/opt/agmsg/<版>` に 1 つだけ置き、`/opt/agmsg/current` をその版へ向ける
+  （`bootstrap/22-shared-agmsg.sh`。版と commit は `AGMSG_VERSION` / `AGMSG_COMMIT` の 2 行で固定し、Renovate が上げる。
+  [shared-store-cheatsheet.md](shared-store-cheatsheet.md#agmsg-の配布物bootstrap22-shared-agmsgsh)）。
+- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾で、claude / codex 本体の導入に続けて
+  `/opt/agmsg/current/install.sh --cmd agmsg`（既存導入なら `--update`）を流して、`~/.agents/skills/agmsg` へ導入する。
   agmsg は claude/codex の設定を書き換えるため、両者を入れた**後**（同スクリプトの最後）で走らせる。
-- `setup.sh` は一時ディレクトリに `main` を `git clone --depth 1` → `install.sh "$@"` を
-  実行 → 一時ディレクトリを破棄するブートストラップ（引数を install.sh に転送）。
-  常に最新（main）から導入し、永続的なソースクローンは残さない。
-- **再インストール／更新を強制したいとき**は、スクリプト中の
-  `# agmsg-reinstall-marker: <日付>` 行と、その下の `once_step agmsg "<日付>"` の日付を書き換える
-  （スクリプトは毎回の apply で走るが、取得は `~/.cache/dotfiles/ai-agmsg.key` のキーが変わったときだけ。
-  キャッシュを消しても再実行される）。claude / codex 本体は aqua が入れる（`aqua.yaml`）。
+  取得はしない。`~/.cache/dotfiles/ai-agmsg.key` のキーは `shared-1 <版> <commit>` なので、共有側の版が上がると流し直す。
+  install.sh が失敗したら非 0 で終え、マーカーは進めない（次の apply で再試行する）。
+- 共有側が揃っていない間（`keys/22` か `current/install.sh` が無い。sudo を使えなかったなど）は、従来の `setup.sh` の
+  curl ワンライナーでユーザ単位に入れる（キーは `user-1 <日付>`）。`setup.sh` は一時ディレクトリに `main` を
+  `git clone --depth 1` → `install.sh "$@"` を実行 → 破棄するブートストラップで、常に最新（main）から導入する。
+- **再インストール／更新を強制したいとき**: 共有側が揃っている間は、`bootstrap/22-shared-agmsg.sh` の版を上げるか
+  `rm ~/.cache/dotfiles/ai-agmsg.key`。ユーザ単位で入れている間は、スクリプト中の
+  `# agmsg-reinstall-marker: <日付>` 行と、その下の `once_step agmsg "user-1 <日付>"` の日付を書き換える。
+  claude / codex 本体は aqua が入れる（`aqua.yaml`）。
 - agmsg は **chezmoi 管理外**の以下を書き換える（だから run スクリプトで導入する）:
   - `~/.agents/skills/agmsg/`（スクリプト・テンプレート・DB・teams 設定）
   - `~/.claude/commands/agmsg.md`（Claude Code スラッシュコマンド）
   - `~/.codex/config.toml`（Codex のサンドボックス writable_roots 追記。Codex 導入済みの場合）
-- `sqlite3`（メッセージ DB）と `git`（setup.sh の clone）が必須。どちらも
+- `sqlite3`（メッセージ DB）と `git`（共有側の取得、ユーザ単位の setup.sh の clone）が必須。どちらも
   before_10（パッケージ前提）で導入される。macOS は brew formula の `sqlite` / `git`（Intel は port の `sqlite3` / `git`）、
   Linux はディストリのパッケージマネージャ（Ubuntu: `apt install zsh git sqlite3`、
   AL2023: `dnf install zsh git sqlite`）で導入する。
@@ -238,3 +242,9 @@ codex:
 ~/.agents/skills/agmsg/scripts/team.sh    <team>
 ~/.agents/skills/agmsg/scripts/whoami.sh  <project_path> <type>
 ```
+
+## 導入方法の経緯
+
+以前は `run_after_40` が `setup.sh`（`main` を clone）をユーザごとに流し、常に最新を入れていた。共有ストア導入で、版と commit を
+`bootstrap/22-shared-agmsg.sh` で固定して root が `/opt/agmsg` に 1 つだけ置き、ユーザ側はそこの `install.sh` を流す形へ移した
+（マシンで版が 1 つになり、取得元の差し替わりも commit で検出できる）。共有側が揃っていない間だけ、従来の `setup.sh` が残る。

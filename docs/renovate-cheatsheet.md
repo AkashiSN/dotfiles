@@ -13,6 +13,10 @@
 | 共有ストアの npm の CLI（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"`。difit / cline） | `customManagers`（datasource `npm`）。`@<ver>` を付けた行だけを拾うので、版を固定しないものは追わない |
 | 共有ストアの uv の CLI（`bootstrap/24-shared-uv.sh` の `UV_TOOLS="$UV_TOOLS <pkg>[extra,...]==<ver>"`。ansible / graphifyy） | `customManagers`（datasource `pypi`）。`depName` は extra を除いたパッケージ名。`==<ver>` を付けた行だけを拾う |
 | 共有ストアの Rust の toolchain（`bootstrap/25-shared-rust.sh` の `RUST_VERSION="<ver>"`） | `customManagers`（datasource `github-releases`、`depName` は `rust-lang/rust`）。Rust のリリースタグ（`1.99.1`）を追う |
+| 共有ストアの agmsg（`bootstrap/22-shared-agmsg.sh` の `AGMSG_VERSION="<ver>"` と、直後の行の `AGMSG_COMMIT="<40桁>"`） | `customManagers`（datasource `github-tags`、`depName` は `fujibee/agmsg`、タグの `v` は `extractVersionTemplate` で外す）。2 行を 1 つの `matchStrings` で拾い、`AGMSG_COMMIT` は `currentDigest` として `autoReplaceStringTemplate` で版と一緒に書き換える。2 行の間に行を挟むと拾えない |
+| 共有ストアの Terraform の版（`bootstrap/tenv-versions.txt`） | 追わない。プロジェクトの `required_version` と揃えて手で更新する |
+
+agmsg の PR は、版と commit の両方が変わっているか確かめてからマージする（`bootstrap/22-shared-agmsg.sh` は、取得した tag の commit が `AGMSG_COMMIT` と違えば置かないので、片方だけ上がると共有側の更新が失敗する）。digest が更新されなかったときは、`curl -s https://api.github.com/repos/fujibee/agmsg/git/refs/tags/v<ver>` の `object.sha` を手で書く（注釈付きタグなら `git/tags/<sha>` の `object.sha`）。
 
 `NPM_GLOBALS` に足すときは、Renovate に拾わせたいなら 1 パッケージ 1 行で
 `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"` と書く（scope 付き `@scope/pkg@<ver>` も可）。`UV_TOOLS` も同様に
