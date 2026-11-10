@@ -71,14 +71,37 @@ DOTFILES_STATE_COMMIT='' bash "$RUN" >/dev/null
 [ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: commit が空なのに state を書いた"
 echo "PASS: run-all: DOTFILES_STATE_COMMIT が空なら state を書かない"
 
-# ステップが失敗したら止まり、state も書かない
-rm "$SHARED_ROOT/dotfiles-shared/keys/20"
+# (A1) 先頭のステップが失敗しても後続を流し、state は書かず、終了コードは 1
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
 # shellcheck disable=SC2016
-printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 3\n' >"$bd/20-b.sh"
+printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 3\n' >"$bd/10-a.sh"
 rc=0
 DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
 assert_eq "1" "$rc" "run-all: ステップ失敗で 1"
+assert_eq "20 $tmp/src " "$(cat "$SHARED_ROOT/ran")" "run-all: 10 が失敗しても 20 を流す"
 [ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: 失敗したのに state を書いた"
+echo "PASS: run-all: 失敗があれば state を書かない"
+
+# 実行後の --check が通らない（キーの書き忘れ）ステップも失敗扱いで、state を書かない
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran"
+# shellcheck disable=SC2016
+printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 0\n' >"$bd/10-a.sh"
+rc=0
+DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "1" "$rc" "run-all: 実行後も食い違えば 1"
+[ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: 食い違ったまま state を書いた"
+
+# (A2) --check の 1 は食い違い、それ以外の非 0 はステップの異常。どちらも不一致として数え、異常は終了コードを出す
+mkstep 10-a.sh
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+printf '#!/usr/bin/env bash\nexit 7\n' >"$bd/20-b.sh"
+rc=0
+out="$(bash "$RUN" --check 2>&1)" || rc=$?
+assert_eq "1" "$rc" "run-all --check: ステップの異常は不一致として 1"
+assert_contains "$out" "20-b.sh" "run-all --check: 異常のステップ名を警告する"
+assert_contains "$out" "7" "run-all --check: 異常の終了コードを警告する"
+mkstep 20-b.sh
 
 # 非 root で BOOTSTRAP_ALLOW_NONROOT 無しは拒否（--check は root 不要）
 if [ "$(id -u)" -ne 0 ]; then
@@ -159,6 +182,12 @@ assert_contains "$c" "--preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES
 assert_contains "$c" "bash $src/bootstrap/run-all.sh" "trigger (c): run-all.sh を bash で呼ぶ"
 assert_not_contains "$(grep '^ARGS' "$calls")" "SECRET_TOKEN" "trigger (c): token が argv に出ない"
 assert_not_contains "$out" "SECRET_TOKEN" "trigger (c): token を表示しない"
+
+# 設定済みの GITHUB_TOKEN は gh auth token より優先する
+out="$(FAKE_CHECK_RC=1 GITHUB_TOKEN=PRESET_TOKEN trig)"
+c="$(cat "$calls")"
+assert_contains "$c" "token=PRESET_TOKEN" "trigger: 設定済みの GITHUB_TOKEN を保つ"
+assert_not_contains "$c" "SECRET_TOKEN" "trigger: 設定済みなら gh auth token を使わない"
 
 # (e) force → DOTFILES_SHARED_FORCE=1、state commit 無し
 g -C "$src" reset -q --hard HEAD

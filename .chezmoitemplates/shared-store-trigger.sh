@@ -41,7 +41,8 @@ shared_store_trigger() {
 	# 秘密は argv に載せない（ps で見える）ため、export して sudo に引き継がせる。
 	DOTFILES_SRC="$src"
 	AQUA_BIN="$(command -v aqua || true)"
-	GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+	# 設定済みの GITHUB_TOKEN があればそれを使う。
+	GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 	SHARED_ROOT="$root"
 	if [ "$verdict" = force ]; then
 		DOTFILES_SHARED_FORCE=1
