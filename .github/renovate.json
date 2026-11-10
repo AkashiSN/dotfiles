@@ -7,7 +7,22 @@
   "ignorePresets": ["group:monorepos"],
   "timezone": "Asia/Tokyo",
   "schedule": ["* 0-8 * * 1"],
+  "customDatasources": {
+    "kiro": {
+      "defaultRegistryUrlTemplate": "https://prod.download.cli.kiro.dev/stable/latest/manifest.json",
+      "transformTemplates": ["{\"releases\": [{\"version\": version}]}"]
+    }
+  },
   "customManagers": [
+    {
+      "description": "aqua の Kiro CLI（local registry。aqua preset は kiro.dev/... を拾わない）。Kiro は GitHub Releases が無く、配布元の manifest.json（最新版だけを返す）を customDatasources.kiro で読む",
+      "customType": "regex",
+      "managerFilePatterns": ["/^dot_config/aquaproj-aqua/aqua\\.yaml$/"],
+      "matchStrings": ["- name: kiro\\.dev/kiro-cli@(?<currentValue>[^\\s#]+)"],
+      "depNameTemplate": "kiro.dev/kiro-cli",
+      "datasourceTemplate": "custom.kiro",
+      "versioningTemplate": "semver"
+    },
     {
       "description": "Intel Mac で配布元から直接入れるフォントの版。直前の行の `# renovate:` コメントで取得元を指定する",
       "customType": "regex",
@@ -65,7 +80,21 @@
       "commitMessageAction": "",
       "commitMessageTopic": "依存を更新する",
       "commitMessageExtra": "",
-      "group": { "commitMessageTopic": "依存を更新する" }
+      "group": { "commitMessageTopic": "依存を更新する" },
+      "prBodyNotes": [
+        "マージ後、どのマシンでも誰か 1 人が `chezmoi update` すれば共有ストアが揃い、他のユーザは次の起動から新しい版を使う（docs/shared-store-cheatsheet.md）。"
+      ]
+    },
+    {
+      "description": "Codex（aqua.yaml の openai/codex@rust-v...）は aqua preset の専用 manager が `rust-` を外した v... で追う。同じ行を汎用 manager も rust-v... のまま拾い、タグ名が合わず誤った版を提案するので、そちらは止める",
+      "matchDepNames": ["openai/codex"],
+      "matchCurrentValue": "/^rust-/",
+      "enabled": false
+    },
+    {
+      "description": "Kiro CLI の manifest.json は公開日時を返さないので、リリースからの経過日数を待たない",
+      "matchDepNames": ["kiro.dev/kiro-cli"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "1password/cli は GitHub リリースを持たず Renovate が版を解決できない(no-result)ため更新対象から除外する",
