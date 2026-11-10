@@ -31,7 +31,7 @@
 
 - `sudo -n true` が通らず、標準入力が端末でない（パスワードを聞けない）。
 - sudo のパスワードを断られた、またはステップが失敗した。
-- `DOTFILES_SHARED_SKIP=1 chezmoi apply`。共有ストアの更新と Homebrew の共有設定（`run_before_05`）の両方で sudo を呼ばず、案内を 1 行出して終える。共有側が揃っていない間のユーザ側は、各ステップのユーザ単位の fallback で動く。
+- `DOTFILES_SHARED_SKIP=1 chezmoi apply`。共有ストアの更新、Homebrew の共有設定（`run_before_05`）、Claude Code の managed settings（`run_after_42`）のどれでも sudo を呼ばず、案内を 1 行出して終える。共有側が揃っていない間のユーザ側は、各ステップのユーザ単位の fallback で動く。
 
 root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_TOKEN` として環境変数で渡す（引数に載せない。ファイルにも残さない）。`aqua` の絶対パスは `AQUA_BIN` で渡す（初回の apply ではまだ PATH に無いため、PATH に無ければ `~/.local/bin` / `/opt/homebrew/bin` / `/usr/local/bin` からも探す。`run_after_20-aqua-verify` も同じ場所を PATH に足す）。
 
@@ -140,7 +140,7 @@ difit / cline のように npm で配られる CLI を、共有 aqua の Node �
 - **GC**: 新しい組を入れたあと、1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/npm-global/<key>/` を含む、`current/bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む）は消さず、次回に回す。
 - **PATH**: `env.sh` が、`/opt/npm-global/current/bin` と `keys/23` の両方が在るときだけ `~/.local/bin` の後ろに足す。
 - **ユーザ側**（`run_after_30-node-default.sh.tmpl`、毎回実行）:
-  - 揃っている間は、ホームの fnm の既定の Node だけを消す。対象は `aliases/default` と `aliases/lts-latest` が指す版（ユーザ単位の導入の `fnm install --lts` / `fnm alias default lts-latest` が作るもの）と、その版を指す alias（`default` / `lts-latest` / `lts-<名前>` など）。それ以外の版と alias、fnm 本体と他のディレクトリはプロジェクトの `.nvmrc` 用に残す。動いている node（実行ファイルが消す版の下、または macOS の `ps` が出す `fnm_multishells/` や `aliases/` のリンクのパス）があれば次の apply に回す。`default` / `lts-latest` が無い・版を指していないなら何もしない。掃除を終えたら `~/.cache/dotfiles/node-home.cleaned` を置き、以後は自分で `fnm default` を付け直しても消さない（ユーザ単位の導入をした回にこの印を外す）。
+  - 揃っている間は、ホームの fnm の既定の Node だけを消す。対象は `aliases/default` と `aliases/lts-latest` が指す版（ユーザ単位の導入の `fnm install --lts` / `fnm alias default lts-latest` が作るもの）と、その版を指す alias（`default` / `lts-latest` / `lts-<名前>` など）。それ以外の版と alias、fnm 本体と他のディレクトリはプロジェクトの `.nvmrc` 用に残す。動いている node（実行ファイルが消す版の下、または macOS の `ps` が出す `fnm_multishells/` や `aliases/` のリンクのパス）があれば次の apply に回す。`default` / `lts-latest` が無い・版を指していないなら何もしない。消した版を指していた alias（`lts-latest` -> `aliases/default` のような alias を指す alias も含む）は、解決できなくなったものだけを消す。どの alias も指していない古い LTS の版（ユーザ単位の導入で過去に入ったもの）は残るので、要らなければ `fnm uninstall <版>` で消す。掃除を終えたら `~/.cache/dotfiles/node-home.cleaned` を置き、以後は自分で `fnm default` を付け直しても消さない（ユーザ単位の導入をした回にこの印を外す）。
   - 揃っていない間（`current/bin` か `keys/23` が無い）は fnm の LTS と `NPM_GLOBALS`（`bootstrap/23-shared-npm.sh` の行）をユーザ単位で入れる。`~/.cache/dotfiles/node-user.key` のマーカーは成功したときだけ進める。fnm の Node は消さない。`~/.local/bin/difit` は共有側の実体が在ればそちらを使う。
 - **入れるもの**: `difit` と `cline` だけ。work の `@drawio/mcp` / `@mermaid-js/mermaid-cli` / `agent-browser` は、こちらでは使っていない（agent-browser は `aqua.yaml`）ので入れない（[work-sync.md](work-sync.md)）。
 
