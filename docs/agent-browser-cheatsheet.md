@@ -31,6 +31,8 @@
   - `agent-browser install` … Chrome for Testing（約 180MB）を `~/.agent-browser/browsers/`
     へ取得する。導入済みなら再取得しない。**Linux だけ `--with-deps`** を付ける
     （Chrome の共有ライブラリが最小構成に無いため。内部で sudo つきのパッケージマネージャを呼ぶ）。
+    Linux arm64 は Chrome for Testing が無いので取得しない（`sudo apt install chromium-browser` などで入れ、
+    `agent-browser --executable-path /usr/bin/chromium` で指す）。
   - `npx skills add vercel-labs/agent-browser` … スキルを `~/.claude/skills/agent-browser/`
     へ入れる。`skills` CLI は Node を要求するので、fnm の default を `eval "$(fnm env)"` で
     PATH に載せてから呼ぶ（Node 準備は `30-node-default`、Claude Code 本体は `40-ai-assistants`

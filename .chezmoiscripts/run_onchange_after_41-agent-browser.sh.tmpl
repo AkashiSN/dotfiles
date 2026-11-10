@@ -21,7 +21,11 @@ command -v agent-browser >/dev/null 2>&1 || exit 0
 
 # --- ブラウザ本体 (Chrome for Testing) ---
 # 約 180MB を ~/.agent-browser/browsers へ取得する。導入済みなら再取得しない。
-{{ if eq .chezmoi.os "linux" -}}
+{{ if and (eq .chezmoi.os "linux") (eq .chezmoi.arch "arm64") -}}
+# Chrome for Testing は Linux arm64 向けを配布しないため取得しない（install は失敗して apply を止める）。
+# ディストリの chromium を入れ、agent-browser --executable-path で指す。
+echo "  Chrome for Testing は Linux arm64 に無いため取得しません（chromium を入れて --executable-path で使う）"
+{{- else if eq .chezmoi.os "linux" -}}
 # Linux は Chrome の共有ライブラリが最小構成に無いため --with-deps を付ける
 # (ディストリのパッケージマネージャを sudo で呼ぶ。依存導入に失敗すると install も失敗する)。
 agent-browser install --with-deps
