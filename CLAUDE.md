@@ -60,6 +60,7 @@
 | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md`（CodeGraph / graphify 関連） | `docs/knowledge-graph-cheatsheet.md` |
 | `.chezmoi.toml.tmpl`（`chezmoi init` のプロンプトと `[data]`） / `dot_gitconfig.tmpl`（git identity / 共有 Homebrew の `[safe]`） / `.chezmoiscripts/run_before_05-homebrew-shared.sh.tmpl` / `.chezmoitemplates/homebrew-shared.sh`（Homebrew のグループ共有） | `docs/multi-user-cheatsheet.md` |
 | `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` / `dot_config/aquaproj-aqua/aqua.yaml`（agent-browser 関連） | `docs/agent-browser-cheatsheet.md` |
+| `.chezmoiscripts/run_after_15-shared-store.sh.tmpl` / `.chezmoitemplates/shared-store-trigger.sh` / `bootstrap/**`（共有ストア `/opt` の起動役・ステップ・guard） | `docs/shared-store-cheatsheet.md` |
 | `.github/renovate.json` / `.github/workflows/update-aqua-checksum.yaml` | `docs/renovate-cheatsheet.md` |
 
 新しいツールのキーバインド設定を追加したときは、`docs/` に新しいチートシートを作り、
