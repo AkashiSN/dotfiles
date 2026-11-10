@@ -301,3 +301,31 @@ macOS の Kiro CLI は公式インストーラの `/Applications/Kiro CLI.app` �
 `--check` は、キーが一致し、置き場所のファイルがソースと同一のときだけ 0。管理者設定は各ユーザの `~/.codex/config.toml` より優先される。
 
 経緯: 以前は claude / codex / codegraph / kiro を公式インストーラで各ユーザのホームへ入れ、本体が自己更新していた。共有 aqua へ移し、掃除は「aqua が提供しているときだけ」に絞った（共有側が無く、ホームの aqua も入れられていない間に公式の実体を消して使えなくなるのを避ける）。
+
+## 2 ユーザでの通し検証（docker）
+
+`tests/docker/run.sh` は、Ubuntu 24.04 のコンテナに `alice` / `bob`（どちらも NOPASSWD の sudo）を作り、作業ツリーの追跡ファイル（未コミットの変更を含む。未追跡は入らない）を main にした bare リポジトリを origin にして、2 人で `chezmoi init --apply` から順に流す。ホストの `/opt` やホームには触らない。Docker Desktop が動いていれば macOS からそのまま流せる（arm64 の Mac では arm64 の Linux になる）。
+
+```sh
+tests/docker/run.sh unit       # コンテナの中で bash tests/run.sh（Linux の /proc / ps の分岐）
+tests/docker/run.sh            # 通し（e2e）。所要は回線しだいで 15〜30 分
+tests/docker/run.sh all --keep # 両方。終わってもコンテナを残す（docker exec -it <名前> bash）
+GITHUB_TOKEN="$(gh auth token)" tests/docker/run.sh --token   # API の rate limit に当たるときだけ
+```
+
+通し（`tests/docker/scenario.sh`）は aqua.yaml の `jqlang/jq` のピンを origin で動かし（起点 1.8.0 → 1.8.1 → 1.8.2 → 1.7.1。checksum もその場で足す）、次を `PASS:` / `FAIL:` で確かめる。
+
+| 区切り | 確かめること |
+| --- | --- |
+| S1 / S2 | alice の init で共有側ができる（sudo で `run-all.sh` 1 回、`keys/20..25`、root 所有）。bob の init は共有側に触らない |
+| S3 / RF1 | alice が update で上げたあと、bob が pull せずに apply: `behind-state` の警告、共有側は下がらず、bob の `jq` は新しい版 |
+| RF3 | bob が古い版の jq を動かしたまま alice が上げると、その版は残る（`pending/20`）。jq が終わった後の apply（bob）で消える |
+| RF2 | bob の NOPASSWD を外して非対話で update: 警告だけ、終了コード 0、共有側とホームから何も消えない |
+| RF5 | origin を upstream へ改名したクローン: `origin/main が無い` と `DOTFILES_SHARED_FORCE=1` の案内。戻すと更新する |
+| RF4 | gh はコンテナで未認証のまま（`--token` なし）。S1 で aqua のステップがどう振る舞ったかをログから出す |
+
+sudo の実行は `/var/log/sudo.log`、各 apply のログは `/work/logs`（終了時に表示する一時ディレクトリへ取り出す）。
+
+コンテナは `--cap-add SYS_PTRACE` で起動する。Linux の使用中の判定（`bootstrap/lib.sh` の `running_*`）は `/proc/<pid>/exe` を読むが、他ユーザのプロセスのそれを root が読むには `CAP_SYS_PTRACE` が要り、docker の既定では外れている（読めないと使用中を見落とし、消してしまう）。実機の root は持っているので問題にならない。共有ストアを docker のコンテナの中で使うときは同じ capability を付ける。
+
+`dot_gitconfig` は `https://github.com/` を SSH へ書き換えるが、コンテナのユーザは GitHub の SSH 鍵を持たない。そのため `scenario.sh` は `GIT_CONFIG_COUNT` で `github.com/vercel-labs/` だけ https のままにする（`41-agent-browser` の `npx skills` が clone する）。実機で鍵を持たないユーザの制約は [multi-user-cheatsheet.md](multi-user-cheatsheet.md) を参照。
