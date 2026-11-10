@@ -300,13 +300,36 @@ run32 >/dev/null || fail "(キー無し) 失敗"
 echo k >"$tmp/shared/keys/25"
 mkdir -p "$home/.cache/dotfiles"
 echo stale >"$home/.cache/dotfiles/rust-user.key"
-# (a) macOS 形式: ホームのプロキシのパスが ps に出る
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s/rust-analyzer"\n' "$CB" >"$stubs/ps"
+# running_as <path>: <path> から動くプロセスがあるように見せる。macOS は偽の ps にそのパスを出させ、
+# Linux（/proc を見る）は sleep の実体を <path> に書いて実際に起動する。止めるのは stop_running。
+running_pid=""
+running_as() {
+	if [ -d /proc/self ]; then
+		cat "$(command -v sleep)" >"$1"
+		chmod +x "$1"
+		"$1" 300 &
+		running_pid=$!
+	else
+		printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$1" >"$stubs/ps"
+	fi
+}
+stop_running() {
+	if [ -n "$running_pid" ]; then
+		kill "$running_pid" 2>/dev/null || true
+		wait "$running_pid" 2>/dev/null || true
+		running_pid=""
+	fi
+	printf '#!/usr/bin/env bash\nexit 0\n' >"$stubs/ps"
+}
+# (a) ホームのプロキシ経由で動いている（macOS の ps はプロキシのパスを出す）
+running_as "$CB/rust-analyzer"
 run32 >/dev/null || fail "(a) 失敗"
+stop_running
 [ -d "$OLDRH" ] && [ -e "$CB/rustup" ] || fail "(a) プロキシ経由で動いているのに消した"
 # (b) ホームの toolchain の実体が動いている
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s/toolchains/stable-x/bin/rustc"\n' "$OLDRH" >"$stubs/ps"
+running_as "$OLDRH/toolchains/stable-x/bin/rustc"
 run32 >/dev/null || fail "(b) 失敗"
+stop_running
 [ -d "$OLDRH" ] && [ -e "$CB/rustup" ] || fail "(b) toolchain が動いているのに消した"
 # (c) 引数にホームの toolchain のパス（rust-analyzer などが読んでいる）
 # shellcheck disable=SC2016  # 偽 ps のソースなので展開させない
@@ -333,8 +356,9 @@ echo "PASS: 名前ではなく inode で判定する"
 
 # cargo install したものが動いていても、掃除は止まらない
 mkhome
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s/cargo-foo"\n' "$CB" >"$stubs/ps"
+running_as "$CB/cargo-foo"
 run32 >/dev/null || fail "(f) 失敗"
+stop_running
 [ ! -e "$CB/rustup" ] && [ -f "$CB/cargo-foo" ] || fail "cargo install したものが動いているだけで掃除が止まった"
 echo "PASS: cargo install したものが動いていても掃除は止まらない"
 
