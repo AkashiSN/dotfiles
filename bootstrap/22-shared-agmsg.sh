@@ -72,6 +72,8 @@ else
 	log "agmsg $AGMSG_VERSION を取得 (v$AGMSG_VERSION = $AGMSG_COMMIT)"
 	tmp="$(mktemp -d "$ROOT/.tmp.XXXXXX")"
 	trap 'rm -rf "$tmp"' EXIT
+	# 呼び出したユーザの gitconfig（https の ssh 書き換えや署名）やプロンプトに引きずられない。
+	export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
 	git -c advice.detachedHead=false clone -q --depth 1 --branch "v$AGMSG_VERSION" "$REPO_URL" "$tmp/src"
 	got="$(git -C "$tmp/src" rev-parse HEAD)"
 	if [ "$got" != "$AGMSG_COMMIT" ]; then
@@ -120,6 +122,14 @@ for d in "$ROOT"/*/; do
 		continue
 	fi
 	note "削除: $d"
+	rm -rf "$d"
+done
+
+# 途中で止められた実行の作業ディレクトリを片付ける（この実行のものは除く）。
+for d in "$ROOT"/.tmp.*; do
+	[ -d "$d" ] || continue
+	[ "$d" = "${tmp:-}" ] && continue
+	note "残った作業ディレクトリを削除: $d"
 	rm -rf "$d"
 done
 

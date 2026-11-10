@@ -136,7 +136,7 @@ gitbin="$tmp/fakegit"
 mkdir -p "$gitbin"
 cat >"$gitbin/git" <<'FAKE'
 #!/usr/bin/env bash
-echo "git $* | cwd=$PWD" >>"$FAKE_LOG"
+echo "git $* | cwd=$PWD GIT_CONFIG_GLOBAL=${GIT_CONFIG_GLOBAL:-} NOSYSTEM=${GIT_CONFIG_NOSYSTEM:-} PROMPT=${GIT_TERMINAL_PROMPT:-}" >>"$FAKE_LOG"
 args=("$@")
 for a in "${args[@]}"; do
 	case "$a" in
@@ -178,12 +178,23 @@ out="$(arun)" || fail "agmsg の通常の実行が失敗" "$out"
 [ ! -e "$ROOT/$ver/.git" ] || fail "agmsg: .git を残した"
 assert_eq "$ver" "$(readlink "$ROOT/current")" "agmsg: current が版を指す"
 assert_eq "$commit" "$(cat "$ROOT/$ver/.agmsg-commit")" "agmsg: 取得した commit を記録する"
-[ -w "$ROOT/$ver/install.sh" ] && perm="$(ls -ld "$ROOT/$ver/install.sh")" && case "$perm" in *rwxrwx*) fail "agmsg: グループ・他人に書込権限が残った" "$perm" ;; esac
+# 偽の git は install.sh を 777 で作る。置いた後はグループ・他人の書込が外れている。
+perm="$(ls -ld "$ROOT/$ver/install.sh")"
+[ "${perm:5:1}" = "-" ] && [ "${perm:8:1}" = "-" ] || fail "agmsg: グループ・他人に書込権限が残った" "$perm"
+echo "PASS: agmsg: グループ・他人の書込権限を外す"
 assert_contains "$(cat "$FAKE_LOG")" "clone -q --depth 1 --branch v$ver" "agmsg: tag を浅く clone する"
+assert_contains "$(cat "$FAKE_LOG")" "| cwd=/ " "agmsg: ルートへ移ってから流す"
+assert_contains "$(cat "$FAKE_LOG")" "GIT_CONFIG_GLOBAL=/dev/null NOSYSTEM=1 PROMPT=0" "agmsg: git はユーザの gitconfig を読まない"
 bash "$ASTEP" --check || fail "agmsg --check: 実行後は 0"
 : >"$FAKE_LOG"
 arun >/dev/null || fail "agmsg: 再実行が失敗"
 assert_not_contains "$(cat "$FAKE_LOG")" "clone" "agmsg: 配置済みなら取り直さない"
+
+# 止められた実行の作業ディレクトリは、次の実行で片付ける
+mkdir -p "$ROOT/.tmp.ORPHAN"
+arun >/dev/null || fail "agmsg: 孤児の作業ディレクトリがある状態の再実行が失敗"
+[ ! -e "$ROOT/.tmp.ORPHAN" ] || fail "agmsg: 孤児の作業ディレクトリを片付けていない"
+echo "PASS: agmsg: 残った作業ディレクトリを片付ける"
 
 # 版を上げる: 1 つ前を残し、それ以前を消す。動いている版は消さない
 cp "$ASTEP" "$tmp/astep.orig"
@@ -215,7 +226,7 @@ if [ ! -d /proc/self ]; then
 	bump 9.3.0 "$c4"
 	PATH="$tmp/psbin2:$gitbin:$PATH" FAKE_GIT_WANT="$c4" FAKE_GIT_VERSION=9.3.0 bash "$ASTEP" >/dev/null 2>&1 || fail "agmsg busy: 実行が失敗"
 	[ -d "$ROOT/9.0.0" ] || fail "agmsg: 動いている版を消した"
-	[ ! -e "$ROOT/9.1.0" ] || true
+	[ -d "$ROOT/9.1.0" ] || fail "agmsg: 1 つ前の版を消した（動いている版があるとき）"
 	echo "PASS: agmsg: 動いている版は消さない"
 fi
 cp "$tmp/astep.orig" "$ASTEP"

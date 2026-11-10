@@ -16,11 +16,11 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
   取得はしない。`~/.cache/dotfiles/ai-agmsg.key` のキーは `shared-1 <版> <commit>` なので、共有側の版が上がると流し直す。
   install.sh が失敗したら非 0 で終え、マーカーは進めない（次の apply で再試行する）。
 - 共有側が揃っていない間（`keys/22` か `current/install.sh` が無い。sudo を使えなかったなど）は、従来の `setup.sh` の
-  curl ワンライナーでユーザ単位に入れる（キーは `user-1 <日付>`）。`setup.sh` は一時ディレクトリに `main` を
+  curl ワンライナーでユーザ単位に入れる（キーは `<日付>` のまま）。`setup.sh` は一時ディレクトリに `main` を
   `git clone --depth 1` → `install.sh "$@"` を実行 → 破棄するブートストラップで、常に最新（main）から導入する。
 - **再インストール／更新を強制したいとき**: 共有側が揃っている間は、`bootstrap/22-shared-agmsg.sh` の版を上げるか
   `rm ~/.cache/dotfiles/ai-agmsg.key`。ユーザ単位で入れている間は、スクリプト中の
-  `# agmsg-reinstall-marker: <日付>` 行と、その下の `once_step agmsg "user-1 <日付>"` の日付を書き換える。
+  `# agmsg-reinstall-marker: <日付>` 行と、その下の `once_step agmsg "<日付>"` の日付を書き換える。
   claude / codex 本体は aqua が入れる（`aqua.yaml`）。
 - agmsg は **chezmoi 管理外**の以下を書き換える（だから run スクリプトで導入する）:
   - `~/.agents/skills/agmsg/`（スクリプト・テンプレート・DB・teams 設定）

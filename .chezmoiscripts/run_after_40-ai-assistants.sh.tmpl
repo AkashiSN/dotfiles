@@ -142,7 +142,7 @@ if agmsg_shared_ready; then
 	once_step agmsg "$agmsg_key" install_agmsg_shared
 else
 	warn "共有の agmsg ($SHARED_AGMSG) がまだ揃っていません。ユーザ単位で入れます"
-	once_step agmsg "user-1 2026-06-19" install_agmsg
+	once_step agmsg "2026-06-19" install_agmsg
 fi
 
 # --- CodeGraph (github.com/colbymchenry/codegraph) ---

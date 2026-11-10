@@ -262,7 +262,7 @@ agmsg のソースを、版と commit を固定して `/opt/agmsg/<版>` に置�
 
 - **導入**: root が、ルートへ移り、一時ディレクトリへ `git clone --depth 1 --branch v<版>` する。取得した `HEAD` が `AGMSG_COMMIT` と違えば、一時ディレクトリを捨て、`current` もキーもそのまま非 0 で終わる。一致すれば `.git` を消して `<版>` に置き、`current` を付け替えてキーを書く。同じ版が同じ commit で在れば取り直さない。
 - **GC**: 現行と 1 つ前の版は残し、それ以前を、動いていなければ消す（`ps` の引数に `/agmsg/<版>/` を含む、実行ファイルが版の下）。agmsg は bash のスクリプトなので、パスは引数に出る。各ユーザの導入物は複製なので、古い版を消しても動き続ける。
-- **ユーザ側**（`run_after_40-ai-assistants.sh.tmpl`）: 揃っている間（`keys/22` と `current/install.sh` が在る）は `current/install.sh --cmd agmsg`（導入済みなら `--update`）を流す。マーカー（`~/.cache/dotfiles/ai-agmsg.key`）のキーは `shared-1 <版> <commit>` で、版が上がると流し直す。失敗したらマーカーを進めない。揃っていない間は従来の `setup.sh`（キーは `user-1 <日付>`）。
+- **ユーザ側**（`run_after_40-ai-assistants.sh.tmpl`）: 揃っている間（`keys/22` と `current/install.sh` が在る）は `current/install.sh --cmd agmsg`（導入済みなら `--update`）を流す。マーカー（`~/.cache/dotfiles/ai-agmsg.key`）のキーは `shared-1 <版> <commit>` で、版が上がると流し直す。失敗したらマーカーを進めない。揃っていない間は従来の `setup.sh`（キーは `<日付>`）。
 
 手で確かめる・やり直す:
 

@@ -111,6 +111,26 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 unset BOOTSTRAP_DIR BOOTSTRAP_ALLOW_NONROOT
 
+# ---- run-all.sh: ステップは root の HOME で動き、SSH_AUTH_SOCK を持たない ----
+hd="$tmp/hstep"
+mkdir -p "$hd"
+cat >"$hd/10-env.sh" <<'STEP'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--check" ]; then
+	[ -f "$SHARED_ROOT/envseen" ]
+	exit
+fi
+echo "HOME=$HOME SOCK=${SSH_AUTH_SOCK:-unset}" >"$SHARED_ROOT/envseen"
+STEP
+chmod +x "$hd/10-env.sh"
+rm -f "$SHARED_ROOT/envseen"
+BOOTSTRAP_ALLOW_NONROOT=1 HOME="$tmp/callerhome" SSH_AUTH_SOCK=/tmp/agent.sock BOOTSTRAP_ROOT_HOME="$tmp/roothome" BOOTSTRAP_DIR="$hd" bash "$REPO/bootstrap/run-all.sh" >"$tmp/envout" 2>&1 || fail "run-all (env) が失敗" "$(cat "$tmp/envout")"
+assert_eq "HOME=$tmp/roothome SOCK=unset" "$(cat "$SHARED_ROOT/envseen")" "run-all: ステップは root の HOME で動き、SSH_AUTH_SOCK を持たない"
+rm -f "$SHARED_ROOT/envseen"
+BOOTSTRAP_ALLOW_NONROOT=1 HOME="$tmp/callerhome" SSH_AUTH_SOCK=/tmp/agent.sock BOOTSTRAP_DIR="$hd" bash "$REPO/bootstrap/run-all.sh" >/dev/null 2>&1 || fail "run-all (env, hook なし) が失敗"
+assert_eq "HOME=$tmp/callerhome SOCK=unset" "$(cat "$SHARED_ROOT/envseen")" "run-all: root でなく hook も無ければ HOME は変えないが、SSH_AUTH_SOCK は外す"
+rm -f "$SHARED_ROOT/envseen"
+
 # ---- shared_store_trigger ----
 # DOTFILES_SRC は git リポジトリ。bootstrap/run-all.sh は偽（--check の結果を FAKE_CHECK_RC で決める）。
 src="$tmp/repo"

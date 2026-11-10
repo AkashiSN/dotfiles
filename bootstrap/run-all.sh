@@ -19,7 +19,7 @@
 # DOTFILES_STATE_COMMIT（ok のときの HEAD）で受け取る。空なら state を書かない（force など）。
 #
 # テスト用の上書き: SHARED_ROOT（既定 /opt）/ BOOTSTRAP_DIR（ステップの置き場）/
-# BOOTSTRAP_ALLOW_NONROOT=1（root 確認を省く）。
+# BOOTSTRAP_ALLOW_NONROOT=1（root 確認を省く）/ BOOTSTRAP_ROOT_HOME（ステップに渡す HOME）。
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,6 +81,26 @@ if [ "${BOOTSTRAP_ALLOW_NONROOT:-}" != 1 ] && [ "$(id -u)" -ne 0 ]; then
 	echo "root で実行してください" >&2
 	exit 1
 fi
+
+# sudo --preserve-env は呼び出したユーザの HOME と SSH_AUTH_SOCK を持ち込む。root のステップが
+# そのユーザの ~/.gitconfig（https の ssh 書き換えや 1Password の署名）や ssh-agent を拾わないよう、
+# HOME を root のものに替え、SSH_AUTH_SOCK を外す。root でないとき（テスト）は、
+# BOOTSTRAP_ROOT_HOME があるときだけ HOME を替える。
+root_home="${BOOTSTRAP_ROOT_HOME:-}"
+if [ -z "$root_home" ] && [ "$(id -u)" -eq 0 ]; then
+	root_home="$(eval echo "~$(id -un)" 2>/dev/null || true)"
+	case "$root_home" in
+	/*) ;;
+	*)
+		case "$(uname -s)" in
+		Darwin) root_home=/var/root ;;
+		*) root_home=/root ;;
+		esac
+		;;
+	esac
+fi
+[ -z "$root_home" ] || export HOME="$root_home"
+unset SSH_AUTH_SOCK
 
 failed=0
 for f in ${mismatched[@]+"${mismatched[@]}"}; do
