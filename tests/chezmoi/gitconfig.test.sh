@@ -20,9 +20,9 @@ if [ "$(uname -s)" = Darwin ]; then
 	assert_contains "$out_default" "gpgsign = true" "default keeps signing"
 fi
 
-# chezmoi.toml に [data.git] が無い（init 前）場合も従来値で展開する
+# chezmoi.toml に [data.git] が無い（init 前）場合も既定値で展開する
 tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 : >"$tmp/chezmoi.toml"
 out_nodata="$(chezmoi --source "$REPO" --config "$tmp/chezmoi.toml" execute-template <"$tmpl")" || fail "render no data"
-rm -rf "$tmp"
 assert_contains "$out_nodata" "name = AkashiSN" "fallback without data"

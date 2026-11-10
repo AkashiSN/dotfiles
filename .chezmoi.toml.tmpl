@@ -19,6 +19,10 @@
 {{- $gitEmail := promptStringOnce . "git.email" "git のメールアドレス" "btorntireinvynriy@gmail.com" }}
 {{- $gitSigningkey := promptStringOnce . "git.signingkey" "git の署名鍵（SSH 公開鍵。署名しないなら空）" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip" }}
 
+# 個人のホストと鍵（AkashiSN）を使うか。false なら private_dot_ssh/private_config.tmpl が
+# 個人の Host 定義と IdentityFile を出さず、.chezmoiignore が個人の鍵・署名者ファイルを除外する。
+{{- $personal := promptBoolOnce . "personal" "個人のホストと鍵（AkashiSN）を使うか" true }}
+
 # umask を固定する。固定しないと chezmoi は実行時シェルの umask を使い、
 # 通常ファイル=0666&^umask / 実行ファイル・ディレクトリ=0777&^umask で目標モードを計算する。
 # 固定しないと同じ内容でもモードだけ 666/777 に変わり chezmoi diff に差分が出る。
@@ -30,6 +34,9 @@ umask = 0o022
 [interpreters.ps1]
 command = "powershell"
 args = ["-NoProfile", "-ExecutionPolicy", "Bypass"]
+
+[data]
+personal = {{ $personal }}
 {{ if $workUser }}
 [data.work]
 user = "{{ $workUser }}"
