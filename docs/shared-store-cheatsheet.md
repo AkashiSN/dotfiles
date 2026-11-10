@@ -88,7 +88,7 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 
 ユーザ側（`run_after_20-aqua-verify.sh.tmpl`、毎回実行）は、共有側（`config/aqua.yaml`）が在るときだけ
 ホームの `pkgs` / `bin` を symlink にする。実ディレクトリなら `<dir>.old.<時刻>` へ退避し、
-その下から動くプロセスが無ければ消す（動いていれば次回）。共有側が揃っていない（`config/aqua.yaml` と `/opt/dotfiles-shared/keys/20` の両方が無い）ときは、ホームの既存ファイルを消さず動かさず、
+その下から動くプロセスが無ければ消す（動いていれば次回）。共有側が揃っていない（`config/aqua.yaml` と `/opt/dotfiles-shared/keys/20` のどちらかが無い）ときは、ホームの既存ファイルを消さず動かさず、
 ホームの設定でユーザ単位の `aqua policy allow` / `aqua install -a` を行う（設定が変わったときだけ。`~/.cache/dotfiles/aqua-user.key` に置いたハッシュで判定する。未認証の gh は bootstrap タグだけ検証なしで入れ、`gh auth login` は案内だけ出して待たない）。
 
 経緯: 以前は `run_onchange_after_20-aqua-install.sh.tmpl` が各ユーザのホームへ install し、未認証なら `gh auth login` を対話で呼んでいた。共有ストアへの移行で `run_after_20-aqua-verify.sh.tmpl` に置き換え、ユーザ側は install も対話もしない。
