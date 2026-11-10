@@ -10,6 +10,9 @@ DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
 # shellcheck source=/dev/null
 . "$DOTFILES_SRC/bootstrap/lib.sh"
 
+# aqua は 10-install-packages が置く場所から引く（初回の apply では PATH にまだ無い）。
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 SHARED=/opt/aquaproj-aqua
 SHARED_KEY=/opt/dotfiles-shared/keys/20
 USER_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"

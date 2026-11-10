@@ -165,6 +165,7 @@ sudo() {
 	return "$SUDO_RC"
 }
 gh() { [ "$1 $2" = "auth token" ] && echo SECRET_TOKEN; }
+# shellcheck disable=SC2329  # trigger の command -v aqua が見つける偽物
 aqua() { :; }
 trig() {
 	rm -f "$calls"
@@ -208,6 +209,16 @@ out="$(FAKE_CHECK_RC=1 GITHUB_TOKEN=PRESET_TOKEN trig)"
 c="$(cat "$calls")"
 assert_contains "$c" "token=PRESET_TOKEN" "trigger: 設定済みの GITHUB_TOKEN を保つ"
 assert_not_contains "$c" "SECRET_TOKEN" "trigger: 設定済みなら gh auth token を使わない"
+
+# 初回の apply: aqua が PATH に無くても ~/.local/bin のものを AQUA_BIN に渡す
+unset -f aqua
+mkdir -p "$tmp/fresh/.local/bin"
+printf '#!/bin/sh\n' >"$tmp/fresh/.local/bin/aqua"
+chmod +x "$tmp/fresh/.local/bin/aqua"
+out="$(FAKE_CHECK_RC=1 HOME="$tmp/fresh" PATH="/usr/bin:/bin" trig)"
+assert_contains "$(cat "$calls")" "aqua=$tmp/fresh/.local/bin/aqua " "trigger: PATH に無い ~/.local/bin/aqua を AQUA_BIN に渡す"
+# shellcheck disable=SC2329
+aqua() { :; }
 
 # (e) force → DOTFILES_SHARED_FORCE=1、state commit 無し
 g -C "$src" reset -q --hard HEAD

@@ -30,7 +30,7 @@
 - `sudo -n true` が通らず、標準入力が端末でない（パスワードを聞けない）。
 - sudo のパスワードを断られた、またはステップが失敗した。
 
-root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_TOKEN` として環境変数で渡す（引数に載せない。ファイルにも残さない）。`aqua` の絶対パスは `AQUA_BIN` で渡す。
+root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_TOKEN` として環境変数で渡す（引数に載せない。ファイルにも残さない）。`aqua` の絶対パスは `AQUA_BIN` で渡す（初回の apply ではまだ PATH に無いため、PATH に無ければ `~/.local/bin` / `/opt/homebrew/bin` / `/usr/local/bin` からも探す。`run_after_20-aqua-verify` も同じ場所を PATH に足す）。
 
 ## ダウングレード防止（guard）
 

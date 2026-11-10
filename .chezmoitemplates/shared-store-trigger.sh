@@ -40,7 +40,11 @@ shared_store_trigger() {
 	note "共有ストア (${root}) を更新します（sudo）"
 	# 秘密は argv に載せない（ps で見える）ため、export して sudo に引き継がせる。
 	DOTFILES_SRC="$src"
-	AQUA_BIN="$(command -v aqua || true)"
+	# 初回の apply では ~/.local/bin などがまだ PATH に無いため、10-install-packages の置き場も探す。
+	AQUA_BIN="$(
+		PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+		command -v aqua || true
+	)"
 	# 設定済みの GITHUB_TOKEN があればそれを使う。
 	GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 	SHARED_ROOT="$root"
