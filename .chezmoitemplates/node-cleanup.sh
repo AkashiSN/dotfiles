@@ -73,5 +73,12 @@ node_cleanup_home() {
 	for v in $vers; do
 		rm -rf "${fnm_dir:?}/node-versions/$v"
 	done
+	# alias を指す alias（lts-latest -> aliases/default など）は上で拾えないので、指す先が消えて
+	# 解決できなくなった alias だけを消す。
+	for a in "$fnm_dir"/aliases/*; do
+		if [ -L "$a" ] && [ ! -e "$a" ]; then
+			rm -f "$a"
+		fi
+	done
 	return 0
 }

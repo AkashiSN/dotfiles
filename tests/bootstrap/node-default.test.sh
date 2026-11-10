@@ -43,7 +43,7 @@ run30() {
 		PATH="$stubs:/usr/bin:/bin" bash "$script" 2>&1
 }
 # fnm の配置: node-versions/<版>/installation/bin/node と、aliases/<名前> -> node-versions/<版>/installation。
-# v24 は default / lts-latest / lts-krypton（fnm install --lts が付ける）が指す版、v20 はプロジェクト用（proj）。
+# v24 は default / lts-krypton（fnm install --lts が付ける）が指す版で、lts-latest は fnm と同じく alias default を指す。v20 はプロジェクト用（proj）。
 mkfnm() {
 	local f="$home/.local/share/fnm" v
 	for v in v24 v20; do
@@ -52,7 +52,7 @@ mkfnm() {
 	done
 	mkdir -p "$f/aliases" "$f/keep"
 	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/default"
-	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/lts-latest"
+	ln -sfn "$f/aliases/default" "$f/aliases/lts-latest"
 	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/lts-krypton"
 	ln -sfn "$f/node-versions/v20/installation" "$f/aliases/proj"
 }
