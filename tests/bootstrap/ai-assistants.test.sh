@@ -254,10 +254,15 @@ run40 >/dev/null
 assert_contains "$(cat "$CALLS")" "codegraph install --yes" "codegraph のピンが変わったら再登録する"
 
 # ---- Claude Code の managed settings: 自動更新を止める ----
-rendered="$(chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscripts/run_onchange_after_42-claude-managed-settings.sh.tmpl")"
-policy="$(printf '%s\n' "$rendered" | sed -n "/^POLICY=\$(cat <<'JSON'/,/^JSON\$/p" | sed '1d;$d')"
+rendered="$(chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscripts/run_after_42-claude-managed-settings.sh.tmpl")"
+# POLICY='...' の代入だけを取り出して評価する。
+policy="$(
+	eval "$(printf '%s\n' "$rendered" | sed -n "/^POLICY='/,/^}'\$/p")"
+	printf '%s' "${POLICY:-}"
+)"
+[ -n "$policy" ] || fail "policy: POLICY の代入を取り出せない"
 assert_eq "1" "$(printf '%s' "$policy" | python3 -c 'import json,sys; print(json.load(sys.stdin)["env"]["DISABLE_AUTOUPDATER"])')" "policy: env.DISABLE_AUTOUPDATER = 1"
-assert_eq "False" "$(printf '%s' "$policy" | python3 -c 'import json,sys; print(json.load(sys.stdin)["attribution"]["sessionUrl"])')" "policy: attribution は従来どおり"
+assert_eq "False" "$(printf '%s' "$policy" | python3 -c 'import json,sys; print(json.load(sys.stdin)["attribution"]["sessionUrl"])')" "policy: attribution.sessionUrl = false"
 
 # ---- env.sh: 更新確認の抑止 ----
 envsh="$(chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/dot_config/shell/env.sh.tmpl")"

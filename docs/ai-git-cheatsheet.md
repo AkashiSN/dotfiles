@@ -98,7 +98,7 @@ Claude Code はコミットのトレーラーと PR 本文の末尾に署名行�
 
 | 層 | 置き場所 | 効く範囲 |
 | --- | --- | --- |
-| policy（enterprise managed settings） | `.chezmoiscripts/run_onchange_after_42-claude-managed-settings.sh.tmpl` が配置 | ローカルのセッション。ユーザ / プロジェクト / `--settings` のどの層からも上書きできない |
+| policy（enterprise managed settings） | `.chezmoiscripts/run_after_42-claude-managed-settings.sh.tmpl` が配置 | ローカルのセッション。ユーザ / プロジェクト / `--settings` のどの層からも上書きできない |
 | ユーザ設定 | `private_dot_claude/modify_settings.json.tmpl` の `MANAGED` | 全プロジェクト。policy が届かないクラウドセッションでも効く |
 | PreToolUse フック | `private_dot_claude/hooks/executable_block-session-url.sh` | Bash ツールの実行直前。上 2 層をすり抜けて Claude が本文へ URL を書いた場合に実行を拒否する（下記） |
 
@@ -113,9 +113,10 @@ policy の配置先（root 所有のため `sudo` が要る）:
 policy には署名の抑止のほかに `env.DISABLE_AUTOUPDATER = "1"` も入れている。Claude Code の実体は aqua が
 入れ（`aqua.yaml` のピン）、版は Renovate が上げるため、本体の自動更新は止める。
 
-配置スクリプトは現物と内容が一致していれば `sudo` を呼ばずに抜けるので、`chezmoi apply` の
-たびにパスワードを聞かれることはない。非対話 apply で `sudo` が通らないときは案内を出して
-apply 全体は続行するため、あとから対話端末で `chezmoi apply` すれば入る。
+配置スクリプトは `run_after`（apply のたびに実行）で、現物と内容が一致していれば `sudo` を呼ばずに
+抜けるので、`chezmoi apply` のたびにパスワードを聞かれることはない。現物が消された・書き換えられた
+ときも次の apply で配置し直す。非対話 apply で `sudo` が通らないときは案内を出して apply 全体は
+続行するため、あとから対話端末で `chezmoi apply` すれば入る。
 
 ### 効いているかの確認
 
