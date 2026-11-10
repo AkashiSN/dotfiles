@@ -78,7 +78,8 @@ done
 
 # 退避した古いディレクトリは、どのユーザのプロセスもその下から動いていなければ消す。
 # 動いていれば残し、次回の apply で消す。macOS の ps は起動時のパスを出す（退避後も退避前の
-# 名前のまま）ため、退避前の名前（今は共有側への symlink）でも照合する。
+# 名前のまま）ため、退避前の名前（今は共有側への symlink）でも照合する。そのため macOS では
+# aqua のツール（herdr など）が動いている限り残るので、大きさと手で消すコマンドを案内する。
 for old in "$USER_ROOT"/pkgs.old.* "$USER_ROOT"/bin.old.*; do
 	[ -d "$old" ] || continue
 	busy=0
@@ -87,7 +88,7 @@ for old in "$USER_ROOT"/pkgs.old.* "$USER_ROOT"/bin.old.*; do
 		running_from_any "${old%.old.*}" && busy=1
 	fi
 	if [ "$busy" -eq 1 ]; then
-		note "使用中のため次回に回します: $old"
+		note "使用中のため残します（$(du -sh "$old" 2>/dev/null | cut -f1)）。動いているものが無ければ手で消せます: rm -rf '$old'"
 	else
 		note "削除: $old"
 		rm -rf "$old"

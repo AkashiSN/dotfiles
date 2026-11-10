@@ -102,7 +102,7 @@ attestation の検証に自分で固定した版の gh を入れて使うため�
 - プロジェクトごとに別の `AQUA_ROOT_DIR` を使う（direnv の `.envrc` など）: `export AQUA_ROOT_DIR="$PWD/.aqua"` と `PATH_add "$PWD/.aqua/bin"`、`unset AQUA_DISABLE_LAZY_INSTALL`。
 - 全員で使うツールなら、グローバルの `dot_config/aquaproj-aqua/aqua.yaml` に足す。
 
-macOS では、使用中のプロセスが残るため `~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` が何度かの apply をまたいで残ることがある。動いているものが無いことを確かめて `rm -rf ~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` で消してよい。
+macOS の `ps` は退避前のパス（今は共有側への symlink）で起動したプロセスを区別できないため、aqua のツール（herdr など）が 1 つでも動いている限り `~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` は消さない。ユーザが消すまで残り得る。残した apply では大きさ（`du -sh`）と消すコマンドを 1 行で案内するので、退避前のツールを使うプロセスが無いこと（退避より前に起動したシェルの herdr などを再起動したこと）を確かめて `rm -rf ~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` で消す。
 
 手で掃除する:
 

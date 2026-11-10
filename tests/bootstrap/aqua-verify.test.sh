@@ -100,7 +100,9 @@ assert_eq "$tmp/shared/bin" "$(readlink "$root/bin")" "bin が共有側への sy
 set -- "$root"/pkgs.old.*
 [ -d "$1" ] || fail "動いているのに退避した pkgs を消した"
 echo "PASS: 動いている間は退避したものを残す"
-assert_contains "$out" "次回に回します" "使用中の案内を出す"
+assert_contains "$out" "使用中のため残します" "使用中の案内を出す"
+assert_contains "$out" "rm -rf '$1'" "残したものを手で消すコマンドを案内する"
+assert_contains "$out" "$(du -sh "$1" | cut -f1)" "残したものの大きさを出す"
 ls -d "$root"/bin.old.* >/dev/null 2>&1 && fail "動いていない bin の退避が残った"
 echo "PASS: 動いていない退避は消す"
 
