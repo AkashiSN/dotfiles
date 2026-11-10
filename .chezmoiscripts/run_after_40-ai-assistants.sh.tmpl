@@ -1,41 +1,74 @@
-#!/bin/sh
-# Install AI coding assistant CLIs via their official native installers.
-# どちらも ~/.local/bin にネイティブバイナリを置き、以後は本体が自動更新する
-# （aqua 管理外。バージョンは下の変数で固定/追従を切り替える）。
-# run_onchange: 下のチャネル/バージョンを書き換えると既存マシンでも再実行される。
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# AI コーディングエージェントの CLI と周辺ツールを、このユーザで使える状態にする。
+# - Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は aqua が入れる（共有ストア、
+#   揃っていない間はホームの aqua。aqua.yaml の AI エージェントのグループ）。ここでは取得せず、
+#   ホームに残った公式インストーラの実体の掃除（.chezmoitemplates/ai-cleanup.sh）と、
+#   ユーザ単位の登録（MCP・スキル・agmsg など）だけを行う。
+# - macOS の Kiro CLI は aqua が提供しないため、公式インストーラ（/Applications の .app）のまま。
+# run_after: chezmoi apply のたびに実行する。時間のかかる取得・導入は ~/.cache/dotfiles/ai-*.key の
+# マーカーで、キー（版・再導入マーカー）が変わったときだけ流す。
 set -eu
 
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/ai-cleanup.sh"
 {{ template "shell-log" }}
-step "AI アシスタント CLI(claude/codex/kiro/cline/agmsg/codegraph/graphify)をインストール中"
+step "AI アシスタント CLI(claude/codex/kiro/cline/agmsg/codegraph/graphify)を整え中"
 
-# graphify は uv (aqua 管理) で入れるため、aqua の bin と設定も解決可能にする
-# (AQUA_GLOBAL_CONFIG が無いと aqua-proxy がバージョンを解決できない)。
+# aqua 管理のツールを解決できるよう、aqua の bin と設定を通す。共有ストアが揃っていれば
+# aqua-shared-env が共有側の設定へ向ける。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
 export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
 {{ template "aqua-shared-env" }}
+# 起動時の更新確認・自動更新を止める（env.sh と同じ値。ここは env.sh を読まない）。
+export CODEGRAPH_NO_UPDATE_CHECK=1
+export KIRO_NO_AUTO_UPDATE=1
 
-# --- Claude Code (claude.ai/install.sh) ---
-# stable / latest / 固定バージョン(例: 2.1.179)。
-CLAUDE_CHANNEL="latest"
-curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CHANNEL"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
 
-# --- OpenAI Codex (chatgpt.com/codex/install.sh) ---
-# latest / 固定バージョン(例: 0.140.0)。CODEX_RELEASE で指定、非対話で導入。
-CODEX_RELEASE="latest"
-curl -fsSL https://chatgpt.com/codex/install.sh | \
-	CODEX_RELEASE="$CODEX_RELEASE" CODEX_NON_INTERACTIVE=1 sh
+# once_step <名前> <キー> <コマンド...>
+# マーカー $CACHE_DIR/ai-<名前>.key がキーと同じなら流さない。流して成功したときだけマーカーを進める
+# （失敗したら次の apply でやり直す）。
+once_step() {
+	local name="$1" key="$2" marker
+	shift 2
+	marker="$CACHE_DIR/ai-$name.key"
+	if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+		return 0
+	fi
+	if "$@"; then
+		mkdir -p "$CACHE_DIR"
+		printf '%s\n' "$key" >"$marker"
+	else
+		warn "$name に失敗しました。次の apply で再試行します"
+	fi
+}
 
-# --- Kiro CLI (cli.kiro.dev) ---
-# Amazon Q Developer CLI のクローズドソース後継。Linux は ~/.local/bin に
-# kiro-cli / kiro-cli-chat を、macOS は /Applications に "Kiro CLI.app" を置く。
+# --- Claude Code / OpenAI Codex / CodeGraph / Kiro CLI（Linux）---
+# 実体は aqua が入れる。公式インストーラが ~/.local/bin などに置いた実体は、aqua が提供している
+# コマンドの分だけ消す（動いている間はリンクだけ外し、実体は次の apply で消す）。
+ai_cleanup_home "$HOME"
+for c in claude codex codegraph; do
+	ai_provided "$c" || note "aqua に $c がありません（共有ストアの更新か、ホームの aqua の install を待ちます）"
+done
+
+# --- Kiro CLI（macOS）---
+# Amazon Q Developer CLI のクローズドソース後継。aqua の定義は Linux のみ（registry.yaml）なので、
+# macOS は /Applications に "Kiro CLI.app" を置く公式インストーラのまま。
 # latest しか配布されずバージョンをピンできないためチャネル指定のみ(既定 stable)。
 # インストーラは既存を見つけると置換確認プロンプト(/dev/tty)を出し非対話で失敗するため、
 # 未導入のときだけ実行する(install-once)。更新/再インストールは端末で手動実行する:
 #   curl -fsSL https://cli.kiro.dev/install | bash -s -- --force
+{{- if eq .chezmoi.os "darwin" }}
 KIRO_CHANNEL="stable"
 if ! command -v kiro-cli >/dev/null 2>&1 && [ ! -d "/Applications/Kiro CLI.app" ]; then
 	curl -fsSL https://cli.kiro.dev/install | bash -s -- --channel "$KIRO_CHANNEL"
 fi
+{{- end }}
 # シェル統合(rc ファイルへの pre/post ブロック注入)は使わない。この統合は
 # kiro-cli-term(figterm) という pty プロキシでシェルを包み直すもので、TUI の大量出力で
 # 内側 pty から読むのをやめることがある。そうなると内側 pty の出力キューが詰まって
@@ -51,19 +84,20 @@ fi
 # VS Code 拡張と同じエージェントを端末で動かす CLI。公式の配布は npm のみで、
 # プラットフォーム別バイナリを optional dependencies で解決するため実行時の Node は不要
 # (導入のときだけ npm が要る)。node/npm は 30-node-default が fnm で用意する。
-# latest だと毎回最新へ追従する。固定したいときは版を書く(例: 2.1.4)。
-# 値を書き換えると run_onchange で既存マシンでも再実行される。
+# latest だと版が変わったとき(CLINE_VERSION を書き換えたとき)だけ取り直す。固定したいときは版を書く(例: 2.1.4)。
 CLINE_VERSION="latest"
-# fnm env はシェルを自動検出するとき $SHELL を見るため、POSIX sh で走るこのスクリプトでは
-# zsh 向け出力(`rehash`)を吐いて落ちる。30-node-default と同じくシェルを明示する。
-if command -v fnm >/dev/null 2>&1; then
-	eval "$(fnm env --shell bash)"
-fi
-# npm グローバルは fnm が管理する node の中に入るので、node の LTS メジャーが上がると
-# 消える。そのときは CLINE_VERSION を書き換えてこのスクリプトを再実行して入れ直す。
-if command -v npm >/dev/null 2>&1; then
-	npm install -g "cline@$CLINE_VERSION"
-fi
+install_cline() {
+	# fnm env はシェルを自動検出するとき $SHELL を見るため、シェルを明示する。
+	if command -v fnm >/dev/null 2>&1; then
+		eval "$(fnm env --shell bash)"
+	fi
+	# npm グローバルは fnm が管理する node の中に入るので、node の LTS メジャーが上がると
+	# 消える。そのときは CLINE_VERSION を書き換えて取り直す。
+	if command -v npm >/dev/null 2>&1; then
+		npm install -g "cline@$CLINE_VERSION"
+	fi
+}
+once_step cline "$CLINE_VERSION" install_cline
 # プロバイダ認証は非対話にできないため自動化しない。導入後に端末で一度だけ実行する:
 #   cline auth                                     # 対話ウィザード
 #   cline auth --provider anthropic --apikey sk-... --modelid <model>
@@ -72,7 +106,7 @@ fi
 # --- agmsg (github.com/fujibee/agmsg) ---
 # claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできるようにするツール。
 # claude/codex の設定(~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml)を
-# 書き換えるため、両者を入れた後(=このスクリプトの末尾)に導入する。
+# 書き換えるため、両者を入れた後に導入する。
 # setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
 # ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
 # 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
@@ -83,33 +117,43 @@ fi
 # 10-path.zsh で PATH 前段に入れている。
 # 実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
 # 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
-if [ -d "$HOME/.agents/skills/agmsg" ]; then
-	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
-else
-	curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
-fi
+install_agmsg() {
+	if [ -d "$HOME/.agents/skills/agmsg" ]; then
+		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
+	else
+		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
+	fi
+}
+once_step agmsg "2026-06-19" install_agmsg
 
 # --- CodeGraph (github.com/colbymchenry/codegraph) ---
 # コードベースの事前インデックス(知識グラフ)を MCP 経由でエージェントに渡し、
 # ツール呼び出し回数とコストを削減するセマンティックコード解析ツール。
-# install.sh が自前ランタイム同梱のバイナリを PATH(~/.local/bin)へ置き(Node 不要)、
-# 以後は本体が `codegraph upgrade` で自己更新する(aqua 管理外)。
-# 続く `codegraph install --yes` が claude/codex を自動検出して MCP 設定・権限・
-# 指示ファイルへの追記を非対話(グローバル)で実施するため、両者を入れた後に導入する。
+# 実体は aqua が入れる(aqua.yaml の colbymchenry/codegraph)。起動時の更新確認は
+# CODEGRAPH_NO_UPDATE_CHECK で止めている。
+# `codegraph install --yes` が claude/codex を自動検出して MCP 設定・権限・
+# 指示ファイルへの追記を非対話(グローバル)で実施するため、両者を入れた後に流す。
+# 登録するコマンドは PATH 上の `codegraph` なので、実体の場所が変わっても書き換えは要らない。
 # プロジェクト単位のインデックスは各リポジトリで `codegraph init` を別途実行する。
-# 再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
+# 再登録を強制したいときは次のマーカーを書き換える。claude / codex の有無が変わったときも流し直す。
 # codegraph-reinstall-marker: 2026-06-18
-curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
-codegraph install --yes
-codegraph telemetry off
+register_codegraph() {
+	codegraph install --yes
+	codegraph telemetry off
+}
+if command -v codegraph >/dev/null 2>&1; then
+	cg_key="2026-06-18"
+	command -v claude >/dev/null 2>&1 && cg_key="$cg_key claude"
+	command -v codex >/dev/null 2>&1 && cg_key="$cg_key codex"
+	once_step codegraph "$cg_key" register_codegraph
+fi
 
 # --- Graphify (github.com/Graphify-Labs/graphify) ---
 # コードは tree-sitter でローカル解析し、加えてドキュメント/PDF/画像/動画/SQL スキーマも
 # 取り込む知識グラフ生成ツール。CodeGraph が呼び出し関係の精密な追跡を担うのに対し、
 # graphify はプロジェクト全体の概念マップを作るので併用する(docs/knowledge-graph-cheatsheet.md)。
 # PyPI 上のパッケージ名は graphifyy、コマンド名は graphify。
-# latest だと毎回 --upgrade で最新へ追従する。固定したいときは版を書く(例: 0.9.13)。
-# 値を書き換えると run_onchange で既存マシンでも再実行される。
+# latest だと版が変わったとき(下の値を書き換えたとき)だけ --upgrade で取り直す。固定したいときは版を書く(例: 0.9.13)。
 GRAPHIFY_VERSION="latest"
 # `graphify install`(グローバル)は ~/.claude/skills/graphify/SKILL.md を置き、
 # ~/.claude/CLAUDE.md に登録行を追記する(プロンプトなし)。登録行は
@@ -121,11 +165,15 @@ GRAPHIFY_VERSION="latest"
 # (無いと .sql / .tf は「tree_sitter_sql not installed」相当でスキップされる)。
 # terraform extra が tree-sitter-hcl を連れてくる。
 GRAPHIFY_EXTRAS="[sql,terraform]"
-if command -v uv >/dev/null 2>&1; then
+install_graphify() {
 	if [ "$GRAPHIFY_VERSION" = "latest" ]; then
 		uv tool install --upgrade "graphifyy$GRAPHIFY_EXTRAS"
 	else
 		uv tool install "graphifyy$GRAPHIFY_EXTRAS==$GRAPHIFY_VERSION"
 	fi
 	graphify install
+}
+if command -v uv >/dev/null 2>&1; then
+	once_step graphify "$GRAPHIFY_VERSION $GRAPHIFY_EXTRAS" install_graphify
 fi
+{{- end }}

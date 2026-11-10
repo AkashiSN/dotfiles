@@ -98,6 +98,14 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `codex-spawn <name> [opts]` | 配信モードを monitor にして `spawn.sh codex` へ委譲 | 認証確認 → `codex-bedrock --print-home` で一時 home と信頼設定 → evict → `spawn.sh codex` へ委譲 |
 | PATH ラッパー `codex` | 本体を exec | `codex-bedrock --print-home` の一時 home を `CODEX_HOME` に載せて本体を exec（`CODEX_HOME` 設定済みなら判定せず本体を exec） |
 
+`claude-bedrock` / `codex-bedrock` / `codex-wrapper` / PATH ラッパー `codex` の 4 本は、claude / codex が aqua 管理の実体
+（共有ストア `/opt/aquaproj-aqua`、揃っていない間はホームの aqua）のため、冒頭で aqua の設定を渡す。
+`AQUA_GLOBAL_CONFIG` が未設定のとき（VS Code 拡張ホストなどシェルを経由しない起動元）だけ、`env.sh` と同じ判定
+（共有ストアが揃い、ホームの pkgs が共有側への symlink なら共有側の設定、それ以外はホームの設定）で
+`AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` / `AQUA_ROOT_DIR`（共有側のときは `AQUA_DISABLE_LAZY_INSTALL=true` も）を export する。
+`env.sh` は `CODEGRAPH_NO_UPDATE_CHECK=1` と `KIRO_NO_AUTO_UPDATE=1` も export し、aqua が入れた CodeGraph / Kiro CLI の更新確認・自動更新を止める。
+設定済みなら触らない。4 本のブロックは同一で、`tests/bootstrap/ai-assistants.test.sh` が一致を確かめる。
+
 どれもシェル関数ではなくスクリプトなのは、シェルを経由しない起動（VS Code 拡張の spawn / agmsg の
 `spawn.sh` / 非対話 bash）に関数が届かないため。zsh の `claude` / `codex` 関数は wrapper へ渡す
 一行で、判定を持たない。`claude-wrapper` だけ第 1 引数に実行ファイルを取るのは VS Code 拡張の

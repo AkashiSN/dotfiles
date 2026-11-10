@@ -14,7 +14,7 @@
 CodeGraph は**配線図**（`foo()` を変えると誰が壊れるか）、graphify は**地図**
 （この機能の設計意図がどのドキュメントとどのテーブルに跨っているか）。
 
-どちらも `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` で、claude / codex を
+どちらも `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` で、claude / codex を
 入れた**後**に CodeGraph → graphify の順で導入する。Claude Code のフックを持つのは
 `codegraph prompt-hook` だけで、graphify は git フックしか持たない（[性能とコスト](#性能とコスト)）。
 
@@ -30,22 +30,27 @@ LLM を呼ばずローカル解析だけで動く（31 言語）。
 
 ### 導入（chezmoi）
 
-- `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` で、claude / codex を入れた
-  **後**に公式 `install.sh` を curl ワンライナーで実行する。自前ランタイム同梱のバイナリを
-  `~/.local/bin` に置くので Node は不要。以後は本体が `codegraph upgrade` で自己更新する
-  （**aqua 管理外**）。
+- 本体は **aqua** が入れる（`aqua.yaml` の `colbymchenry/codegraph`。共有ストア、揃っていない間は
+  ホームの aqua）。自前ランタイム同梱のバイナリなので Node は不要。起動時の更新確認と自己更新は
+  `env.sh` の `CODEGRAPH_NO_UPDATE_CHECK=1` で止めてあり、版は `aqua.yaml` のピン（Renovate）で上げる。
+  公式 `install.sh` が `~/.local/bin/codegraph`・`~/.codegraph/versions` に置いた旧い実体は、
+  aqua が提供しているときに `run_after_40-ai-assistants.sh.tmpl` が消す（`~/.codegraph/telemetry.json`
+  などの設定は残す）。
+- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` は、claude / codex を入れた**後**に登録だけを流す。
+  毎回の apply では流さず、`~/.cache/dotfiles/ai-codegraph.key`（再登録マーカーと claude / codex の有無）が
+  変わったときだけ流す。
 - 続けて実行するもの:
   - `codegraph install --yes` — claude / codex を自動検出して非対話・グローバルで設定
     （`--yes` は `--location=global --target=auto`、auto-allow 権限も書く）
   - `codegraph telemetry off` — 匿名テレメトリを無効化
-- **再インストール／更新を強制したいとき**は、スクリプト中の
-  `# codegraph-reinstall-marker: <日付>` 行を書き換える（内容が変わり run_onchange が再実行される）。
+- **再登録を強制したいとき**は、スクリプト中の `# codegraph-reinstall-marker: <日付>` 行と
+  `cg_key` の日付を書き換えるか、`~/.cache/dotfiles/ai-codegraph.key` を消す。
 
 #### 書き込み先と chezmoi の分担
 
 | 対象 | 書き手 | chezmoi 管理 |
 | --- | --- | --- |
-| `~/.local/bin/codegraph` + `~/.codegraph/versions/` | `install.sh` / `codegraph upgrade` | 管理外（自己更新に任せる） |
+| `codegraph` 本体 | aqua（`$AQUA_ROOT_DIR/bin/codegraph`） | aqua.yaml のピン |
 | `~/.claude.json` の `mcpServers.codegraph` | `codegraph install` | 管理外 |
 | `~/.claude/settings.json` の `permissions.allow`（`mcp__codegraph__*`） | `codegraph install`（`--no-permissions` で抑止可） | **管理下** — `private_dot_claude/modify_settings.json.tmpl` に宣言済み |
 | `~/.claude/settings.json` の `UserPromptSubmit` フック | — | **管理下** — `modify_settings.json.tmpl` で `codegraph prompt-hook` を宣言 |
@@ -183,7 +188,7 @@ MCP が使えない場面（別のエージェント、シェルから直接）�
 
 ### 導入（chezmoi）
 
-- `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` の末尾で、CodeGraph に続けて
+- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾で、CodeGraph に続けて
   `uv tool install graphifyy` → `graphify install` を実行する（PyPI 上のパッケージ名は
   **graphifyy**、コマンド名は `graphify`）。`graphify install` が claude の設定を書き換える
   ため、claude 本体を入れた**後**（同スクリプトの最後）に置く。
@@ -191,7 +196,7 @@ MCP が使えない場面（別のエージェント、シェルから直接）�
   uv が無い環境ではブロックごとスキップする。
 - **バージョン追従／固定**はスクリプト中の `GRAPHIFY_VERSION` で切り替える。`latest` なら
   毎回 `uv tool install --upgrade` で最新へ、版を書けば（例 `0.9.13`）そこにピンする。
-  値を書き換えると run_onchange で既存マシンでも再実行される。
+  値を書き換えるとマーカー（`~/.cache/dotfiles/ai-graphify.key`）が変わり、既存マシンでも再実行される。
 - **`.sql` / `.tf` のパーサーは extra で入れる。** SQL 抽出器（`graphify/extractors/sql.py`）が
   import する `tree_sitter_sql` と、HCL 用の `tree_sitter_hcl` は graphifyy 本体の依存では
   なく extra（`sql` / `terraform`）。入れないと `.sql` / `.tf` は

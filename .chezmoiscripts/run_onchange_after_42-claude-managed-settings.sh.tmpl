@@ -14,12 +14,17 @@ set -eu
 # スキーマは settings.json と同じ。commit / pr は署名の文面そのものを渡す文字列で、
 # 空文字（""）が「その署名を出さない」の指定。false は型が合わず、attribution
 # ブロックごと丸ごと捨てられて sessionUrl の抑止まで効かなくなる。
+# env.DISABLE_AUTOUPDATER は本体の自動更新を止める。claude の実体は aqua が入れ、版は
+# aqua.yaml のピンで決まるため、本体が自分で版を上げない。
 POLICY=$(cat <<'JSON'
 {
   "attribution": {
     "commit": "",
     "pr": "",
     "sessionUrl": false
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
   }
 }
 JSON

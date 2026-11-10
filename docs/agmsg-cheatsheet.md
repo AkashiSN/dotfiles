@@ -7,7 +7,7 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
 
 ## 導入（chezmoi）
 
-- `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` の末尾で、claude / codex
+- `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` の末尾で、claude / codex
   本体の導入に続けて公式 `setup.sh` を curl ワンライナーで実行して導入する
   （`curl -fsSL .../setup.sh | bash -s -- --cmd agmsg`、既存導入なら `--update`）。
   agmsg は claude/codex の設定を書き換えるため、両者を入れた**後**（同スクリプトの最後）で走らせる。
@@ -15,7 +15,9 @@ codex と claude を並べ、**両エージェントに相互レビューさせ�
   実行 → 一時ディレクトリを破棄するブートストラップ（引数を install.sh に転送）。
   常に最新（main）から導入し、永続的なソースクローンは残さない。
 - **再インストール／更新を強制したいとき**は、スクリプト中の
-  `# agmsg-reinstall-marker: <日付>` 行を書き換える（内容が変わり run_onchange が再実行される）。
+  `# agmsg-reinstall-marker: <日付>` 行と、その下の `once_step agmsg "<日付>"` の日付を書き換える
+  （スクリプトは毎回の apply で走るが、取得は `~/.cache/dotfiles/ai-agmsg.key` のキーが変わったときだけ。
+  キャッシュを消しても再実行される）。claude / codex 本体は aqua が入れる（`aqua.yaml`）。
 - agmsg は **chezmoi 管理外**の以下を書き換える（だから run スクリプトで導入する）:
   - `~/.agents/skills/agmsg/`（スクリプト・テンプレート・DB・teams 設定）
   - `~/.claude/commands/agmsg.md`（Claude Code スラッシュコマンド）
@@ -106,7 +108,7 @@ clone や worktree には付いてこない。**git worktree は worktree ごと
 - シムを本体 codex より優先するため、`10-path.zsh` で `~/.agents/bin` を
   `~/.local/bin` より PATH 前段に置いている。
 - `~/.codex/config.toml` の `writable_roots` に `db` / `teams` に加え `run` が必要。
-  `run_onchange_after_40-ai-assistants.sh.tmpl` の `--update` 再実行で追記される。
+  `run_after_40-ai-assistants.sh.tmpl` の `--update` 再実行で追記される。
 - スキル同梱の `codex-monitor.sh` を PATH から直接叩けるよう、`~/.local/bin/codex-monitor.sh`
   にラッパー（`dot_local/bin/executable_codex-monitor.sh`）を置いている。実体は自身の位置から
   スキルディレクトリを求める際にリンクを解決しないため、シンボリックリンクではなく

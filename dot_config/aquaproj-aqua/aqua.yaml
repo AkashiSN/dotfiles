@@ -64,6 +64,18 @@ packages:
   - name: cloudflare/cloudflared@2026.10.1
   - name: jqlang/jq@jq-1.8.2
   - name: mikefarah/yq@v4.54.1
+  # --- AI エージェントの CLI と周辺ツール ---
+  # 本体の自己更新は使わない。版は Renovate が上げる。更新確認・自動更新は次で止める:
+  #   Claude Code: managed settings（run_onchange_after_42）の env.DISABLE_AUTOUPDATER
+  #   Codex: bootstrap/codex/managed_config.toml の check_for_update_on_startup
+  #   CodeGraph / Kiro CLI: ~/.config/shell/env.sh の CODEGRAPH_NO_UPDATE_CHECK / KIRO_NO_AUTO_UPDATE
+  # 各ユーザ側の設定（MCP 登録など）は run_after_40-ai-assistants が行う。
+  - name: anthropics/claude-code@v2.1.321 # Claude Code
+  - name: openai/codex@rust-v0.167.0 # OpenAI Codex CLI
+  - name: colbymchenry/codegraph@v1.6.2 # コードの知識グラフを MCP でエージェントに渡す
+  # Kiro CLI は Linux のみ（定義は local registry の registry.yaml）。macOS は /Applications の公式インストーラ。
+  - name: kiro.dev/kiro-cli@3.1.0
+    registry: local
   # --- AI エージェント補助 ---
   # AI エージェント向けブラウザ自動化 CLI (Rust 製・CDP 直結。Node/Playwright 不要)。
   # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。

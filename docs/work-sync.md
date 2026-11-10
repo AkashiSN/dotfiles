@@ -55,6 +55,7 @@ ssh cloudsa
 | 整形 | **`shfmt` の既定（`-i 0` = タブ）** | フラグ無しで回せる。詳細は [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md#このリポジトリの整形規約) |
 | Bedrock 用 AWS プロファイル | **既定を持たず `~/.env` から解決** | 公開リポジトリにアカウント名を焼かない。意図しないアカウントを触らない |
 | 環境固有の機能 | **揃えない** | work の AWS MCP / Grafana / EKS、こちらの superpowers / ghostty / 個人ツールなど。共有コアの外に置く |
+| AI CLI（claude / codex / codegraph）の版 | **マシンで 1 つ（それぞれの `aqua.yaml` のピン）** | 共有ストアの導入で、同じマシンの全ユーザが同じ版を使う。こちらと work は別の repo なので、ピンの版は Renovate の更新タイミングで一時的にずれてよい。Kiro CLI は両方 `registry.yaml` の local 定義（Linux のみ）で、macOS だけこちらが公式インストーラ |
 | Claude Code の設定の置き場 | **揃えない** | work は policy 層（`managed-settings.json`）へまとめて置く。こちらの policy 層は sudo が要るうえ「忘れても破れない禁止事項」の場所なので、機能設定（`awsAuthRefresh` など）は `private_dot_claude/modify_settings.json.tmpl` のユーザ層に置く |
 
 **どちらの向きにも持ち込まないもの**: work へは個人リポジトリの名前や URL を、こちらへは
@@ -132,7 +133,7 @@ done | sort -rn
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
 | `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | **こちらが新しい（2026-11-12）。** 解いたパスが `git worktree list` に載る worktree と一致したときだけ示し、引用符・`cd`・`||` などで確実に解けない入力は一覧確認へ回す（work 側は、引用符付きのパスや `cd other && git worktree add wt`、`printf` の中の記述で、実在する別のディレクトリへの EnterWorktree を指示する）。work へ配る側。ほかに登録場所を指すコメントの差分がある。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
 | `executable_difit` | 実体の場所。work は root が置く `/opt/npm-global/current/bin/difit`、こちらは fnm の `aliases/default` の下（複数ユーザ化を入れるまで） |
-| `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` | work は共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するため `AQUA_GLOBAL_CONFIG` を export する。こちらは公式インストーラの実体なので要らない（複数ユーザ化を入れるまで） |
+| `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` の `AQUA_GLOBAL_CONFIG` | **こちらが新しい（2026-11-10）。** どちらも共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するので `AQUA_GLOBAL_CONFIG` を export する点は揃った。こちらは共有側が揃っていない間（sudo を使えなかったときのホーム aqua）も動くよう、`.chezmoitemplates/aqua-shared-env` と同じ判定（共有ストアが揃い、ホームの pkgs が共有側への symlink のときだけ共有側の設定、それ以外はホームの設定）を 4 本に同じブロックで持ち、`AQUA_ROOT_DIR` / `AQUA_POLICY_CONFIG` も渡す。work は共有側が常にある前提の 1 行（ホームの設定を既定にする）。work へ配るときはこのブロックに置き換えてよい |
 | `executable_claude-bedrock` | **こちらが正しい（2026-11-09）。** work の Haiku の既定が `global.anthropic.claude-haiku-5-5[1m}`（`]` が `}`）になっている。work へ配る側 |
 
 ## 経緯
@@ -188,6 +189,6 @@ work の `docs/claude-settings.md` に足された「popup へ来るのはログ
 | Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` の custom manager。CodeArtifact・自前 workflow・`/opt` 向けの manager（Kiro / Rust / agmsg / uv tool）は取り込まない |
 
 取り込まなかったもの: `/opt` へ寄せる複数ユーザ化（共有 aqua ストア、`/opt/npm-global` / `/opt/uv` /
-`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`）は、Mac での設計を
+`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系は取り込んだ）は、Mac での設計を
 別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
 sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。

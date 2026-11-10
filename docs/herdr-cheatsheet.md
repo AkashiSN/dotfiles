@@ -345,9 +345,21 @@ yazi 内で `.` を押せば一時的にトグルできる。
 
 ## ペインで動かすエージェント CLI の導入
 
-`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` で入れる。
-claude / codex / kiro は公式のネイティブインストーラ（curl ワンライナー）で `~/.local/bin`
-などに置かれ、以後は本体が自己更新する。
+`.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` のたびに整える。
+claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる（共有ストア `/opt/aquaproj-aqua`、
+揃っていない間はホームの aqua。`dot_config/aquaproj-aqua/aqua.yaml` の「AI エージェントの CLI と周辺ツール」）。
+このスクリプトは取得せず、ホームに残った公式インストーラの実体（`~/.local/bin/claude` と
+`~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions`、`~/.local/bin/kiro-cli*`）を、
+**aqua が提供しているコマンドの分だけ**消す（`.chezmoitemplates/ai-cleanup.sh`。動いている間はリンクだけ外し、
+実体は次の apply で消す。設定・認証・履歴は消さない）。自己更新は止めてある（Claude Code は managed settings の
+`env.DISABLE_AUTOUPDATER`、Codex は `/etc/codex/managed_config.toml`、CodeGraph / Kiro は `env.sh` の
+`CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`）。版を上げるときは `aqua.yaml` のピンを変える（Renovate）。
+**macOS の Kiro CLI だけ**は aqua の定義が Linux のみのため、公式インストーラ（`/Applications/Kiro CLI.app`）のまま。
+時間のかかる取得（Cline の npm、agmsg、graphify）は `~/.cache/dotfiles/ai-*.key` のマーカーで、
+版・再導入マーカーが変わったときだけ流す。
+
+経緯: 以前は `run_onchange_after_40-ai-assistants.sh.tmpl` が claude / codex / kiro / codegraph を公式
+インストーラで各ユーザの `~/.local/bin` などへ入れ、本体が自己更新していた。共有ストア導入で aqua へ移した。
 
 **Cline だけは配布が npm のみ**なので導入経路が違う。
 
@@ -356,7 +368,7 @@ claude / codex / kiro は公式のネイティブインストーラ（curl ワ�
 | 導入 | `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`。版を固定したいときはスクリプト内の変数に版を書く） |
 | Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。**導入のときだけ** npm が要るので、`30-node-default` が fnm で用意した node を使う |
 | 認証 | 自動化しない。導入後に端末で一度 `cline auth`（対話ウィザード）か `cline auth --provider <name> --apikey <key> --modelid <model>` |
-| 更新 | `chezmoi apply`（`CLINE_VERSION` が `latest` なら毎回追従）または本体の `cline update` |
+| 更新 | スクリプト内の `CLINE_VERSION` を書き換えて `chezmoi apply`（マーカーが変わると取り直す）または本体の `cline update` |
 
 > **node の LTS メジャーが上がると消える。** npm グローバルは fnm が管理する node の中に入るため、
 > `fnm install --lts` が新しいメジャーを入れると `cline` が PATH から失われる。
@@ -518,7 +530,7 @@ ssh -O check develop-server                        # Master running (pid=...) �
 ```
 
 **恒久対策**として Kiro CLI のシェル統合を無効化してある
-（`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`）:
+（`.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl`）:
 
 ```bash
 kiro-cli integrations uninstall -s dotfiles        # rc の pre/post ブロックを削除（冪等）

@@ -117,3 +117,28 @@ sudo mv /opt/aquaproj-aqua /opt/aquaproj-aqua.disabled                   # 共�
 # env.sh の判定が外れ、ホームの設定（~/.config/aquaproj-aqua）へ戻る。ツールは
 # aqua install -a （AQUA_ROOT_DIR をホームに向けた通常の環境）で入れ直す
 ```
+
+## AI エージェントの CLI（`aqua.yaml` と `run_after_40-ai-assistants.sh.tmpl`）
+
+Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は、共有 aqua ストア（上の節）に入る。
+`dot_config/aquaproj-aqua/aqua.yaml` の「AI エージェントの CLI と周辺ツール」にピンがあり、Kiro だけ local registry（`registry.yaml`、Linux のみ）の定義。
+macOS の Kiro CLI は公式インストーラの `/Applications/Kiro CLI.app` のまま。
+
+ユーザ側（`run_after_40-ai-assistants.sh.tmpl`、毎回実行）は取得せず、次だけを行う。
+
+- ホームに残った公式インストーラの実体を掃除する（`.chezmoitemplates/ai-cleanup.sh` の `ai_cleanup_home`）。そのコマンドを aqua が提供しているとき（`aqua which <cmd>` が aqua の `pkgs` 配下の実在するファイルを返すとき。共有側でもホームのフォールバックでもよい）だけ消す。aqua が提供しなければ何も消さない。動いているプロセスがあれば（`running_from_any` / `running_matching`）`~/.local/bin` のリンクだけ外し、実体は次の apply で消す。設定・認証・履歴には触れない。
+- 登録（`codegraph install --yes` / `graphify install` / agmsg / Kiro のシェル統合の解除）。時間のかかるものは `~/.cache/dotfiles/ai-<名前>.key` のマーカーで、キーが変わったときだけ流す。
+
+自己更新は止める: Claude Code は managed settings の `env.DISABLE_AUTOUPDATER`、Codex は `bootstrap/31-codex-policy.sh` が置く管理者設定の `check_for_update_on_startup = false`、CodeGraph / Kiro は `env.sh` の `CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`。
+
+### Codex の管理者設定（`bootstrap/31-codex-policy.sh`）
+
+| パス | 内容 |
+| --- | --- |
+| `bootstrap/codex/managed_config.toml` | ソース。`check_for_update_on_startup = false` |
+| `/etc/codex/managed_config.toml` | 置き場所（root 所有、644）。OpenAI のドキュメント（Managed configuration の Locations）で Linux / macOS とも `/etc/codex/managed_config.toml`。パスは `CODEX_MANAGED_DIR` で変わる（テスト用） |
+| `/opt/dotfiles-shared/keys/31` | ソースの `pins_key` |
+
+`--check` は、キーが一致し、置き場所のファイルがソースと同一のときだけ 0。管理者設定は各ユーザの `~/.codex/config.toml` より優先される。
+
+経緯: 以前は claude / codex / codegraph / kiro を公式インストーラで各ユーザのホームへ入れ、本体が自己更新していた。共有 aqua へ移し、掃除は「aqua が提供しているときだけ」に絞った（共有側が無く、ホームの aqua も入れられていない間に公式の実体を消して使えなくなるのを避ける）。

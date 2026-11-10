@@ -19,13 +19,13 @@
 | portfwd（SSH ブラウザ自動FW） | [portfwd-cheatsheet.md](portfwd-cheatsheet.md) | `dot_local/bin/portfwd` / `portfwd-open` / `private_dot_ssh/private_config.tmpl` |
 | dji_workflow（DJI 取り込み → Immich） | [dji-cheatsheet.md](dji-cheatsheet.md) | `dot_local/bin/dji_workflow.py` |
 | sd-archive（SD カードのイメージ化 → 撮影日別整理） | [sd-archive-cheatsheet.md](sd-archive-cheatsheet.md) | `dot_local/bin/sd-archive` / `organize-media` / `dot_local/libexec/sd-archive/block-automount.swift` |
-| agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |
-| コード知識グラフ（CodeGraph / graphify） | [knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md) | `.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md` |
+| agmsg（エージェント間メッセージ） | [agmsg-cheatsheet.md](agmsg-cheatsheet.md) | `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl`（herdr ペインでの codex↔claude 相互レビュー） / `dot_local/bin/executable_codex-monitor.sh` |
+| コード知識グラフ（CodeGraph / graphify） | [knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md) | `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` / `private_dot_claude/modify_settings.json.tmpl` / `modify_CLAUDE.md` |
 | Claude Code の設定（plugin / compact 対策 / statusLine / worktree / スキル） | [claude-code-cheatsheet.md](claude-code-cheatsheet.md) | `private_dot_claude/modify_settings.json.tmpl` / `private_dot_claude/hooks/statusline.sh` / `compact-recovery.sh` / `userpromptsubmit-compact-*.sh` / `worktree-enter-reminder.sh` / `private_dot_claude/skills/{compact-prep,git-commit,gh-pr-create}/SKILL.md` |
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
 | Renovate（依存の更新 PR） | [renovate-cheatsheet.md](renovate-cheatsheet.md) | `.github/renovate.json` / `.github/workflows/update-aqua-checksum.yaml` |
 | マルチユーザ（2 人目のユーザの始め方 / git identity） | [multi-user-cheatsheet.md](multi-user-cheatsheet.md) | `.chezmoi.toml.tmpl` / `dot_gitconfig.tmpl` |
-| 共有ストア（`/opt` の共有ツール / 起動役 / guard） | [shared-store-cheatsheet.md](shared-store-cheatsheet.md) | `.chezmoiscripts/run_after_15-shared-store.sh.tmpl` / `run_after_20-aqua-verify.sh.tmpl` / `.chezmoitemplates/shared-store-trigger.sh` / `bootstrap/` |
+| 共有ストア（`/opt` の共有ツール / 起動役 / guard） | [shared-store-cheatsheet.md](shared-store-cheatsheet.md) | `.chezmoiscripts/run_after_15-shared-store.sh.tmpl` / `run_after_20-aqua-verify.sh.tmpl` / `.chezmoitemplates/shared-store-trigger.sh` / `.chezmoitemplates/ai-cleanup.sh` / `run_after_40-ai-assistants.sh.tmpl`（AI CLI） / `bootstrap/`（`31-codex-policy.sh` を含む） |
 | work 用 dotfiles との同期 | [work-sync.md](work-sync.md) | （運用手順。`cloudsa-dotfiles` との共有スクリプト全般） |
 
 > これらは chezmoi のソースリポジトリ内のドキュメントで、ホームへは展開されない

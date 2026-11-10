@@ -110,6 +110,9 @@ policy の配置先（root 所有のため `sudo` が要る）:
 | Linux / WSL | `/etc/claude-code/managed-settings.json` |
 | Windows | `C:\Program Files\ClaudeCode\managed-settings.json`（このリポジトリでは未配置） |
 
+policy には署名の抑止のほかに `env.DISABLE_AUTOUPDATER = "1"` も入れている。Claude Code の実体は aqua が
+入れ（`aqua.yaml` のピン）、版は Renovate が上げるため、本体の自動更新は止める。
+
 配置スクリプトは現物と内容が一致していれば `sudo` を呼ばずに抜けるので、`chezmoi apply` の
 たびにパスワードを聞かれることはない。非対話 apply で `sudo` が通らないときは案内を出して
 apply 全体は続行するため、あとから対話端末で `chezmoi apply` すれば入る。

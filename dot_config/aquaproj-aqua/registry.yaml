@@ -58,3 +58,20 @@ packages:
       - darwin
       - linux
       - windows
+
+  # Kiro CLI。3.x の配布物は kirocli/bin/kiro-cli だけを含む（標準レジストリの定義は kiro-cli-chat も
+  # 要求するため入らない）。配布は Linux（musl 静的ビルド）のみ。macOS は公式インストーラの .app を使う。
+  - type: http
+    name: kiro.dev/kiro-cli
+    description: Kiro CLI is an agentic coding tool that lives in your terminal
+    link: https://kiro.dev/docs/cli/installation/
+    url: https://prod.download.cli.kiro.dev/stable/{{.Version}}/kirocli-{{.Arch}}-linux-musl.zip
+    format: zip
+    files:
+      - name: kiro-cli
+        src: kirocli/bin/kiro-cli
+    replacements:
+      amd64: x86_64
+      arm64: aarch64
+    supported_envs:
+      - linux
