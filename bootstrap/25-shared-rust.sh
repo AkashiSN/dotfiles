@@ -202,25 +202,34 @@ if [ "$prev" = "$NEW" ] || [ -z "$prev" ]; then
 	[ -z "$best" ] || prev="$(basename "$best")"
 fi
 
-log "使わなくなった toolchain を削除"
-if proxy_busy; then
-	note "共有のプロキシが動いているため、古い toolchain は次回に回します"
-	gc_defer
-else
-	for d in "$RUSTUP_ROOT"/toolchains/*/; do
-		d="${d%/}"
-		[ -d "$d" ] || continue
-		tc="$(basename "$d")"
-		[ "$tc" = "$NEW" ] && continue
-		[ -n "$prev" ] && [ "$tc" = "$prev" ] && continue
-		if toolchain_busy "$tc"; then
-			note "使用中のため残します: $d"
-			gc_defer
-			continue
-		fi
-		note "削除: $d"
-		"$RUSTUP" toolchain uninstall "$tc" || rm -rf "$d"
-	done
+# 消す候補（NEW と 1 つ前以外）。候補が無ければ、プロキシが動いていても次回へ回すものは無い。
+candidates=()
+for d in "$RUSTUP_ROOT"/toolchains/*/; do
+	d="${d%/}"
+	[ -d "$d" ] || continue
+	tc="$(basename "$d")"
+	[ "$tc" = "$NEW" ] && continue
+	[ -n "$prev" ] && [ "$tc" = "$prev" ] && continue
+	candidates+=("$tc")
+done
+
+if [ "${#candidates[@]}" -gt 0 ]; then
+	log "使わなくなった toolchain を削除"
+	if proxy_busy; then
+		note "共有のプロキシが動いているため、古い toolchain は次回に回します"
+		gc_defer
+	else
+		for tc in "${candidates[@]}"; do
+			d="$RUSTUP_ROOT/toolchains/$tc"
+			if toolchain_busy "$tc"; then
+				note "使用中のため残します: $d"
+				gc_defer
+				continue
+			fi
+			note "削除: $d"
+			"$RUSTUP" toolchain uninstall "$tc" || rm -rf "$d"
+		done
+	fi
 fi
 
 log "完了: Rust $RUST_VERSION を ${RUSTUP_ROOT} に置きました"

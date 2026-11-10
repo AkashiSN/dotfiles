@@ -211,7 +211,7 @@ Rust の toolchain を、共有 aqua の `rustup-init` で入れて `/opt/rustup
 | `/opt/dotfiles-shared/keys/25` | key（`RUST_VERSION`・コンポーネント・`aqua.yaml` の `rust-lang/rustup@` の行のハッシュ 12 桁） |
 
 - **導入**: root が、ルートへ移り、`RUSTUP_HOME=/opt/rustup` / `CARGO_HOME=/opt/cargo` で、`rustup-init -y --no-modify-path --profile minimal --default-toolchain none`、`rustup toolchain install <版> --profile minimal -c clippy -c rustfmt -c rust-docs` の順に流す。ユーザやルートの設定は読まない。`rustc` / `cargo` / `rustfmt` / `cargo-clippy` / `clippy-driver` が toolchain の `bin` で実行でき、プロキシが在ると確かめてから `rustup default <版>` を書き、キーを書く。失敗したら入れた toolchain を消し、既定とキーはそのまま非 0 で終わる。共有 aqua がこのソースのピンと揃っていない（`config/aqua.yaml` が無い、または `20-shared-aqua.sh --check` が通らない。20 が失敗した回など）、または `rustup-init` が無いときは明確なメッセージで失敗する。
-- **GC**: 1 つ前の toolchain は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが toolchain の下、パスに `/rustup/toolchains/<tc>/` を含む、`ps` の引数に含む）は消さず次回に回す。共有のプロキシ（`/opt/cargo/bin/*`）が動いているときは、macOS の `ps` がどの toolchain かを出さないことがあるので、そのたびの GC を見送る。
+- **GC**: 1 つ前の toolchain は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが toolchain の下、パスに `/rustup/toolchains/<tc>/` を含む、`ps` の引数に含む）は消さず次回に回す。共有のプロキシ（`/opt/cargo/bin/*`）が動いているときは、macOS の `ps` がどの toolchain かを出さないことがあるので、そのたびの GC を見送る。消す候補が無ければ（現行と 1 つ前だけなら）、プロキシが動いていても次回へ回す印（`pending/25`）は置かない。
 - **PATH / RUSTUP_HOME**: `env.sh` が、`/opt/rustup/toolchains`・`/opt/cargo/bin/cargo`・`keys/25` が揃っているときだけ `RUSTUP_HOME=/opt/rustup` にして、`/opt/cargo/bin` を `$CARGO_HOME/bin` の後ろに足す。`CARGO_HOME`（`~/.local/share/cargo`）はユーザごとのまま。
 - **ユーザ側**（`run_after_32-rust-default.sh.tmpl`、毎回実行）:
   - 揃っている間は、ホームの掃除（`.chezmoitemplates/rust-cleanup.sh`）。`~/.local/share/cargo/bin` のうち `rustup` と同じ inode のもの（`rustup` 本体とハードリンクのプロキシ）と、`~/.local/share/rustup` を消す。`cargo install` したものは残す。動いている Rust があれば何も消さず次の apply に回す。

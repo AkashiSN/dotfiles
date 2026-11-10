@@ -185,6 +185,18 @@ if [ ! -d /proc/self ]; then
 	runps >/dev/null || fail "(c) 実行が失敗"
 	[ ! -e "$RH/toolchains/2.0.0-fake-host" ] && [ ! -e "$RH/toolchains/3.0.0-fake-host" ] || fail "(c) 止まったのに古い toolchain が残った"
 	echo "PASS: macOS 形式の ps でも動いている toolchain は消さない"
+	# (d) 消す候補が無ければ、プロキシが動いていても次回へ回す印を置かない
+	rm -f "$SHARED_ROOT/dotfiles-shared/pending/25"
+	psout "$CH/bin/rustc"
+	runps >/dev/null || fail "(d) 実行が失敗"
+	[ ! -e "$SHARED_ROOT/dotfiles-shared/pending/25" ] || fail "(d) 消す候補が無いのに pending/25 を置いた"
+	# 候補があってプロキシが動いていれば置く
+	mkdir -p "$RH/toolchains/0.1.0-fake-host"
+	runps >/dev/null || fail "(d) 候補ありの実行が失敗"
+	[ -e "$SHARED_ROOT/dotfiles-shared/pending/25" ] || fail "(d) 候補があってプロキシが動いているのに pending/25 を置かない"
+	[ -d "$RH/toolchains/0.1.0-fake-host" ] || fail "(d) プロキシが動いているのに消した"
+	rm -f "$SHARED_ROOT/dotfiles-shared/pending/25"
+	echo "PASS: 消す候補があるときだけ次回へ回す印を置く"
 fi
 cp "$tmp/step.orig" "$STEP"
 
