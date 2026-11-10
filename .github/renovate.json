@@ -24,6 +24,15 @@
         "NPM_GLOBALS=\"\\$NPM_GLOBALS (?<depName>(?:@[^/\\s\"]+/)?[^@\\s\"]+)@(?<currentValue>[^\\s\"]+)\""
       ],
       "datasourceTemplate": "npm"
+    },
+    {
+      "description": "共有ストアへ入れる uv の CLI（UV_TOOLS=\"$UV_TOOLS <pkg>[extra,...]==<ver>\"）。depName は extra を除いたパッケージ名",
+      "customType": "regex",
+      "managerFilePatterns": ["/^bootstrap/24-shared-uv\\.sh$/"],
+      "matchStrings": [
+        "UV_TOOLS=\"\\$UV_TOOLS (?<depName>[^\\[=\\s\"]+)(?:\\[[^\\]\\s\"]*\\])?==(?<currentValue>[^\\s\"]+)\""
+      ],
+      "datasourceTemplate": "pypi"
     }
   ],
   "packageRules": [

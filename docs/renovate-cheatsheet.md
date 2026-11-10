@@ -11,9 +11,11 @@
 | `.github/workflows/*` の action | `config:recommended`（github-actions manager） |
 | Intel Mac のフォント（`run_onchange_before_10-install-packages.sh.tmpl` の `*_VERSION`） | `customManagers`。直前の行の `# renovate: datasource=... depName=...` コメントで取得元を決める |
 | 共有ストアの npm の CLI（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"`。difit / cline） | `customManagers`（datasource `npm`）。`@<ver>` を付けた行だけを拾うので、版を固定しないものは追わない |
+| 共有ストアの uv の CLI（`bootstrap/24-shared-uv.sh` の `UV_TOOLS="$UV_TOOLS <pkg>[extra,...]==<ver>"`。ansible / graphifyy） | `customManagers`（datasource `pypi`）。`depName` は extra を除いたパッケージ名。`==<ver>` を付けた行だけを拾う |
 
 `NPM_GLOBALS` に足すときは、Renovate に拾わせたいなら 1 パッケージ 1 行で
-`NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"` と書く（scope 付き `@scope/pkg@<ver>` も可）。
+`NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"` と書く（scope 付き `@scope/pkg@<ver>` も可）。`UV_TOOLS` も同様に
+`UV_TOOLS="$UV_TOOLS <pkg>[extra,...]==<ver>"` と 1 パッケージ 1 行で書く。
 
 ## PR のまとめ方
 
