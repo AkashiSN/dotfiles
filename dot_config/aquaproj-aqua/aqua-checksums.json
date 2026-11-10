@@ -1046,6 +1046,11 @@
       "algorithm": "sha256"
     },
     {
+      "id": "http/static.rust-lang.org/rustup/archive/1.29.0/aarch64-unknown-linux-gnu/rustup-init",
+      "checksum": "9732D6C5E2A098D3521FCA8145D826AE0AAA067EF2385EAD08E6FEAC88FA5792",
+      "algorithm": "sha256"
+    },
+    {
       "id": "http/static.rust-lang.org/rustup/archive/1.29.0/x86_64-apple-darwin/rustup-init",
       "checksum": "33CF85DF9142BC6D29CBC62FA5CA1D4C29622CDDB55213A4C1A43C457FB9B2D7",
       "algorithm": "sha256"
