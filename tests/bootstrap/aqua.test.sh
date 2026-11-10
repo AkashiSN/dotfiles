@@ -72,9 +72,15 @@ out="$(AQUA_BIN="$tmp/nonexistent" bash "$STEP" 2>&1)" || rc=$?
 
 # ---- 通常（token あり）----
 rm -f "$log"
+# 展開したアーカイブが誰でも書ける権限で置いたファイル
+mkdir -p "$store/pkgs/github_release/github.com/x/y/v1"
+: >"$store/pkgs/github_release/github.com/x/y/v1/f"
+chmod 777 "$store/pkgs/github_release/github.com/x/y/v1" "$store/pkgs/github_release/github.com/x/y/v1/f"
 rc=0
 out="$(AQUA_BIN="$fake" GITHUB_TOKEN=SECRET_TOKEN bash "$STEP" 2>&1)" || rc=$?
 assert_eq "0" "$rc" "token あり: 成功する"
+assert_no_group_other_write "共有 aqua" "$store/pkgs/github_release/github.com/x/y/v1" "$store/pkgs/github_release/github.com/x/y/v1/f"
+rm -rf "$store/pkgs/github_release/github.com/x"
 assert_eq "$want" "$(cat "$keyfile")" "token あり: キーを書く"
 for f in aqua.yaml registry.yaml aqua-policy.yaml aqua-checksums.json; do
 	cmp -s "$cfg/$f" "$store/config/$f" || fail "config/$f がソースと違う"

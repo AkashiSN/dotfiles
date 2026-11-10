@@ -48,6 +48,8 @@ for p in "${pkgs[@]}"; do
 	b="${n##*/}"
 	mkdir -p "$prefix/lib/node_modules/$n/bin" "$prefix/bin"
 	echo "// $p" >"$prefix/lib/node_modules/$n/bin/$b.js"
+	# npm のパッケージには誰でも書ける権限のファイルが入っていることがある
+	chmod 666 "$prefix/lib/node_modules/$n/bin/$b.js"
 	ln -s "../lib/node_modules/$n/bin/$b.js" "$prefix/bin/$b"
 done
 [ "${FAKE_NPM_FAIL:-}" = 1 ] && exit 1
@@ -99,6 +101,7 @@ cur() { readlink "$root/current"; }
 
 out="$(run)" || fail "通常の実行が失敗" "$out"
 k1="$(cat "$keyfile")"
+assert_no_group_other_write "npm の組" "$root/$k1/prefix/lib/node_modules/difit/bin/difit.js"
 assert_eq "$k1" "$(cur)" "current が新しい key を指し、key は keys/23 と同じ"
 rc=0
 bash "$STEP" --check || rc=$?

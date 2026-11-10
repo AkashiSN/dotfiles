@@ -163,8 +163,8 @@ gc_old_versions() {
 }
 gc_old_versions
 
-log "全ユーザが読めるよう world 読取/実行権限を付与"
-chmod -R a+rX "$STORE"
+log "全ユーザが読めて root だけが書ける権限にする (a+rX,go-w)"
+chmod -R a+rX,go-w "$STORE"
 
 mkdir -p "$(dirname "$KEYFILE")"
 src_key >"$KEYFILE"

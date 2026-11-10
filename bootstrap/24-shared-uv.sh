@@ -191,7 +191,8 @@ else
 	fi
 fi
 set_owner "$DEST"
-chmod -R a+rX "$DEST"
+# 展開したアーカイブの権限に関わらず、全ユーザが読めて root だけが書ける状態にする。
+chmod -R a+rX,go-w "$DEST" "$PYDIR"
 
 prev="$(readlink "$ROOT/current" 2>/dev/null || true)"
 log "current を $KEY に向ける"

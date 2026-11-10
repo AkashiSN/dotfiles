@@ -12,7 +12,7 @@
 | `bootstrap/NN-*.sh` | 共有側の 1 領域を揃えるステップ（番号順に実行） |
 | `bootstrap/run-all.sh` | ステップを束ねる入口 |
 
-所有者は `root`（グループは Linux が `root`、macOS が `wheel`）、権限は `755` / `644`。パスは環境変数 `SHARED_ROOT`（既定 `/opt`）で変わる（テスト用）。
+所有者は `root`（グループは Linux が `root`、macOS が `wheel`）、権限は `755` / `644`。各ステップは置いた木に `chmod -R a+rX,go-w` をかけ、展開したアーカイブの権限に関わらず全ユーザが読めて root だけが書ける状態にする（aqua は `/opt/aquaproj-aqua`、npm / uv は置いた組（uv は Python の置き場も）、rust は `/opt/rustup` と `/opt/cargo`、tenv / agmsg も同じ）。パスは環境変数 `SHARED_ROOT`（既定 `/opt`）で変わる（テスト用）。
 
 ## apply のたびの確認
 

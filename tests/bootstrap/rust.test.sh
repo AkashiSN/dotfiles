@@ -105,7 +105,14 @@ default_tc() { sed -n 's/^default_toolchain = "\(.*\)"$/\1/p' "$RH/settings.toml
 ver="$(sed -n 's/^RUST_VERSION="\(.*\)"$/\1/p' "$STEP")"
 [ -n "$ver" ] || fail "RUST_VERSION の行が読めない"
 
+# 前回までに誰でも書ける権限で残ったファイル（展開したアーカイブなど）
+mkdir -p "$RH/stray" "$CH/bin"
+: >"$RH/stray/f"
+: >"$CH/bin/stray"
+chmod 777 "$RH/stray" "$RH/stray/f" "$CH/bin/stray"
 out="$(run)" || fail "通常の実行が失敗" "$out"
+assert_no_group_other_write "rust" "$RH/stray" "$RH/stray/f" "$CH/bin/stray"
+rm -rf "$RH/stray" "$CH/bin/stray"
 k1="$(cat "$keyfile")"
 assert_eq "$ver-fake-host" "$(default_tc)" "RUST_VERSION の toolchain が既定になる"
 [ -x "$CH/bin/cargo" ] && [ -x "$CH/bin/rustup" ] || fail "$CH/bin にプロキシが無い"

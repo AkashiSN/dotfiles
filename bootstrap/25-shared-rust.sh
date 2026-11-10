@@ -162,7 +162,8 @@ if [ "$(current_default)" != "$NEW" ]; then
 fi
 
 set_owner -R "$owner_group" "$RUSTUP_ROOT" "$CARGO_ROOT"
-chmod -R a+rX "$RUSTUP_ROOT" "$CARGO_ROOT"
+# 展開したアーカイブの権限に関わらず、全ユーザが読めて root だけが書ける状態にする。
+chmod -R a+rX,go-w "$RUSTUP_ROOT" "$CARGO_ROOT"
 mkdir -p "$(dirname "$KEYFILE")"
 src_key >"$KEYFILE"
 

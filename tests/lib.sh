@@ -137,3 +137,16 @@ assert_stale_shared_aqua_skips() {
 		[ ! -e "$p" ] || fail "$(basename "$step"): 共有 aqua が古いのに $p を作った"
 	done
 }
+
+# assert_no_group_other_write <説明> <path...>
+# <path> の各ファイル・ディレクトリにグループ・他人の書込権限が無いこと（symlink は見ない）。
+assert_no_group_other_write() {
+	local what="$1" p perm
+	shift
+	for p in "$@"; do
+		[ -L "$p" ] && continue
+		perm="$(ls -ld "$p")"
+		[ "${perm:5:1}" = "-" ] && [ "${perm:8:1}" = "-" ] || fail "$what: グループ・他人に書込権限が残った" "$perm"
+	done
+	echo "PASS: $what: グループ・他人の書込権限を外す"
+}

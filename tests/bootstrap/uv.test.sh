@@ -31,7 +31,8 @@ case "$1 ${2:-}" in
 	py="$UV_PYTHON_INSTALL_DIR/cpython-$3.0-fake/bin"
 	mkdir -p "$py" "$UV_PYTHON_BIN_DIR"
 	printf '#!/bin/sh\n' >"$py/python3"
-	chmod +x "$py/python3"
+	# 展開したアーカイブには誰でも書ける権限のファイルが入っていることがある
+	chmod 777 "$py/python3"
 	for n in python python3 "python$3"; do
 		ln -sf "$py/python3" "$UV_PYTHON_BIN_DIR/$n"
 	done
@@ -108,6 +109,7 @@ for d in tools bin; do
 	assert_eq "current/$d" "$(readlink "$root/$d")" "$root/$d は current/$d への symlink"
 done
 [ -d "$root/python" ] && [ ! -L "$root/python" ] || fail "$root/python が実ディレクトリでない"
+assert_no_group_other_write "uv の Python" "$root/python"/cpython-*/bin/python3
 [ -x "$root/bin/python3" ] && [ -x "$root/bin/ansible" ] && [ -x "$root/bin/graphify" ] || fail "共有 bin に python3 / ansible / graphify が揃っていない"
 rc=0
 bash "$STEP" --check || rc=$?
