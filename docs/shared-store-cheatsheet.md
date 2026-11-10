@@ -61,7 +61,7 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 
 - 引数 `--check`: root なしで、共有側が `DOTFILES_SRC` のピンと一致すれば 0、食い違えば 1。何も書かない。
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
-- 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `GITHUB_TOKEN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。
+- 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。`GITHUB_TOKEN` は `run-all.sh` が `20`（共有 aqua）にだけ渡し、他のステップ（`--check` を含む）からは外す。
 - ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
 - 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが全て一致していてもこれがあれば 3 を返す（キーの食い違いもあれば 1）。次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で、`sudo -n` が通るときだけそのステップを流し直して使い終わったものを消す。パスワードは聞かない（通らなければ案内を 1 行出すだけで、キーの食い違いで sudo を通した apply か、資格情報がキャッシュされている間の apply で掃除される）。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。
 - ステップの `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。

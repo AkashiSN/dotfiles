@@ -13,7 +13,8 @@
 #     1 以外の非 0 はステップ自身の異常として警告し（終了コードを表示）、不一致として数える。
 #   - 引数なし: root で共有側を揃える（冪等）。揃えたら $SHARED_ROOT/dotfiles-shared/keys/NN に
 #     pins_key の結果を書く。--check はこのキーとソースから計算したキーを比べる。
-#   - 環境変数: DOTFILES_SRC / AQUA_BIN / GITHUB_TOKEN / SHARED_ROOT / DOTFILES_SHARED_FORCE。
+#   - 環境変数: DOTFILES_SRC / AQUA_BIN / SHARED_ROOT / DOTFILES_SHARED_FORCE。GITHUB_TOKEN は
+#     20（共有 aqua）にだけ渡し、他のステップからは外す。
 #   - 使用中で消せなかったものがあれば gc_defer（lib.sh）で $SHARED_ROOT/dotfiles-shared/pending/NN を置く。
 #     --check が 0 でも pending/NN があれば不一致として数え、次の apply でステップを流し直す。
 #     ステップを流す前に pending/NN を外す（また使用中なら、ステップが置き直す）。
@@ -36,6 +37,10 @@ SHARED_ROOT="${SHARED_ROOT:-/opt}"
 BOOTSTRAP_DIR="${BOOTSTRAP_DIR:-$here}"
 DOTFILES_SRC="${DOTFILES_SRC:-$(dirname "$here")}"
 export SHARED_ROOT DOTFILES_SRC
+
+# GITHUB_TOKEN は共有 aqua（20）の attestation の検証だけが使う。他のステップには渡さない。
+gh_token="${GITHUB_TOKEN:-}"
+unset GITHUB_TOKEN
 
 mode=run
 case "${1:-}" in
@@ -127,7 +132,13 @@ for f in ${mismatched[@]+"${mismatched[@]}"}; do
 	name="$(basename "$f")"
 	log "$name"
 	rm -f "$PENDING/${name%%-*}"
-	if ! bash "$f"; then
+	rc=0
+	if [ "${name%%-*}" = 20 ] && [ -n "$gh_token" ]; then
+		GITHUB_TOKEN="$gh_token" bash "$f" || rc=$?
+	else
+		bash "$f" || rc=$?
+	fi
+	if [ "$rc" -ne 0 ]; then
 		warn "$name が失敗しました。後続のステップは続けます"
 		failed=1
 		continue

@@ -59,6 +59,13 @@ bash "$RUN" --check || rc=$?
 assert_eq "0" "$rc" "run-all --check: 全部一致なら 0"
 [ ! -e "$SHARED_ROOT/ran" ] || fail "run-all --check: ステップを実行してしまった"
 
+# GITHUB_TOKEN は 20 にだけ渡す
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20"
+GITHUB_TOKEN=tok bash "$RUN" >/dev/null
+assert_eq "10 $tmp/src 
+20 $tmp/src tok" "$(cat "$SHARED_ROOT/ran")" "run-all: GITHUB_TOKEN は 20 にだけ渡す"
+rm -f "$SHARED_ROOT/ran"
+
 # (f) 食い違うステップだけを流し、DOTFILES_STATE_COMMIT があれば state を書く
 rm "$SHARED_ROOT/dotfiles-shared/keys/20"
 GITHUB_TOKEN=tok DOTFILES_STATE_COMMIT=abc123 bash "$RUN" >/dev/null
