@@ -53,6 +53,13 @@ FAKE
 	assert_contains "$o" "見送りました" "before_05: chgrp の失敗を案内する"
 	assert_eq "sudo chgrp -R brew $b5/prefix" "$(grep '^sudo' "$CALLS" | tail -n 1)" "before_05: chgrp の失敗後は sudo を呼ばない"
 
+	# DOTFILES_SHARED_SKIP=1 なら sudo を呼ばず案内だけ
+	rc=0
+	o="$(DOTFILES_SHARED_SKIP=1 run05)" || rc=$?
+	assert_eq "0" "$rc" "before_05: SKIP で 0"
+	assert_contains "$o" "DOTFILES_SHARED_SKIP=1" "before_05: SKIP の案内を出す"
+	assert_not_contains "$(cat "$CALLS")" "sudo" "before_05: SKIP なら sudo を呼ばない"
+
 	# 全部通れば chmod / find まで呼ぶ
 	rc=0
 	o="$(run05)" || rc=$?

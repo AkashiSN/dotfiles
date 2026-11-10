@@ -28,6 +28,12 @@ if homebrew_fs_shared "$PREFIX" && homebrew_member_registered; then
 	exit 0
 fi
 
+# DOTFILES_SHARED_SKIP=1 なら sudo を呼ばない。
+if [ "${DOTFILES_SHARED_SKIP:-}" = 1 ]; then
+	notice "DOTFILES_SHARED_SKIP=1 のため、Homebrew の共有設定を飛ばしました"
+	exit 0
+fi
+
 # sudo のパスワードを聞けない環境（TTY なし・資格情報キャッシュなし）では進めない。
 if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
 	notice "Homebrew の共有設定を飛ばしました（sudo を使えません）"

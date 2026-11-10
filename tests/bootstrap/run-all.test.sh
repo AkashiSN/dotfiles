@@ -299,6 +299,15 @@ out="$(FAKE_CHECK_RC=3 trig)"
 assert_contains "$out" "rc=0" "trigger (g): 掃除の失敗でも終了コード 0"
 SUDO_RC=0
 
+# (h) DOTFILES_SHARED_SKIP=1: 食い違いでも消し残しでも sudo を呼ばず、案内 1 行で 0
+for r in 1 3; do
+	out="$(FAKE_CHECK_RC=$r DOTFILES_SHARED_SKIP=1 trig)"
+	assert_contains "$out" "rc=0" "trigger (h): SKIP で終了コード 0 (--check $r)"
+	[ ! -e "$calls" ] && [ ! -e "$calls.probe" ] || fail "trigger (h): SKIP なのに sudo を呼んだ (--check $r)"
+	assert_contains "$out" "DOTFILES_SHARED_SKIP=1" "trigger (h): SKIP の案内を出す (--check $r)"
+	assert_eq "1" "$(printf '%s\n' "$out" | grep -c -v '^rc=' || true)" "trigger (h): 案内は 1 行だけ (--check $r)"
+done
+
 # --check が 1 以外で失敗（スクリプト自体のエラー）でも 0、sudo 無し
 out="$(FAKE_CHECK_RC=2 trig)"
 assert_contains "$out" "rc=0" "trigger: --check の異常でも終了コード 0"

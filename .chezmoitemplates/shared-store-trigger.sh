@@ -3,7 +3,8 @@
 # .chezmoiscripts の run_after_15 が template "shared-store-trigger.sh" で取り込む。
 # テンプレートの記法は含めない（tests/ からそのまま source できる）。
 # 前提: bootstrap/lib.sh と bootstrap/guard.sh を source 済み。note/warn は lib.sh のもの。
-# 環境変数: DOTFILES_SRC（ソースのパス）、SHARED_ROOT（既定 /opt）。
+# 環境変数: DOTFILES_SRC（ソースのパス）、SHARED_ROOT（既定 /opt）、
+#           DOTFILES_SHARED_SKIP=1（食い違いがあっても sudo を呼ばず、案内 1 行で終える）。
 
 # shared_store_trigger
 # 常に 0 を返す。共有ストアの都合で apply を止めない。
@@ -22,6 +23,11 @@ shared_store_trigger() {
 		return 0
 		;;
 	esac
+
+	if [ "${DOTFILES_SHARED_SKIP:-}" = 1 ]; then
+		note "DOTFILES_SHARED_SKIP=1 のため、共有ストア (${root}) の更新を飛ばしました"
+		return 0
+	fi
 
 	# git は root で動かすと dubious ownership で拒否されるため、利用者のこの権限で判定する。
 	# ok なら HEAD を state へ書かせる。force は state を書かせない。

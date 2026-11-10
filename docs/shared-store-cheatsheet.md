@@ -31,6 +31,7 @@
 
 - `sudo -n true` が通らず、標準入力が端末でない（パスワードを聞けない）。
 - sudo のパスワードを断られた、またはステップが失敗した。
+- `DOTFILES_SHARED_SKIP=1 chezmoi apply`。共有ストアの更新と Homebrew の共有設定（`run_before_05`）の両方で sudo を呼ばず、案内を 1 行出して終える。共有側が揃っていない間のユーザ側は、各ステップのユーザ単位の fallback で動く。
 
 root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_TOKEN` として環境変数で渡す（引数に載せない。ファイルにも残さない）。`aqua` の絶対パスは `AQUA_BIN` で渡す（初回の apply ではまだ PATH に無いため、PATH に無ければ `~/.local/bin` / `/opt/homebrew/bin` / `/usr/local/bin` からも探す。`run_after_20-aqua-verify` も同じ場所を PATH に足す）。
 
