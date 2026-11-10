@@ -21,12 +21,13 @@
 1. `bootstrap/run-all.sh --check` を呼び出したユーザの権限で流す。全ステップが一致なら何もせず終わる（sudo を呼ばない）。
 2. 食い違いがあれば、ダウングレード判定 `shared_guard` を同じユーザの権限で行う。`stale` なら警告だけ出して終わる。
 3. `ok` / `force` なら sudo を呼ぶ。`sudo --preserve-env=... bash bootstrap/run-all.sh` で、食い違うステップだけを番号順に揃える。
+4. 食い違いが消し残し（`pending/<NN>`）だけ（`--check` が 3）なら急がない。`sudo -n` が通るときだけ `sudo -n` で流し、通らなければパスワードを聞かず案内を 1 行出して終わる。
 
 どの場合も `chezmoi apply` は止まらない（常に終了コード 0）。
 
 ## sudo を聞かれるとき
 
-食い違いがあり、かつダウングレードにならないときだけ。次のときは sudo を呼ばず、警告して見送る（次の apply で再試行される）。
+キーの食い違いがあり、かつダウングレードにならないときだけ（消し残しだけのときは聞かない）。次のときは sudo を呼ばず、警告して見送る（次の apply で再試行される）。
 
 - `sudo -n true` が通らず、標準入力が端末でない（パスワードを聞けない）。
 - sudo のパスワードを断られた、またはステップが失敗した。
@@ -49,7 +50,7 @@ root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_T
 ## 手動で実行する
 
 ```sh
-bash bootstrap/run-all.sh --check; echo $?    # 0: 一致 / 1: 食い違い（root 不要、何も書かない）
+bash bootstrap/run-all.sh --check; echo $?    # 0: 一致 / 1: キーの食い違い / 3: 消し残しだけ（root 不要、何も書かない）
 sudo bash bootstrap/run-all.sh                 # 食い違うステップだけを揃える
 ```
 
@@ -61,8 +62,8 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
 - 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `GITHUB_TOKEN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。
 - ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
-- 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが一致していてもこれを食い違いとして数えるので、次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で sudo を呼び、そのステップを流し直して使い終わったものを消す。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。使用中の間は、apply のたびに sudo を聞かれる（非対話で sudo を使えなければ警告だけ）。
-- `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
+- 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが全て一致していてもこれがあれば 3 を返す（キーの食い違いもあれば 1）。次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で、`sudo -n` が通るときだけそのステップを流し直して使い終わったものを消す。パスワードは聞かない（通らなければ案内を 1 行出すだけで、キーの食い違いで sudo を通した apply か、資格情報がキャッシュされている間の apply で掃除される）。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。
+- ステップの `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
 
 ## aqua（`bootstrap/20-shared-aqua.sh`）
 

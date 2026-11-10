@@ -2,7 +2,8 @@
 # 共有ストアの bootstrap/NN-*.sh を番号順に扱う入口。
 #
 #   run-all.sh --check   各ステップの --check を流す（root 不要、何も書かない）。
-#                        全ステップが一致なら 0、1 本でも不一致なら 1。
+#                        全ステップが一致なら 0、1 本でもキーが不一致（か --check の異常）なら 1、
+#                        キーは全て一致で消し残し（pending/NN）だけがあるなら 3。
 #   run-all.sh           （root）不一致のステップだけを番号順に流す。1 本が失敗しても後続は流し、
 #                        失敗があれば state を書かずに 1 で終わる。
 #
@@ -70,23 +71,30 @@ step_pending() {
 
 # 不一致のステップを mismatched に集める。--check の 1 は食い違い、それ以外の非 0 は異常。
 # --check が 0 でも消し残しがあれば、掃除をやり直すため不一致として数える。
+# key_mismatch はキーの不一致（か --check の異常）が 1 本でもあれば 1。消し残しだけなら 0 のまま。
 mismatched=()
+key_mismatch=0
 for f in "${steps[@]}"; do
 	rc=0
 	bash "$f" --check >/dev/null || rc=$?
 	case "$rc" in
 	0) step_pending "$f" && mismatched+=("$f") ;;
-	1) mismatched+=("$f") ;;
+	1)
+		mismatched+=("$f")
+		key_mismatch=1
+		;;
 	*)
 		warn "$(basename "$f") の --check が異常終了しました (終了コード $rc)。不一致として扱います"
 		mismatched+=("$f")
+		key_mismatch=1
 		;;
 	esac
 done
 
 if [ "$mode" = check ]; then
-	[ "${#mismatched[@]}" -eq 0 ]
-	exit
+	[ "${#mismatched[@]}" -eq 0 ] && exit 0
+	[ "$key_mismatch" -eq 1 ] && exit 1
+	exit 3
 fi
 
 if [ "${BOOTSTRAP_ALLOW_NONROOT:-}" != 1 ] && [ "$(id -u)" -ne 0 ]; then

@@ -111,7 +111,12 @@ mkdir -p "$SHARED_ROOT/dotfiles-shared/pending"
 : >"$SHARED_ROOT/dotfiles-shared/pending/20"
 rc=0
 bash "$RUN" --check || rc=$?
-assert_eq "1" "$rc" "run-all --check: キーが一致していても消し残しがあれば 1"
+assert_eq "3" "$rc" "run-all --check: キーが一致していて消し残しだけがあれば 3"
+rm "$SHARED_ROOT/dotfiles-shared/keys/10"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: 消し残しとキーの食い違いが両方あれば 1"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
 # 20 は本物の gc_defer で「まだ使用中」を記録する
 cat >"$bd/20-b.sh" <<STEP
 #!/usr/bin/env bash
@@ -186,7 +191,8 @@ SUDO_N_RC=0
 SUDO_RC=0
 # 偽 sudo: 呼び出しの引数と、環境変数で渡った値を記録する。
 sudo() {
-	if [ "$1" = "-n" ]; then
+	if [ "$1 ${2:-}" = "-n true" ]; then
+		echo "PROBE: -n true" >>"$calls.probe"
 		return "$SUDO_N_RC"
 	fi
 	{
@@ -199,7 +205,7 @@ gh() { [ "$1 $2" = "auth token" ] && echo SECRET_TOKEN; }
 # shellcheck disable=SC2329  # trigger の command -v aqua が見つける偽物
 aqua() { :; }
 trig() {
-	rm -f "$calls"
+	rm -f "$calls" "$calls.probe"
 	local rc=0
 	shared_store_trigger </dev/null 2>&1 || rc=$?
 	echo "rc=$rc"
@@ -272,6 +278,25 @@ SUDO_N_RC=0
 SUDO_RC=1
 out="$(FAKE_CHECK_RC=1 trig)"
 assert_contains "$out" "rc=0" "trigger: sudo を断られても終了コード 0"
+SUDO_RC=0
+
+# (g) 消し残しだけ（--check が 3）: sudo -n が通るなら sudo -n で流す
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): 終了コード 0"
+assert_contains "$(cat "$calls")" "ARGS: -n --preserve-env=" "trigger (g): 消し残しだけなら sudo -n で流す"
+assert_contains "$out" "消し残しを掃除します" "trigger (g): 掃除の案内を出す"
+# sudo -n が通らなければ、TTY があってもパスワードを聞かず、案内 1 行で 0
+SUDO_N_RC=1
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): sudo -n 失敗でも終了コード 0"
+[ ! -e "$calls" ] || fail "trigger (g): 消し残しだけなのに sudo を呼んだ"
+assert_contains "$out" "使用中で残した古い版" "trigger (g): 見送りを 1 行で案内する"
+assert_eq "1" "$(printf '%s\n' "$out" | grep -c -v '^rc=' || true)" "trigger (g): 案内は 1 行だけ"
+SUDO_N_RC=0
+# sudo -n で流して失敗しても 0、警告ではなく案内
+SUDO_RC=1
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): 掃除の失敗でも終了コード 0"
 SUDO_RC=0
 
 # --check が 1 以外で失敗（スクリプト自体のエラー）でも 0、sudo 無し
