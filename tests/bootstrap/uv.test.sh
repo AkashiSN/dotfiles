@@ -13,6 +13,7 @@ export DOTFILES_SRC="$tmp/src"
 unset GITHUB_TOKEN DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT FAKE_UV_FAIL FAKE_UV_NOCMD
 mkdir -p "$tmp/src/bootstrap" "$tmp/src/dot_config/uv"
 cp "$REPO/bootstrap/lib.sh" "$tmp/src/bootstrap/"
+fake_shared_aqua_step "$tmp/src/bootstrap"
 STEP="$tmp/src/bootstrap/24-shared-uv.sh"
 PYVER="$tmp/src/dot_config/uv/dot_python-version"
 echo 3.13 >"$PYVER"
@@ -86,6 +87,7 @@ mkdir -p "$SHARED_ROOT/aquaproj-aqua/config" "$SHARED_ROOT/dotfiles-shared/keys"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua.yaml"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua-policy.yaml"
 echo k20 >"$SHARED_ROOT/dotfiles-shared/keys/20"
+assert_stale_shared_aqua_skips "$STEP" "$SHARED_ROOT/dotfiles-shared/keys/20" "$root" "$keyfile"
 rc=0
 out="$(env -u AQUA_BIN bash "$STEP" 2>&1)" || rc=$?
 [ "$rc" -ne 0 ] || fail "AQUA_BIN 空で成功した"

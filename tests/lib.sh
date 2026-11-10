@@ -111,3 +111,29 @@ chezmoi_managed() {
 	rm -rf "$tmp"
 	return $rc
 }
+
+# fake_shared_aqua_step <bootstrap dir>
+# <bootstrap dir>/20-shared-aqua.sh に偽物を置く。--check は $SHARED_ROOT/dotfiles-shared/keys/20 が
+# "k20" のときだけ通る（共有 aqua がピンと揃っている扱い）。21 / 23 / 24 / 25 のテストが使う。
+fake_shared_aqua_step() {
+	cat >"$1/20-shared-aqua.sh" <<'FAKE'
+#!/usr/bin/env bash
+[ "${1:-}" = --check ] || exit 1
+[ "$(cat "$SHARED_ROOT/dotfiles-shared/keys/20" 2>/dev/null)" = k20 ]
+FAKE
+}
+
+# assert_stale_shared_aqua_skips <step> <keys/20 のパス> <作ってはいけないパス...>
+# keys/20 がピンと食い違う（20 が失敗した回）と、ステップが案内を出して非 0 で終わり、何も作らないこと。
+assert_stale_shared_aqua_skips() {
+	local step="$1" k20="$2" out rc=0 p
+	shift 2
+	echo stale >"$k20"
+	out="$(AQUA_BIN="${fakeaqua:-/bin/true}" bash "$step" 2>&1)" || rc=$?
+	echo k20 >"$k20"
+	[ "$rc" -ne 0 ] || fail "$(basename "$step"): 共有 aqua が古いのに成功した"
+	assert_contains "$out" "ピンと揃っていない" "$(basename "$step"): 共有 aqua が古ければ理由を出して飛ばす"
+	for p in "$@"; do
+		[ ! -e "$p" ] || fail "$(basename "$step"): 共有 aqua が古いのに $p を作った"
+	done
+}

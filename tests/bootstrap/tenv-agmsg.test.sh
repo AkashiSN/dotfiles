@@ -13,6 +13,7 @@ export DOTFILES_SRC="$tmp/src"
 unset GITHUB_TOKEN DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT FAKE_TENV_FAIL FAKE_TENV_NOBIN FAKE_GIT_COMMIT
 mkdir -p "$tmp/src/bootstrap"
 cp "$REPO/bootstrap/lib.sh" "$tmp/src/bootstrap/"
+fake_shared_aqua_step "$tmp/src/bootstrap"
 export FAKE_LOG="$tmp/log"
 : >"$FAKE_LOG"
 keys="$SHARED_ROOT/dotfiles-shared/keys"
@@ -57,6 +58,7 @@ mkdir -p "$SHARED_ROOT/aquaproj-aqua/config" "$keys"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua.yaml"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua-policy.yaml"
 echo k20 >"$keys/20"
+assert_stale_shared_aqua_skips "$TSTEP" "$keys/20" "$TROOT" "$keys/21"
 rc=0
 out="$(env -u AQUA_BIN bash "$TSTEP" 2>&1)" || rc=$?
 [ "$rc" -ne 0 ] || fail "tenv: AQUA_BIN 空で成功した"

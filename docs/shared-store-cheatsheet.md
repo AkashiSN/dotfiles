@@ -62,6 +62,7 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 - 引数 `--check`: root なしで、共有側が `DOTFILES_SRC` のピンと一致すれば 0、食い違えば 1。何も書かない。
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
 - 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。`GITHUB_TOKEN` は `run-all.sh` が `20`（共有 aqua）にだけ渡し、他のステップ（`--check` を含む）からは外す。
+- 共有 aqua からツールを引くステップ（21 / 23 / 24 / 25）は、最初に `bootstrap/lib.sh` の `shared_aqua_current`（`20-shared-aqua.sh --check`）で共有 aqua がピンと揃っているかを見る。揃っていなければ理由を出して非 0 で終わる（20 が失敗した回は、後続がそろって「飛ばした」と出る）。
 - ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
 - 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが全て一致していてもこれがあれば 3 を返す（キーの食い違いもあれば 1）。次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で、`sudo -n` が通るときだけそのステップを流し直して使い終わったものを消す。パスワードは聞かない（通らなければ案内を 1 行出すだけで、キーの食い違いで sudo を通した apply か、資格情報がキャッシュされている間の apply で掃除される）。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。
 - ステップの `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
@@ -135,7 +136,7 @@ difit / cline のように npm で配られる CLI を、共有 aqua の Node �
 | `/opt/dotfiles-shared/keys/23` | key（node のピンと `NPM_GLOBALS` のハッシュ 12 桁）。ディレクトリ名と同じ |
 
 - **key**: `aqua.yaml` の `nodejs/node@<版>` の行と `NPM_GLOBALS` の行から決まる。どちらかを変えると `--check` が 1 を返し、次の apply で新しい key の組を作る。変わらなければ取得しない。
-- **導入**: root が共有 aqua の node / npm（呼び出したユーザの `AQUA_BIN` を、`AQUA_ROOT_DIR` / `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` を共有側へ向けて引く）で `<key>` の中へ完成させ、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる（他のステップは続く）。共有 aqua が揃っていない（`keys/20` が無い）、または node が無いときは、明確なメッセージで失敗する。npm のキャッシュは一時ディレクトリで、終わったら消す。
+- **導入**: root が共有 aqua の node / npm（呼び出したユーザの `AQUA_BIN` を、`AQUA_ROOT_DIR` / `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` を共有側へ向けて引く）で `<key>` の中へ完成させ、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる（他のステップは続く）。共有 aqua がこのソースのピンと揃っていない（`config/aqua.yaml` が無い、または `20-shared-aqua.sh --check` が通らない。20 が失敗した回など）、または node が無いときは、明確なメッセージで失敗する。npm のキャッシュは一時ディレクトリで、終わったら消す。
 - **GC**: 新しい組を入れたあと、1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/npm-global/<key>/` を含む、`current/bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む）は消さず、次回に回す。
 - **PATH**: `env.sh` が、`/opt/npm-global/current/bin` と `keys/23` の両方が在るときだけ `~/.local/bin` の後ろに足す。
 - **ユーザ側**（`run_after_30-node-default.sh.tmpl`、毎回実行）:
@@ -173,7 +174,7 @@ rm ~/.cache/dotfiles/node-user.key
 
 - **組の中へ直接入れる**: uv は venv のシェバンやコマンドの symlink に入れ先の絶対パスを書くので、入れてから動かさない。`<key>` の中へ `UV_TOOL_DIR` / `UV_PYTHON_BIN_DIR` / `UV_TOOL_BIN_DIR` を向けて入れる。
 - **Python は組の外**: 各ユーザのプロジェクトの venv（`uv venv` / `uv sync`）も共有の Python のパスを記録する。Python を組の中に置くとツールの版を上げるたびに動いて古い組の GC で壊れるので、`/opt/uv/python/` に固定し、`UV_PYTHON_INSTALL_DIR` を向ける。`dot_python-version` の版を上げると新しい版が増える。古い版は、動いておらず、残る組のどの venv / bin のリンクも使っていないときだけ消す。**消えた版で作ったプロジェクトの venv は壊れる**（`uv sync` / `uv venv` で作り直す）。
-- **導入**: root が共有 aqua の uv（`AQUA_BIN` と共有側の `AQUA_*`）で、ルートへ移り、一時の `UV_CACHE_DIR`・`UV_NO_CONFIG=1`・`UV_PYTHON_PREFERENCE=only-managed` で入れる。`UV_TOOLS` の各ツールのコマンドが `<key>/bin` に在り実行できると確かめてから完了にし、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または uv が無いときは明確なメッセージで失敗する。
+- **導入**: root が共有 aqua の uv（`AQUA_BIN` と共有側の `AQUA_*`）で、ルートへ移り、一時の `UV_CACHE_DIR`・`UV_NO_CONFIG=1`・`UV_PYTHON_PREFERENCE=only-managed` で入れる。`UV_TOOLS` の各ツールのコマンドが `<key>/bin` に在り実行できると確かめてから完了にし、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる。共有 aqua がこのソースのピンと揃っていない（`config/aqua.yaml` が無い、または `20-shared-aqua.sh --check` が通らない。20 が失敗した回など）、または uv が無いときは明確なメッセージで失敗する。
 - **GC**: 1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/uv/<key>/` を含む、`/opt/uv/bin/<コマンド>` や組の `bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む。Python のスクリプトは macOS の `ps` で comm がインタプリタ、スクリプトのパスは引数に出る）は消さず、次回に回す。macOS の `ps` はプロジェクトの venv のリンク（`.venv/bin/python`）を出すので、`bootstrap/lib.sh` の `running_*` は comm / 引数の第 1 語が symlink なら実体まで解決して照合する。
 - **PATH**: `env.sh` が、`/opt/uv/bin` と `keys/24` の両方が在るときだけ `~/.local/bin` の後ろに足す。`codex-bedrock` は PATH 上の `python3`（3.11+）を探すので、この `python3` で動く。
 - **ユーザ側**（`run_after_35-uv-tools.sh.tmpl`、毎回実行）:
@@ -209,7 +210,7 @@ Rust の toolchain を、共有 aqua の `rustup-init` で入れて `/opt/rustup
 | `/opt/cargo/bin` | `cargo` / `rustc` / `rustup` などのプロキシ（`rustup-init` が置く） |
 | `/opt/dotfiles-shared/keys/25` | key（`RUST_VERSION`・コンポーネント・`aqua.yaml` の `rust-lang/rustup@` の行のハッシュ 12 桁） |
 
-- **導入**: root が、ルートへ移り、`RUSTUP_HOME=/opt/rustup` / `CARGO_HOME=/opt/cargo` で、`rustup-init -y --no-modify-path --profile minimal --default-toolchain none`、`rustup toolchain install <版> --profile minimal -c clippy -c rustfmt -c rust-docs` の順に流す。ユーザやルートの設定は読まない。`rustc` / `cargo` / `rustfmt` / `cargo-clippy` / `clippy-driver` が toolchain の `bin` で実行でき、プロキシが在ると確かめてから `rustup default <版>` を書き、キーを書く。失敗したら入れた toolchain を消し、既定とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または `rustup-init` が無いときは明確なメッセージで失敗する。
+- **導入**: root が、ルートへ移り、`RUSTUP_HOME=/opt/rustup` / `CARGO_HOME=/opt/cargo` で、`rustup-init -y --no-modify-path --profile minimal --default-toolchain none`、`rustup toolchain install <版> --profile minimal -c clippy -c rustfmt -c rust-docs` の順に流す。ユーザやルートの設定は読まない。`rustc` / `cargo` / `rustfmt` / `cargo-clippy` / `clippy-driver` が toolchain の `bin` で実行でき、プロキシが在ると確かめてから `rustup default <版>` を書き、キーを書く。失敗したら入れた toolchain を消し、既定とキーはそのまま非 0 で終わる。共有 aqua がこのソースのピンと揃っていない（`config/aqua.yaml` が無い、または `20-shared-aqua.sh --check` が通らない。20 が失敗した回など）、または `rustup-init` が無いときは明確なメッセージで失敗する。
 - **GC**: 1 つ前の toolchain は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが toolchain の下、パスに `/rustup/toolchains/<tc>/` を含む、`ps` の引数に含む）は消さず次回に回す。共有のプロキシ（`/opt/cargo/bin/*`）が動いているときは、macOS の `ps` がどの toolchain かを出さないことがあるので、そのたびの GC を見送る。
 - **PATH / RUSTUP_HOME**: `env.sh` が、`/opt/rustup/toolchains`・`/opt/cargo/bin/cargo`・`keys/25` が揃っているときだけ `RUSTUP_HOME=/opt/rustup` にして、`/opt/cargo/bin` を `$CARGO_HOME/bin` の後ろに足す。`CARGO_HOME`（`~/.local/share/cargo`）はユーザごとのまま。
 - **ユーザ側**（`run_after_32-rust-default.sh.tmpl`、毎回実行）:
@@ -240,7 +241,7 @@ Terraform の版を、共有 aqua の `tenv` で入れて `/opt/tenv` に置く�
 | `/opt/tenv/Terraform/<版>/terraform` | `TENV_ROOT=/opt/tenv`。版ごとの実体 |
 | `/opt/dotfiles-shared/keys/21` | key（版の一覧のハッシュ 12 桁） |
 
-- **導入**: root が、ルートへ移り、共有 aqua の `tenv`（`AQUA_BIN` と共有側の `AQUA_*`）を `TENV_ROOT=/opt/tenv` / `TENV_VALIDATION=sha` で `tenv terraform install <版>`。各版の `terraform` が実行できると確かめてからキーを書く。失敗したら（元から無かった版の dir を消し）ほかの版とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または `tenv` が無いときは明確なメッセージで失敗する。
+- **導入**: root が、ルートへ移り、共有 aqua の `tenv`（`AQUA_BIN` と共有側の `AQUA_*`）を `TENV_ROOT=/opt/tenv` / `TENV_VALIDATION=sha` で `tenv terraform install <版>`。各版の `terraform` が実行できると確かめてからキーを書く。失敗したら（元から無かった版の dir を消し）ほかの版とキーはそのまま非 0 で終わる。共有 aqua がこのソースのピンと揃っていない（`config/aqua.yaml` が無い、または `20-shared-aqua.sh --check` が通らない。20 が失敗した回など）、または `tenv` が無いときは明確なメッセージで失敗する。
 - **GC**: 一覧に無い版を、動いていなければ消す（実行ファイルが版の下、パスに `/Terraform/<版>/` を含む、`ps` の引数に含む。macOS の `ps` は symlink 経由で起動したホームのパスを出すので、これで照合する）。動いていれば次回に回す。provider はユーザのキャッシュ（`~/.cache/terraform/plugin-cache`）から動くので対象外。
 - **ユーザ側**（`run_after_21-tenv-verify.sh.tmpl`、毎回実行。`.chezmoitemplates/tenv-link.sh`）: 揃っている間（`keys/21` と `/opt/tenv/Terraform` が在る）、`~/.tenv/Terraform/<版>/terraform` を共有の実体への symlink にする。版のディレクトリはユーザ所有のままで、tenv が書く `last-use.txt` はホーム側に残る。共有が覆う版でホームに実ファイルがあれば、動いていなければ symlink に替える（動いていれば次回）。共有が覆わない版は残す。揃っていない間は何もしない（従来どおり tenv が自分で取る）。`env.sh` の変更は無い。使い方は [terraform-cheatsheet.md](terraform-cheatsheet.md#共有-tenv-ストア)。
 

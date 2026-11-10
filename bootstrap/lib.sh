@@ -2,6 +2,9 @@
 # Linux と macOS (bash 3.2 / BSD コマンド) の両方で動く。呼び出し側の set -eu 下でも動く。
 # shellcheck shell=bash
 
+# このファイルの置き場（bootstrap/）。source した時点の作業ディレクトリで解決しておく。
+_BOOTSTRAP_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 note() { printf '  \033[1m%s\033[0m\n' "$1"; }
 warn() { printf '  \033[1;33m%s\033[0m\n' "$1"; }
@@ -33,6 +36,17 @@ gc_defer() {
 	nn="${nn%%-*}"
 	dir="${SHARED_ROOT:-/opt}/dotfiles-shared/pending"
 	mkdir -p "$dir" && : >"$dir/$nn"
+}
+
+# shared_aqua_current
+# 共有 aqua ストアが DOTFILES_SRC のピンで揃っているか（config が在り、20-shared-aqua.sh --check が
+# 通る）。揃っていれば 0。共有 aqua からツールを引くステップ（21 / 23 / 24 / 25）が、20 が失敗した
+# 回に古い aqua で進まないよう、最初に確かめる。
+shared_aqua_current() {
+	local dir="$_BOOTSTRAP_LIB_DIR"
+	[ -f "${SHARED_ROOT:-/opt}/aquaproj-aqua/config/aqua.yaml" ] || return 1
+	SHARED_ROOT="${SHARED_ROOT:-/opt}" DOTFILES_SRC="${DOTFILES_SRC:-$(dirname "$dir")}" \
+		bash "$dir/20-shared-aqua.sh" --check
 }
 
 # swap_symlink <target> <link>

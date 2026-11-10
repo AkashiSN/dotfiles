@@ -8,6 +8,7 @@ set -eu
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+sac="$tmp/sac"
 
 # --- swap_symlink ---
 mkdir "$tmp/a" "$tmp/b"
@@ -129,3 +130,18 @@ FAKE
 	) || exit 1
 	echo "PASS: macOS 形式の ps: symlink のパスでも実体で照合する"
 fi
+
+# --- shared_aqua_current: 共有 aqua の config が在り、本物の 20-shared-aqua.sh --check が通るときだけ真 ---
+(
+	export SHARED_ROOT="$sac" DOTFILES_SRC="$REPO"
+	mkdir -p "$SHARED_ROOT/aquaproj-aqua/config" "$SHARED_ROOT/dotfiles-shared/keys"
+	c="$REPO/dot_config/aquaproj-aqua"
+	pins_key "$c/aqua.yaml" "$c/registry.yaml" "$c/aqua-policy.yaml" "$c/aqua-checksums.json" >"$SHARED_ROOT/dotfiles-shared/keys/20"
+	! shared_aqua_current || fail "shared_aqua_current: config が無いのに真"
+	: >"$SHARED_ROOT/aquaproj-aqua/config/aqua.yaml"
+	cd /
+	shared_aqua_current || fail "shared_aqua_current: キーが一致するのに偽"
+	echo stale >"$SHARED_ROOT/dotfiles-shared/keys/20"
+	! shared_aqua_current || fail "shared_aqua_current: キーが古いのに真"
+) || exit 1
+echo "PASS: shared_aqua_current は 20 の --check で共有 aqua が最新か見る"

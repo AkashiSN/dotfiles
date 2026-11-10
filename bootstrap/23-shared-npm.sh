@@ -53,8 +53,8 @@ if [ -z "${AQUA_BIN:-}" ] || [ ! -x "$AQUA_BIN" ]; then
 	exit 1
 fi
 # node は共有 aqua から引く。揃えるのは 20 の役目なので、揃っていなければここでは進めない。
-if [ ! -f "$AQUA_STORE/config/aqua.yaml" ] || [ ! -f "$SHARED_ROOT/dotfiles-shared/keys/20" ]; then
-	echo "共有 aqua ストア ($AQUA_STORE) が揃っていません。先に bootstrap/20-shared-aqua.sh を実行してください" >&2
+if ! shared_aqua_current >/dev/null 2>&1; then
+	echo "共有 aqua ストア ($AQUA_STORE) がこのソースのピンと揃っていないため、このステップは飛ばします（先に bootstrap/20-shared-aqua.sh を通してください）" >&2
 	exit 1
 fi
 

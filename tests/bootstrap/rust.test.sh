@@ -13,6 +13,7 @@ export DOTFILES_SRC="$tmp/src"
 unset GITHUB_TOKEN DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT FAKE_RUSTUP_FAIL FAKE_RUSTUP_NOCOMP
 mkdir -p "$tmp/src/bootstrap" "$tmp/src/dot_config/aquaproj-aqua"
 cp "$REPO/bootstrap/lib.sh" "$tmp/src/bootstrap/"
+fake_shared_aqua_step "$tmp/src/bootstrap"
 cp "$REPO/dot_config/aquaproj-aqua/aqua.yaml" "$tmp/src/dot_config/aquaproj-aqua/"
 STEP="$tmp/src/bootstrap/25-shared-rust.sh"
 keyfile="$SHARED_ROOT/dotfiles-shared/keys/25"
@@ -88,6 +89,7 @@ mkdir -p "$SHARED_ROOT/aquaproj-aqua/config" "$SHARED_ROOT/dotfiles-shared/keys"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua.yaml"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua-policy.yaml"
 echo k20 >"$SHARED_ROOT/dotfiles-shared/keys/20"
+assert_stale_shared_aqua_skips "$STEP" "$SHARED_ROOT/dotfiles-shared/keys/20" "$RH" "$keyfile"
 rc=0
 out="$(env -u AQUA_BIN bash "$STEP" 2>&1)" || rc=$?
 [ "$rc" -ne 0 ] || fail "AQUA_BIN 空で成功した"

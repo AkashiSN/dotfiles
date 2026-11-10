@@ -14,6 +14,7 @@ unset GITHUB_TOKEN DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT FAKE_NPM_FAIL
 # 本体はリポの bootstrap/ から相対で lib.sh を読むので、コピーを作って NPM_GLOBALS の行を書き換えられるようにする。
 mkdir -p "$tmp/src/bootstrap" "$tmp/src/dot_config/aquaproj-aqua"
 cp "$REPO/bootstrap/lib.sh" "$REPO/bootstrap/23-shared-npm.sh" "$tmp/src/bootstrap/"
+fake_shared_aqua_step "$tmp/src/bootstrap"
 STEP="$tmp/src/bootstrap/23-shared-npm.sh"
 AQUA_YAML="$tmp/src/dot_config/aquaproj-aqua/aqua.yaml"
 set_node() { printf 'packages:\n  - name: golang/go@go1.0.0\n  - name: nodejs/node@%s # node\n' "$1" >"$AQUA_YAML"; }
@@ -79,6 +80,7 @@ mkdir -p "$SHARED_ROOT/aquaproj-aqua/config" "$SHARED_ROOT/dotfiles-shared/keys"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua.yaml"
 : >"$SHARED_ROOT/aquaproj-aqua/config/aqua-policy.yaml"
 echo k20 >"$SHARED_ROOT/dotfiles-shared/keys/20"
+assert_stale_shared_aqua_skips "$STEP" "$SHARED_ROOT/dotfiles-shared/keys/20" "$root" "$keyfile"
 
 # ---- AQUA_BIN が空 ----
 rc=0
