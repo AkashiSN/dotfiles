@@ -172,7 +172,12 @@ assert_eq "$k3" "$(cur)" "bin が無ければ current は変えない"
 assert_eq "$k3" "$(cat "$keyfile")" "bin が無ければキーを進めない"
 assert_eq "3" "$(find "$root" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" "bin が無い組は残さない"
 # root が npm を流すときはユーザの npmrc を読ませない
-assert_contains "$(cat "$FAKE_LOG")" "userconfig=/dev/null globalconfig=/dev/null" "npm_config_userconfig / globalconfig を /dev/null にする"
+uc="$(sed -n 's/.* userconfig=\([^ ]*\) .*/\1/p' "$FAKE_LOG" | head -n 1)"
+gc="$(sed -n 's/.* globalconfig=\([^ ]*\)$/\1/p' "$FAKE_LOG" | head -n 1)"
+case "$uc" in */npmrc.user) ;; *) fail "npm_config_userconfig が一時の空ファイルでない" "$uc" ;; esac
+case "$gc" in */npmrc.global) ;; *) fail "npm_config_globalconfig が一時の空ファイルでない" "$gc" ;; esac
+[ "$uc" != "$gc" ] || fail "userconfig と globalconfig が同じ（npm が double-loading で止まる）"
+echo "PASS: npm_config_userconfig / globalconfig を別々の空ファイルにする"
 # 失敗の後に成功すれば入る
 out="$(run)" || fail "失敗の後の再実行が失敗" "$out"
 k4="$(cat "$keyfile")"

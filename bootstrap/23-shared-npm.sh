@@ -126,8 +126,11 @@ install_set() {
 	mkdir -p "$DEST" || return 1
 	# --ignore-scripts: 一覧のどれも install script を走らせなくてよい（cline のは失敗しても無視される後処理）。
 	# npm のキャッシュは一時ディレクトリに置き、終わったら消す（root が誰かのキャッシュに書かない）。
+	# 呼び出したユーザや root の .npmrc は読まない。user / global の設定は別々の空ファイルにする
+	# （npm は同じファイルを両方に指定すると double-loading config で止まる）。
+	: >"$cache/npmrc.user" && : >"$cache/npmrc.global" || return 1
 	# shellcheck disable=SC2086
-	npm_config_cache="$cache" npm_config_userconfig=/dev/null npm_config_globalconfig=/dev/null PATH="$NODE_DIR:$PATH" "$NPM" install -g --prefix "$DEST/prefix" \
+	npm_config_cache="$cache" npm_config_userconfig="$cache/npmrc.user" npm_config_globalconfig="$cache/npmrc.global" PATH="$NODE_DIR:$PATH" "$NPM" install -g --prefix "$DEST/prefix" \
 		--ignore-scripts --no-fund --no-audit --no-update-notifier $NPM_GLOBALS || rc=$?
 	rm -rf "$cache"
 	if [ "$rc" -ne 0 ]; then
