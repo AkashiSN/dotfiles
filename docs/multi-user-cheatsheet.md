@@ -27,7 +27,7 @@ chezmoi apply
 `dot_gitconfig.tmpl` は `[user] name / email / signingkey` を上の data から組み立てる。
 
 - `git.signingkey` が空なら、`[user] signingkey`・`[commit] gpgsign`・`[gpg "ssh"]` を出力しない（署名なしのコミットになる）。
-- `[data.git]` がまだ無い config（`chezmoi init` を再実行する前）でも、従来と同じ値で展開する。既存ユーザの `~/.gitconfig` は変わらない。
+- `[data.git]` がまだ無い config（`chezmoi init` を再実行する前）でも、従来と同じ値で展開する。darwin/arm64 では共有 Homebrew 用の `[safe]` が加わる（下の Homebrew の節）。
 - 値を変えるときは `~/.config/chezmoi/chezmoi.toml` の `[data.git]` を直接編集するか、ファイルを消して `chezmoi init` をやり直す。
 
 ## personal（個人のホストと鍵）
@@ -41,6 +41,32 @@ chezmoi apply
 - `.ssh/1password_AkashiSN.pub` / `.ssh/allowed_signers` / `.ssh/authorized_keys` / `.ssh/gpg.pub`（`.chezmoiignore` で除外）。
 
 `work.*` の Host は `personal` と独立に、`work.*` が設定されていれば出る。
+
+## Homebrew（Apple Silicon の共有）
+
+Apple Silicon Mac では `/opt/homebrew` を 1 つだけ置き、OS のグループ（既定 `brew`、環境変数 `BREW_GROUP` で変更）でユーザ間に共有する。所有者は最初に入れたユーザのままで、グループと権限だけを調える。
+
+- **仕組み**: `.chezmoiscripts/run_onchange_before_05-homebrew-shared.sh.tmpl` が、グループ作成（`dseditgroup`）・自分の追加・`chgrp -R` / `chmod -R g+w`・ディレクトリへの setgid（`chmod g+s`）を行う。`/opt/homebrew` がすでに「グループ `brew`・g+w・setgid・現プロセスが所属」なら何もせず、sudo も呼ばない。Homebrew 未導入なら何もしない（`run_onchange_before_10` が入れる）。
+- **共通の関数**: `.chezmoitemplates/homebrew-shared.sh` の `brew_shared`（`umask 002` で brew を呼ぶ）と `homebrew_shared_ok [prefix]`（共有済みか）。`before_05` / `before_10` が取り込む。
+- **sudo**: 設定が要るときだけ使う。`sudo -n true` が通るか、TTY があるときに進む。どちらも無ければ警告して飛ばす。
+- **グループ追加後は再ログインが要る**: 追加しただけでは動いているプロセスの所属は変わらない。`id -Gn` に `brew` が出るまで、`before_10` は `/opt/homebrew/Cellar` に書けないとして formula / cask を飛ばし（残りの手順は続ける）、警告する。再ログインして `chezmoi apply` をやり直す。
+- **対話シェルの `brew`**: zsh の関数 `brew` が `umask 002` のサブシェルで `command brew` を呼ぶ。作るファイルが他のユーザにも書き込み可になる。
+- **git**: `dot_gitconfig.tmpl` が darwin/arm64 で `[safe] directory = /opt/homebrew` と `/opt/homebrew/Library/Taps/*/*` を出す。他ユーザ所有の brew の git が「dubious ownership」で拒まれない。
+- **Intel Mac は対象外**: MacPorts を使う（[zsh-cheatsheet](zsh-cheatsheet.md#macos-のパッケージ管理)）。
+
+> Homebrew はこの構成（1 つの prefix を複数ユーザで書き換える）を公式にはサポートしない。`brew update` や permission まわりで想定外の挙動が出ることがあり、自己責任で使う。
+
+### 戻し方
+
+共有をやめるときは、所有者のまま権限を戻す。
+
+```sh
+sudo chmod -R g-w /opt/homebrew
+sudo chgrp -R admin /opt/homebrew      # 元のグループ（通常は admin）
+sudo dseditgroup -o delete brew        # グループ自体を消す場合
+```
+
+`chezmoi apply` は `homebrew_shared_ok` が偽なら共有の設定をやり直す。やめたままにするなら `.chezmoiignore` で `run_onchange_before_05` を除外する。
 
 ## テスト
 

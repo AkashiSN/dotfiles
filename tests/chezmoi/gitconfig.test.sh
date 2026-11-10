@@ -26,3 +26,9 @@ trap 'rm -rf "$tmp"' EXIT
 : >"$tmp/chezmoi.toml"
 out_nodata="$(chezmoi --source "$REPO" --config "$tmp/chezmoi.toml" execute-template <"$tmpl")" || fail "render no data"
 assert_contains "$out_nodata" "name = AkashiSN" "fallback without data"
+
+# 共有の Homebrew 用の [safe] は darwin/arm64 だけ
+if [ "$(uname -sm)" = "Darwin arm64" ]; then
+	assert_contains "$out_default" "directory = /opt/homebrew" "safe directory on darwin/arm64"
+	assert_contains "$out_default" "directory = /opt/homebrew/Library/Taps/*/*" "safe taps on darwin/arm64"
+fi

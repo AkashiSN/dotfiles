@@ -1,0 +1,46 @@
+{{- if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64") -}}
+#!/bin/sh
+# Apple Silicon の Homebrew（/opt/homebrew）を、グループ $BREW_GROUP でユーザ間共有にする。
+# 所有者は変えず、グループと権限だけを調える。すでに共有済みなら何もしない（sudo も呼ばない）。
+# run_onchange_before_10 より先に走る。
+set -eu
+
+{{ template "shell-log" }}
+{{ template "homebrew-shared.sh" -}}
+
+PREFIX=/opt/homebrew
+
+# 共有済みなら何もしない。
+if homebrew_shared_ok "$PREFIX"; then
+	exit 0
+fi
+
+# Homebrew が未導入なら before_10 が入れる。
+if [ ! -d "$PREFIX" ]; then
+	exit 0
+fi
+
+# sudo のパスワードを聞けない環境（TTY なし・資格情報キャッシュなし）では進めない。
+if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+	notice "Homebrew の共有設定を飛ばしました（sudo を使えません）"
+	note "端末から chezmoi apply を実行すると設定されます"
+	exit 0
+fi
+
+step "Homebrew をグループ ${BREW_GROUP} で共有する設定中"
+
+if ! dseditgroup -o read "$BREW_GROUP" >/dev/null 2>&1; then
+	sudo dseditgroup -o create "$BREW_GROUP"
+fi
+sudo dseditgroup -o edit -a "$(id -un)" -t user "$BREW_GROUP"
+
+sudo chgrp -R "$BREW_GROUP" "$PREFIX"
+sudo chmod -R g+w "$PREFIX"
+sudo find "$PREFIX" -type d -exec chmod g+s {} +
+
+# グループへ追加しただけでは、すでに動いているプロセスの所属は変わらない。
+if ! id -Gn | tr ' ' '\n' | grep -qx "$BREW_GROUP"; then
+	notice "グループ ${BREW_GROUP} への追加は、再ログイン後に有効になります"
+	note "再ログインしてから chezmoi apply をもう一度実行してください"
+fi
+{{- end }}

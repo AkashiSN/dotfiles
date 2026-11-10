@@ -37,7 +37,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `ls` | `ls -G`（色付き） |
 | `ll` | `ls -lG` |
 | `la` | `ls -laG` |
-| `brew` | Homebrew を素の PATH で実行（Apple Silicon。Intel は MacPorts なので使わない） |
+| `brew` | Homebrew を素の PATH で実行（Apple Silicon。Intel は MacPorts なので使わない）。zsh では関数が `umask 002` を付けて呼ぶ |
 
 ### Linux
 
@@ -490,6 +490,9 @@ Mac のアーキテクチャで入れ方を分けている。実体は `.chezmoi
 | adb / fastboot | cask `android-platform-tools` | port `android-platform-tools` |
 
 Ghostty はどちらのアーキテクチャでも手動で入れる運用で、スクリプトでは扱わない。
+
+Apple Silicon の Homebrew は、複数ユーザで使えるようグループ `brew` で共有する（`/opt/homebrew` に g+w と
+setgid を付ける）。仕組み・再ログインが要ること・戻し方は [multi-user-cheatsheet](multi-user-cheatsheet.md#homebrewapple-silicon-の共有)。
 
 MacPorts は初回に GitHub の最新リリースから macOS のバージョンに合う pkg（`MacPorts-<ver>-15-Sequoia.pkg`
 など）を選んで入れる。pkg もポートのビルドも Xcode Command Line Tools を前提にしているので、未導入なら

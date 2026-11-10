@@ -6,6 +6,9 @@
 set -eu
 
 {{ template "shell-log" }}
+{{- if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64") }}
+{{ template "homebrew-shared.sh" }}
+{{- end }}
 step "システムパッケージを準備中 (brew/port/apt・aqua・ffmpeg)"
 
 PREFIX="$HOME/.local"
@@ -14,7 +17,7 @@ mkdir -p "$PREFIX/bin" "$PREFIX/lib"
 {{ if eq .chezmoi.os "darwin" -}}
 {{   if eq .chezmoi.arch "arm64" -}}
 # --- macOS (Apple Silicon): Homebrew (GNU userland + a few system tools not in aqua) ---
-if ! command -v brew >/dev/null 2>&1; then
+if [ ! -d /opt/homebrew ]; then
 	/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -54,9 +57,19 @@ FORMULAE=(
 	exiftool
 )
 
-for formula in "${FORMULAE[@]}"; do
-	brew ls --versions "$formula" >/dev/null 2>&1 || brew install --yes "$formula"
-done
+# 共有の Homebrew に書けない（グループ未反映・権限なし）ときは brew の手順を飛ばし、残りを続ける。
+BREW_WRITABLE=1
+if [ ! -w /opt/homebrew/Cellar ]; then
+	BREW_WRITABLE=0
+	notice "Homebrew の formula / cask を飛ばしました（/opt/homebrew に書けません）"
+	note "グループ ${BREW_GROUP} への追加後は再ログインして、chezmoi apply をもう一度実行してください"
+fi
+
+if [ "$BREW_WRITABLE" = 1 ]; then
+	for formula in "${FORMULAE[@]}"; do
+		brew_shared ls --versions "$formula" >/dev/null 2>&1 || brew_shared install --yes "$formula"
+	done
+fi
 
 # Homebrew cask（GUI アプリ / フォント）。Ghostty は手動で入れるので管理しない。
 # 用途ごとにグループ分け。追加は合うグループへ 1 つずつ。
@@ -68,9 +81,11 @@ CASKS=(
 	android-platform-tools
 )
 
-for cask in "${CASKS[@]}"; do
-	brew ls --cask --versions "$cask" >/dev/null 2>&1 || brew install --yes --cask "$cask"
-done
+if [ "$BREW_WRITABLE" = 1 ]; then
+	for cask in "${CASKS[@]}"; do
+		brew_shared ls --cask --versions "$cask" >/dev/null 2>&1 || brew_shared install --yes --cask "$cask"
+	done
+fi
 {{-   else -}}
 # --- macOS (Intel): MacPorts (GNU userland + a few system tools not in aqua) ---
 # Homebrew は Intel Mac を Tier 3 扱いにしており bottle を配らない(更新のたびにソースビルド

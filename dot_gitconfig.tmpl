@@ -21,6 +21,14 @@
 	gpgsign = true
 {{- end }}
 
+{{- if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64") }}
+
+# 共有の Homebrew（別ユーザ所有）の git を dubious ownership で拒まないようにする
+[safe]
+	directory = /opt/homebrew
+	directory = /opt/homebrew/Library/Taps/*/*
+{{- end }}
+
 [ghq]
 	root = ~/Project/src
 
