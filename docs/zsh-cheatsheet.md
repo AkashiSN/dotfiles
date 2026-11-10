@@ -8,6 +8,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_config/shell/env.sh.tmpl` で設定。zsh・bash 共通、非インタラクティブ実行にも適用）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_config/shell/env.sh.tmpl` で設定。全シェル/スクリプトに適用）
 - Python: `~/.local/bin` を `dot_config/shell/env.sh.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`env.sh` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）や bash でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
+- npm の CLI（difit / cline）: 共有側が揃っている（`/opt/npm-global/current/bin` と `/opt/dotfiles-shared/keys/23` が在る）ときだけ、`env.sh` が `/opt/npm-global/current/bin` を `~/.local/bin` の**後ろ**に足す。判定は実行時の `[ -d ]` / `[ -f ]` だけ。詳細は [shared-store-cheatsheet.md](shared-store-cheatsheet.md#npm-の-clibootstrap23-shared-npmsh)
 - macOS のパッケージ: Apple Silicon は **Homebrew**、Intel Mac は **MacPorts**（[macOS のパッケージ管理](#macos-のパッケージ管理)）
 - Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
 - Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_config/shell/env.sh.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)

@@ -359,7 +359,7 @@ claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる�
 `CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`）。版を上げるときは `aqua.yaml` のピンを変える（Renovate）。
 **macOS の Kiro CLI だけ**は aqua の定義が Linux のみのため、公式インストーラ（`/Applications/Kiro CLI.app`）のまま。
 なお、方針を入れる前から動いている Claude Code は自動更新が効いて `~/.local/bin/claude` を作り直すことがある。次の apply が再び片付ける。
-時間のかかる取得（Cline の npm、agmsg、graphify）は `~/.cache/dotfiles/ai-*.key` のマーカーで、
+時間のかかる取得（agmsg、graphify）は `~/.cache/dotfiles/ai-*.key` のマーカーで、
 版・再導入マーカーが変わったときだけ流す。
 
 経緯: 以前は `run_onchange_after_40-ai-assistants.sh.tmpl` が claude / codex / kiro / codegraph を公式
@@ -369,14 +369,12 @@ claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる�
 
 | 項目 | 内容 |
 | --- | --- |
-| 導入 | `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`。版を固定したいときはスクリプト内の変数に版を書く） |
-| Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。**導入のときだけ** npm が要るので、`30-node-default` が fnm で用意した node を使う |
+| 導入 | 共有ストアの npm の CLI として root が置く（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS` の `cline@<版>`。実体は `/opt/npm-global/current/bin/cline`）。共有側が揃っていない間は `run_after_30-node-default.sh.tmpl` が fnm の node でユーザ単位に入れる |
+| Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。導入のときだけ npm が要り、共有側は共有 aqua の `nodejs/node` を使う |
 | 認証 | 自動化しない。導入後に端末で一度 `cline auth`（対話ウィザード）か `cline auth --provider <name> --apikey <key> --modelid <model>` |
-| 更新 | スクリプト内の `CLINE_VERSION` を書き換えて `chezmoi apply`（マーカーが変わると取り直す）または本体の `cline update` |
+| 更新 | `NPM_GLOBALS` の版を上げる（Renovate が PR を出す）。共有側の実体は一般ユーザが書き換えられないため、本体の `cline update` は使わない |
 
-> **node の LTS メジャーが上がると消える。** npm グローバルは fnm が管理する node の中に入るため、
-> `fnm install --lts` が新しいメジャーを入れると `cline` が PATH から失われる。
-> スクリプト内の `CLINE_VERSION` を書き換えて `chezmoi apply` すれば入れ直される。
+経緯: 以前は `run_after_40-ai-assistants.sh.tmpl` が `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`）で各ユーザの fnm の node に入れていた。fnm の node の LTS メジャーが上がると PATH から失われる弱点もあった。共有ストア導入で `NPM_GLOBALS` の固定版へ移した。
 
 IME 候補ウィンドウの追従（`cjk_ime_agents`）には `cline` を含めてある（上の「設定挙動」）。
 エージェント状態 integration のフック（`herdr integration install`）は claude / codex のみ入れている。

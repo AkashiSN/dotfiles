@@ -132,7 +132,9 @@ done | sort -rn
 | `executable_aws-auth-ensure` / `executable_claude-bedrock` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
 | `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | **こちらが新しい（2026-11-12）。** 解いたパスが `git worktree list` に載る worktree と一致したときだけ示し、引用符・`cd`・`||` などで確実に解けない入力は一覧確認へ回す（work 側は、引用符付きのパスや `cd other && git worktree add wt`、`printf` の中の記述で、実在する別のディレクトリへの EnterWorktree を指示する）。work へ配る側。ほかに登録場所を指すコメントの差分がある。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
-| `executable_difit` | 実体の場所。work は root が置く `/opt/npm-global/current/bin/difit`、こちらは fnm の `aliases/default` の下（複数ユーザ化を入れるまで） |
+| `executable_difit` | 共有側の実体 `/opt/npm-global/current/bin/difit` が在ればそれを使うところは work と同じ。こちらは共有側が揃っていない間（ユーザ単位の fallback）のため、無いときは fnm の `aliases/default` の下を見る。work へ配るときはこの fallback を外してよい |
+| `bootstrap/23-shared-npm.sh` | **こちらが新しい（2026-11-10）。** (1) `mv -T` を `swap_symlink` に置き換え（macOS は BSD の `ln -sfhn`）。(2) `readlink -f` を使わず、npm の bin の実体は `pwd -P` で解決する（macOS の `/var` -> `/private/var` を含む）。(3) 組は `$SHARED_ROOT/npm-global/<key>` の中で完成させ、失敗したらその組を消して `current` とキーに触れない。(4) npm のキャッシュは一時ディレクトリで、終わったら消す。(5) 古い組の掃除は 1 つ前を残し、それ以前は `running_from_any` / `running_matching` / `running_exact`（`current/bin/<コマンド>` のリンクのパス）/ `ps` の引数で動作中を見て、動いていれば次回に回す。(6) key は node のピン（`aqua.yaml` の `nodejs/node@...`）と `NPM_GLOBALS` から決める（`--check` で見られる）。(7) node/npm は呼び出しユーザの `AQUA_BIN` で共有 aqua の設定から引く。`NPM_GLOBALS` は **こちらは `difit` と `cline` だけ**。work の `@drawio/mcp`（こちらの drawio は Claude Code のプラグイン経由で npm の CLI は使わない）、`@mermaid-js/mermaid-cli`（使わない）、`agent-browser`（こちらは `aqua.yaml` の `vercel-labs/agent-browser` で入れる）は持ち込まない |
+| `.chezmoiscripts/run_after_30-node-default.sh.tmpl` | **こちらが新しい（2026-11-10）。** 共有側が揃っている間は fnm の Node を消すだけ（動いていれば次回。macOS の `ps` が出すリンクのパス `fnm_multishells/` も見る）。揃っていない間は work と違い、従来どおり fnm の LTS と `NPM_GLOBALS` をユーザ単位で入れる（`~/.cache/dotfiles/node-user.key` のマーカーを成功時だけ進める）。work は共有側が常にある前提 |
 | `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` の `AQUA_GLOBAL_CONFIG` | **こちらが新しい（2026-11-10）。** どちらも共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するので `AQUA_GLOBAL_CONFIG` を export する点は揃った。こちらは共有側が揃っていない間（sudo を使えなかったときのホーム aqua）も動くよう、`.chezmoitemplates/aqua-shared-env` と同じ判定（共有ストアが揃い、ホームの pkgs が共有側への symlink のときだけ共有側の設定、それ以外はホームの設定）を 4 本に同じブロックで持ち、`AQUA_ROOT_DIR` / `AQUA_POLICY_CONFIG` も渡す。work は共有側が常にある前提の 1 行（ホームの設定を既定にする）。work へ配るときはこのブロックに置き換えてよい |
 | `executable_claude-bedrock` | **こちらが正しい（2026-11-09）。** work の Haiku の既定が `global.anthropic.claude-haiku-5-5[1m}`（`]` が `}`）になっている。work へ配る側 |
 
@@ -189,6 +191,6 @@ work の `docs/claude-settings.md` に足された「popup へ来るのはログ
 | Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` の custom manager。CodeArtifact・自前 workflow・`/opt` 向けの manager（Kiro / Rust / agmsg / uv tool）は取り込まない |
 
 取り込まなかったもの: `/opt` へ寄せる複数ユーザ化（共有 aqua ストア、`/opt/npm-global` / `/opt/uv` /
-`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系は取り込んだ）は、Mac での設計を
+`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系と `/opt/npm-global`（`bootstrap/23-shared-npm.sh`）は取り込んだ）は、Mac での設計を
 別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
 sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。

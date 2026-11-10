@@ -1001,6 +1001,31 @@
       "algorithm": "sha256"
     },
     {
+      "id": "http/nodejs.org/dist/v26.13.0/node-v26.13.0-darwin-arm64.tar.gz",
+      "checksum": "D38BD5E5A2DDCE6BBB5CE45E46E208337DA4D51FFFE611E567FD32073D6439F6",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/nodejs.org/dist/v26.13.0/node-v26.13.0-darwin-x64.tar.gz",
+      "checksum": "525C9B29BB0263D687DE60A4CEC0E2A6DB876A8EB032369E5795ECA71E7C358E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/nodejs.org/dist/v26.13.0/node-v26.13.0-linux-arm64.tar.gz",
+      "checksum": "439E9C438ACDF6A6FFE47418DA709153D66C4BED812E30A473FAACB107DD2791",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.gz",
+      "checksum": "5848553868B402D3FABB5B09270649977780A390F832155721025A08B5104455",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/nodejs.org/dist/v26.13.0/node-v26.13.0-win-x64.zip",
+      "checksum": "DCC60D59A0746999F99064A01C020445D54D84228C691CDBF25B49AC3B59150A",
+      "algorithm": "sha256"
+    },
+    {
       "id": "http/prod.download.cli.kiro.dev/stable/3.1.0/kirocli-aarch64-linux-musl.zip",
       "checksum": "1A65BD74602B7A8D32CA45937BBFBB3A320F25E8807EECF611935DC2983C969D",
       "algorithm": "sha256"

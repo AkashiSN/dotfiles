@@ -17,9 +17,9 @@
       ]
     },
     {
-      "description": "fnm の node へ入れる npm グローバル CLI（NPM_GLOBALS=\"$NPM_GLOBALS <pkg>@<ver>\"）",
+      "description": "共有ストアへ入れる npm の CLI（NPM_GLOBALS=\"$NPM_GLOBALS <pkg>@<ver>\"）",
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.chezmoiscripts/run_onchange_after_30-node-default\\.sh\\.tmpl$/"],
+      "managerFilePatterns": ["/^bootstrap/23-shared-npm\\.sh$/"],
       "matchStrings": [
         "NPM_GLOBALS=\"\\$NPM_GLOBALS (?<depName>(?:@[^/\\s\"]+/)?[^@\\s\"]+)@(?<currentValue>[^\\s\"]+)\""
       ],

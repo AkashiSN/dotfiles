@@ -15,9 +15,9 @@
 #   このスクリプト自身が ~/.local/bin/difit として PATH に乗り、~/.local/bin は PATH 上で
 #   fnm の shim より前にある。`command difit` は関数・エイリアスだけを飛ばして PATH 探索は
 #   続けるため、素の difit のつもりで呼んでもこのスクリプト自身に戻ってきて無限再帰する。
-#   参照先を $FNM_DIR/aliases/default 配下にするのは、PATH に乗る fnm の実体
-#   (fnm_multishells/<pid>_<epoch>/...) がシェルセッションごとに変わり、rc を経由しない
-#   起動経路では存在しないため。
+#   参照先は共有の /opt/npm-global/current/bin/difit、無ければ $FNM_DIR/aliases/default 配下にする。
+#   後者は、PATH に乗る fnm の実体 (fnm_multishells/<pid>_<epoch>/...) がシェルセッションごとに
+#   変わり、rc を経由しない起動経路では存在しないため。
 #
 # --port を足すのは呼び出し側が指定していないときだけ:
 #   difit へ --port を 2 回渡すと、後勝ちにならず既定の 4966 に落ちる(エラーも出ない)。
@@ -36,8 +36,15 @@ set -euo pipefail
 # 呼び出し元が env.sh を読んでいるとは限らないので、difit-port の解決に要る PATH は自前で通す。
 export PATH="$HOME/.local/bin:$PATH"
 
+# 共有の npm の CLI（root が置く）が在ればそれを使う。無い間（共有側がまだ揃っていない）は、
+# ユーザ単位で fnm の default の npm global に入れたものを使う。
+shared_difit=/opt/npm-global/current/bin/difit
 fnm_dir="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
-difit_bin="$fnm_dir/aliases/default/bin/difit"
+if [ -x "$shared_difit" ]; then
+	difit_bin="$shared_difit"
+else
+	difit_bin="$fnm_dir/aliases/default/bin/difit"
+fi
 
 die() {
 	echo "difit: $1" >&2
@@ -45,7 +52,7 @@ die() {
 }
 
 [ -x "$difit_bin" ] ||
-	die "${difit_bin} が見つかりません(npm global への導入が済んでいない可能性があります。chezmoi apply で入ります)"
+	die "${difit_bin} が見つかりません(npm の CLI の導入が済んでいない可能性があります。chezmoi apply で入ります)"
 
 # 呼び出し側が --port / --host を指定しているか調べる。-- 以降は difit への引数ではないので見ない。
 has_port=false

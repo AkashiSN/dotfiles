@@ -118,6 +118,41 @@ sudo mv /opt/aquaproj-aqua /opt/aquaproj-aqua.disabled                   # 共�
 # aqua install -a （AQUA_ROOT_DIR をホームに向けた通常の環境）で入れ直す
 ```
 
+## npm の CLI（`bootstrap/23-shared-npm.sh`）
+
+difit / cline のように npm で配られる CLI を、共有 aqua の Node で入れて `/opt/npm-global` に置く。
+
+| パス | 内容 |
+| --- | --- |
+| `bootstrap/23-shared-npm.sh` | ステップ。一覧と版は `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"` の行（Renovate が上げる） |
+| `/opt/npm-global/<key>/` | 1 組。`prefix/`（`npm install -g --prefix` の結果）、`bin/`（共有の node を絶対パスで呼ぶラッパー）、`.complete` |
+| `/opt/npm-global/current` | 使う組を指す symlink（`<key>` への相対リンク）。`swap_symlink` で原子的に付け替える |
+| `/opt/dotfiles-shared/keys/23` | key（node のピンと `NPM_GLOBALS` のハッシュ 12 桁）。ディレクトリ名と同じ |
+
+- **key**: `aqua.yaml` の `nodejs/node@<版>` の行と `NPM_GLOBALS` の行から決まる。どちらかを変えると `--check` が 1 を返し、次の apply で新しい key の組を作る。変わらなければ取得しない。
+- **導入**: root が共有 aqua の node / npm（呼び出したユーザの `AQUA_BIN` を、`AQUA_ROOT_DIR` / `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` を共有側へ向けて引く）で `<key>` の中へ完成させ、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる（他のステップは続く）。共有 aqua が揃っていない（`keys/20` が無い）、または node が無いときは、明確なメッセージで失敗する。npm のキャッシュは一時ディレクトリで、終わったら消す。
+- **GC**: 新しい組を入れたあと、1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/npm-global/<key>/` を含む、`current/bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む）は消さず、次回に回す。
+- **PATH**: `env.sh` が、`/opt/npm-global/current/bin` と `keys/23` の両方が在るときだけ `~/.local/bin` の後ろに足す。
+- **ユーザ側**（`run_after_30-node-default.sh.tmpl`、毎回実行）:
+  - 揃っている間は、ホームの fnm の `node-versions` と `aliases` を消す（fnm 本体と他のディレクトリは残す。プロジェクトで使う版は各自が `fnm install` で入れ直す）。動いている node（実行ファイルが `node-versions` の下、または macOS の `ps` が出す `fnm_multishells/` のリンクのパス）があれば次の apply に回す。
+  - 揃っていない間（`current/bin` か `keys/23` が無い）は fnm の LTS と `NPM_GLOBALS`（`bootstrap/23-shared-npm.sh` の行）をユーザ単位で入れる。`~/.cache/dotfiles/node-user.key` のマーカーは成功したときだけ進める。fnm の Node は消さない。`~/.local/bin/difit` は共有側の実体が在ればそちらを使う。
+- **入れるもの**: `difit` と `cline` だけ。work の `@drawio/mcp` / `@mermaid-js/mermaid-cli` / `agent-browser` は、こちらでは使っていない（agent-browser は `aqua.yaml`）ので入れない（[work-sync.md](work-sync.md)）。
+
+手で掃除する・やり直す:
+
+```sh
+# 共有側を作り直す（root）。次の apply で食い違いとして検出され、揃え直される
+sudo rm -f /opt/dotfiles-shared/keys/23
+# 組を確認する。current と 1 つ前以外は、動いているプロセスが無ければ消してよい
+ls -l /opt/npm-global
+# 古い組を手で消す（使用中でないことを確かめてから）
+sudo rm -rf /opt/npm-global/<key>
+# ユーザ側の fallback を再実行する（共有側が揃っていない間）
+rm ~/.cache/dotfiles/node-user.key
+```
+
+経緯: 以前は `run_onchange_after_30-node-default.sh.tmpl` が各ユーザの fnm の node に difit を `npm install -g` で入れ、cline は `run_after_40` が別に入れていた。共有ストア導入で、版の固定を `NPM_GLOBALS` にまとめ、root が 1 組だけ置く形へ移した。
+
 ## AI エージェントの CLI（`aqua.yaml` と `run_after_40-ai-assistants.sh.tmpl`）
 
 Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は、共有 aqua ストア（上の節）に入る。

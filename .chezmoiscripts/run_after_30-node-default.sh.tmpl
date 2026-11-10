@@ -1,0 +1,77 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# 既定の Node と npm の CLI を、このユーザで使える状態にする。
+# - 共有側が揃っている間: Node は共有 aqua ストアの nodejs/node、npm の CLI（difit / cline）は
+#   root が /opt/npm-global に置く（bootstrap/23-shared-npm.sh。版もそこで固定）。PATH は
+#   ~/.config/shell/env.sh が通す。ここでは取得せず、ホームに残った fnm の Node（と、その中に入れて
+#   いた npm の CLI）を消すだけを行う（.chezmoitemplates/node-cleanup.sh）。fnm 自体は残す。
+# - 共有側が揃っていない間（sudo を使えなかったなど）: 従来どおり fnm で LTS の Node を用意し、
+#   同じ NPM_GLOBALS（bootstrap/23-shared-npm.sh の一覧）を npm でユーザ単位に入れる。fnm の Node は消さない。
+#   一覧か手順が変わったときだけ流す（~/.cache/dotfiles/node-user.key。成功したときだけ進める）。
+# run_after: chezmoi apply のたびに実行する。
+set -eu
+set -o pipefail
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/node-cleanup.sh"
+{{ template "shell-log" }}
+step "既定の Node と npm の CLI を確認中"
+
+SHARED_NPM=/opt/npm-global
+SHARED_NPM_KEY=/opt/dotfiles-shared/keys/23
+
+# 共有の npm の CLI が使えるのは、current/bin が在り、揃え終えた印のキーも在るときだけ。
+if [ -d "$SHARED_NPM/current/bin" ] && [ -f "$SHARED_NPM_KEY" ]; then
+	node_cleanup_home "${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
+	exit 0
+fi
+
+warn "共有の npm の CLI ($SHARED_NPM) がまだ揃っていません。Node と npm の CLI をユーザ単位で入れます"
+note "端末から chezmoi apply を実行して sudo を通すと、共有側が作られます"
+
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
+if ! command -v fnm >/dev/null 2>&1; then
+	warn "fnm が見つかりません。ユーザ単位の Node は入れません"
+	exit 0
+fi
+
+# npm の CLI の一覧と版は bootstrap/23-shared-npm.sh の NPM_GLOBALS の行（1 行 1 パッケージ）から読む。
+# shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
+specs="$(sed -n 's/^NPM_GLOBALS="\$NPM_GLOBALS \(.*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/23-shared-npm.sh" | tr '\n' ' ')"
+specs="${specs% }"
+if [ -z "$specs" ]; then
+	warn "bootstrap/23-shared-npm.sh から NPM_GLOBALS を読めません。ユーザ単位の npm の CLI は入れません"
+	exit 0
+fi
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+marker="$cache_dir/node-user.key"
+key="$(pins_key <(printf 'node-user-1\n%s\n' "$specs"))"
+if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+	note "ユーザ単位の Node と npm の CLI は変更が無いため省きます"
+	exit 0
+fi
+
+# fnm で LTS の Node を用意し（mason の npm 系 LSP も使う）、default にして npm の CLI を入れる。
+# どれかが失敗したら非 0 で終え、マーカーは進めない。
+install_user_node() {
+	# fnm env はシェルを自動検出するとき $SHELL を見るため、シェルを明示する。
+	eval "$(fnm env --shell bash)" || return 1
+	fnm install --lts || return 1
+	{ fnm alias default lts-latest 2>/dev/null || fnm default lts-latest 2>/dev/null; } || return 1
+	fnm use default || return 1
+	# shellcheck disable=SC2086
+	npm install -g $specs
+}
+if install_user_node; then
+	mkdir -p "$cache_dir"
+	printf '%s\n' "$key" >"$marker"
+else
+	warn "ユーザ単位の Node と npm の CLI の導入に失敗しました。次の apply で再試行します"
+fi
+{{- end }}

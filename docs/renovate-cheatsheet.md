@@ -10,7 +10,7 @@
 | `dot_config/aquaproj-aqua/aqua.yaml` の registry と packages | preset `github>aquaproj/aqua-renovate-config` |
 | `.github/workflows/*` の action | `config:recommended`（github-actions manager） |
 | Intel Mac のフォント（`run_onchange_before_10-install-packages.sh.tmpl` の `*_VERSION`） | `customManagers`。直前の行の `# renovate: datasource=... depName=...` コメントで取得元を決める |
-| npm グローバル CLI（`run_onchange_after_30-node-default.sh.tmpl` の `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"`） | `customManagers`（datasource `npm`）。`@<ver>` を付けた行だけを拾うので、版を固定しないものは追わない |
+| 共有ストアの npm の CLI（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"`。difit / cline） | `customManagers`（datasource `npm`）。`@<ver>` を付けた行だけを拾うので、版を固定しないものは追わない |
 
 `NPM_GLOBALS` に足すときは、Renovate に拾わせたいなら 1 パッケージ 1 行で
 `NPM_GLOBALS="$NPM_GLOBALS <pkg>@<ver>"` と書く（scope 付き `@scope/pkg@<ver>` も可）。
