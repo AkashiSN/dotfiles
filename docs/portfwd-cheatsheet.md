@@ -101,16 +101,18 @@ py -3 "$env:USERPROFILE\.local\bin\portfwd" status
 
 | 操作 | コマンド |
 | --- | --- |
-| 状態確認 | `launchctl print gui/$(id -u)/com.snishi.portfwd` |
-| 再起動 | `launchctl kickstart -k gui/$(id -u)/com.snishi.portfwd` |
-| 停止（一時） | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.snishi.portfwd.plist` |
-| 起動 | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.snishi.portfwd.plist` |
+| 状態確認 | `launchctl print gui/$(id -u)/local.dotfiles.portfwd` |
+| 再起動 | `launchctl kickstart -k gui/$(id -u)/local.dotfiles.portfwd` |
+| 停止（一時） | `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.dotfiles.portfwd.plist` |
+| 起動 | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.dotfiles.portfwd.plist` |
 | ログ | `~/Library/Logs/portfwd.log` |
 
 plist または daemon 本体を変更したら `chezmoi apply` すれば
 `run_onchange_after_55-portfwd-launchd.sh` が bootout → bootstrap で再ロードする。
 登録スクリプトが daemon 本体のハッシュも含むのは、launchd が生きているプロセスを
 再起動しないため、本体だけを更新したときも入れ替える必要があるから。
+
+ラベルは利用者に依存しない `local.dotfiles.portfwd`。旧ラベル `com.snishi.portfwd` の plist が残っていれば、登録スクリプトが bootout して削除する。
 
 ## Windows セットアップ
 
