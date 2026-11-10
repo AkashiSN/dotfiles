@@ -9,6 +9,7 @@ step "uv 管理の Python と CLI ツールをインストール中"
 # uv (aqua) と uv tool の bin (~/.local/bin) を解決可能にする。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
 
 uv --version >/dev/null 2>&1 || exit 0
 

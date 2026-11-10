@@ -75,14 +75,14 @@ sudo dseditgroup -o delete brew                     # グループ自体を消�
 
 静的な洗い出しで見つけた、コードを変えずに運用で避ける点。実機（`risa` での初回 apply）で確かめる前提。
 
-- **`gh auth login` が対話式**: `run_onchange_after_20-aqua-install` は `gh auth status` が通らないと `gh auth login` を呼ぶ。非対話の apply（TTY 無し）ではここで止まるか失敗する。gh の認証は `~/.config/gh` に置かれるユーザごとの状態で、`risa` 自身の GitHub アカウントで通す。先に端末で `gh auth login` を済ませてから `chezmoi init --apply` する。
+- **`gh auth login` は自分で通す**: 共有 aqua の更新（`bootstrap/20-shared-aqua.sh`）は、更新を起こしたユーザの `gh auth token` を使って attestation を検証する。gh の認証は `~/.config/gh` に置かれるユーザごとの状態で、`risa` 自身の GitHub アカウントで通す。未認証だと `run_after_20-aqua-verify` が案内を出す（apply は止まらない）。先に端末で `gh auth login` を済ませてから `chezmoi init --apply` すると、共有側の更新が検証つきで通る。
 - **GitHub への SSH 鍵**: `dot_gitconfig.tmpl` は `https://github.com/` を `git@github.com:` へ書き換え、`run_onchange_after_60-git-remote-ssh` は chezmoi ソースの origin を SSH へ切り替える。`risa` が GitHub に登録した SSH 鍵（1Password の ssh-agent など）を持たないと、`chezmoi update` や clone が失敗する。
 - **署名と 1Password**: `git.signingkey` が空なら署名の設定（`gpg.ssh.program = op-ssh-sign`）は出ない。1Password を使わないユーザは空のままにする。`run_onchange_after_50-macos` の `op-ssh-sign` / ssh-agent のシンボリックリンクは、実体があるときだけ作る。
 - **portfwd のポート 55999 は固定**: `portfwd serve` は `127.0.0.1:55999` で listen する（`PORTFWD_PORT` で変更可）。2 人が同時にログインしていると、後から起動した側の bind が失敗して LaunchAgent が再起動を繰り返す。リモート側の `RemoteForward` も 55999 固定なので、同時に使うなら片方のユーザは portfwd を使わない（plist を除外する）か、`PORTFWD_PORT` と ssh config の両方を変える。
 - **portfwd の launchd 登録**: `launchctl bootstrap gui/<uid>` は、そのユーザの GUI セッションが無いと失敗する。`risa` は GUI ログインした状態で apply する。
 - **`/tmp` の固定名**: `run_onchange_before_10-install-packages` の aqua / ffmpeg の一時ファイル（Linux と Intel Mac の経路）が `/tmp/aqua.tar.gz` などの固定名。同時に 2 人が走らせると衝突するが、apply を同時に実行しなければ起きない。Apple Silicon の macOS は通らない。
 - **Homebrew グループ追加後の再ログイン**: [Homebrew](#homebrew-apple-silicon-の共有) を参照。
-- **共有の対象外（計画 2）**: aqua / npm / uv / rust / AI CLI の `/opt` 配下の共有ストアは未対応で、今は各ユーザの `$HOME` 配下に入る。ツールの二重インストールになる。
+- **共有の対象外（計画 2）**: aqua は `/opt/aquaproj-aqua` の共有ストアに移った（[shared-store-cheatsheet.md](shared-store-cheatsheet.md)）。npm / uv / rust / AI CLI は未対応で、今は各ユーザの `$HOME` 配下に入る。
 - **終了案内**: `run_once_after_90-final-notice` はログインシェルが zsh でないときの `usermod`（Linux 用）と `direnv allow ~` だけを案内する。macOS の新規ユーザは既定が zsh で、案内は出ない。
 
 ## テスト

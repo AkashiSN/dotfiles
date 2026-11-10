@@ -1,0 +1,6 @@
+# 共有 aqua ストアがあり、ホームの pkgs がそこへの symlink なら、設定も共有側を使う。無ければ上の値のまま。
+if [ -f /opt/aquaproj-aqua/config/aqua.yaml ] && [ -L "${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/pkgs" ]; then
+	export AQUA_GLOBAL_CONFIG=/opt/aquaproj-aqua/config/aqua.yaml
+	export AQUA_POLICY_CONFIG=/opt/aquaproj-aqua/config/aqua-policy.yaml
+	export AQUA_DISABLE_LAZY_INSTALL=true
+fi

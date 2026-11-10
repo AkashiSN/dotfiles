@@ -12,6 +12,7 @@ step "AI アシスタント CLI(claude/codex/kiro/cline/agmsg/codegraph/graphify
 # (AQUA_GLOBAL_CONFIG が無いと aqua-proxy がバージョンを解決できない)。
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
 
 # --- Claude Code (claude.ai/install.sh) ---
 # stable / latest / 固定バージョン(例: 2.1.179)。

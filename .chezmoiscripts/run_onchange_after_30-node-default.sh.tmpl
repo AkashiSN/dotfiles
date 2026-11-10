@@ -10,6 +10,7 @@ step "Node(LTS) を fnm で準備中"
 
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="$HOME/.config/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
 
 fnm --version >/dev/null 2>&1 || exit 0
 

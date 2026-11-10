@@ -1,0 +1,74 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# ホームの aqua の pkgs / bin を、共有ストア (/opt/aquaproj-aqua) への symlink にそろえる。
+# run_after（毎回実行）。aqua の実体は共有側に 1 つだけ置き、install は run_after_15 の
+# 共有ストア更新（bootstrap/20-shared-aqua.sh）だけが行う。ここでは install しない。
+# 共有側が無い（sudo を使えなかった）間は、ホームには何もしない。
+set -eu
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+
+SHARED=/opt/aquaproj-aqua
+USER_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+
+if [ ! -f "$SHARED/config/aqua.yaml" ]; then
+	warn "共有 aqua ストア ($SHARED) がまだありません。ホームの aqua は変更しません"
+	note "端末から chezmoi apply を実行して sudo を通すと、共有ストアが作られます"
+	exit 0
+fi
+
+log "ホームの aqua の pkgs / bin を共有ストアへ向ける"
+if ! mkdir -p "$USER_ROOT"; then
+	warn "$USER_ROOT を作成できません。共有 aqua は使えません"
+	exit 0
+fi
+
+ts="$(date +%Y%m%d%H%M%S)"
+for name in pkgs bin; do
+	link="$USER_ROOT/$name"
+	# 実ディレクトリは消さずに脇へ退避する（動いているプロセスの実行ファイルがあるため）。
+	if [ -d "$link" ] && [ ! -L "$link" ]; then
+		note "退避: $link -> $link.old.$ts"
+		mv "$link" "$link.old.$ts"
+	fi
+	swap_symlink "$SHARED/$name" "$link" || warn "$link を共有ストアへ向けられませんでした"
+done
+
+# 退避した古いディレクトリは、どのユーザのプロセスもその下から動いていなければ消す。
+# 動いていれば残し、次回の apply で消す。macOS の ps は起動時のパスを出す（退避後も退避前の
+# 名前のまま）ため、退避前の名前（今は共有側への symlink）でも照合する。
+for old in "$USER_ROOT"/pkgs.old.* "$USER_ROOT"/bin.old.*; do
+	[ -d "$old" ] || continue
+	busy=0
+	running_from_any "$old" && busy=1
+	if [ "$busy" -eq 0 ] && [ "$(uname -s)" = Darwin ]; then
+		running_from_any "${old%.old.*}" && busy=1
+	fi
+	if [ "$busy" -eq 1 ]; then
+		note "使用中のため次回に回します: $old"
+	else
+		note "削除: $old"
+		rm -rf "$old"
+	fi
+done
+
+# 共有のツールを実際に引けるか確かめる。proxy は AQUA_GLOBAL_CONFIG が無いとバージョンを解決できない。
+export AQUA_ROOT_DIR="$USER_ROOT"
+export AQUA_GLOBAL_CONFIG="$SHARED/config/aqua.yaml"
+export AQUA_POLICY_CONFIG="$SHARED/config/aqua-policy.yaml"
+export AQUA_DISABLE_LAZY_INSTALL=true
+export PATH="$USER_ROOT/bin:$PATH"
+if [ -x "$USER_ROOT/bin/jq" ] && "$USER_ROOT/bin/jq" --version >/dev/null 2>&1; then
+	note "共有 aqua ストアを参照できます"
+else
+	warn "共有 aqua ストアのツール (jq) を引けませんでした。共有側の更新が済むまで待ってください"
+fi
+
+# 共有側の更新は呼び出したユーザの gh の token を使う（attestation の検証）。未認証なら案内だけ出す。
+# 対話入力は待たない。
+if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
+	note "gh が未認証です。端末で gh auth login を実行してください（共有 aqua の更新の検証に使います）"
+fi
+{{- end }}

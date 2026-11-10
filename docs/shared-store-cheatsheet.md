@@ -59,4 +59,49 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 - 引数 `--check`: root なしで、共有側が `DOTFILES_SRC` のピンと一致すれば 0、食い違えば 1。何も書かない。
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
 - 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `GITHUB_TOKEN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。
-- ステップ失敗で `run-all.sh` は止まり、`state` を書かない。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
+- ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
+- `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
+
+## aqua（`bootstrap/20-shared-aqua.sh`）
+
+| パス | 内容 |
+| --- | --- |
+| `/opt/aquaproj-aqua/pkgs` | aqua の実体（`AQUA_ROOT_DIR` を `/opt/aquaproj-aqua` にして root が install） |
+| `/opt/aquaproj-aqua/bin` | aqua-proxy の symlink 群 |
+| `/opt/aquaproj-aqua/config/` | `aqua.yaml` / `registry.yaml` / `aqua-policy.yaml` / `aqua-checksums.json`（`dot_config/aquaproj-aqua/` の同名ファイルのコピー） |
+| `/opt/dotfiles-shared/keys/20` | 上の 4 ファイルをこの順に連結した `pins_key` |
+| `~/.local/share/aquaproj-aqua/{pkgs,bin}` | `/opt/aquaproj-aqua/{pkgs,bin}` への symlink（ホームの `AQUA_ROOT_DIR`。metadata などの書き込みはホーム側に残る） |
+
+流れ: `AQUA_BIN`（呼び出したユーザの aqua）を root で使い、`aqua policy allow` のあと `aqua install -a`。
+`GITHUB_TOKEN` が空のときは、bootstrap タグの gh だけ検証なしで入れてから、残りを検証つきで入れる。
+検証つきの install が失敗したらこのステップだけ失敗し、他のステップ（npm / uv / rust）は続く。
+`AQUA_BIN` が空か実行できなければ、メッセージを出して失敗する。
+
+古い版の掃除: `pkgs/github_release/github.com/<owner>/<repo>/<version>/` のうち、共有の `aqua.yaml` に
+`<owner>/<repo>@<別の版>` として載っているパッケージの、参照されなくなった版を消す。ただし
+その版の下から動いているプロセスがあれば（全ユーザ）消さず、次回に回す。`aqua.yaml` に名前が出てこない
+パッケージ（依存や github_release 以外の種別）には触らない。
+
+ユーザ側（`run_after_20-aqua-verify.sh.tmpl`、毎回実行）は、共有側（`config/aqua.yaml`）が在るときだけ
+ホームの `pkgs` / `bin` を symlink にする。実ディレクトリなら `<dir>.old.<時刻>` へ退避し、
+その下から動くプロセスが無ければ消す（動いていれば次回）。共有側が無いときはホームに何もせず警告だけ出す。
+
+経緯: 以前は `run_onchange_after_20-aqua-install.sh.tmpl` が各ユーザのホームへ install し、未認証なら `gh auth login` を対話で呼んでいた。共有ストアへの移行で `run_after_20-aqua-verify.sh.tmpl` に置き換え、ユーザ側は install も対話もしない。
+
+手で掃除する:
+
+```sh
+# 共有側を作り直す（root）。次の apply で食い違いとして検出され、揃え直される
+sudo rm -f /opt/dotfiles-shared/keys/20
+# 退避が残っていれば（使用中だったもの）、プロセスが無いことを確かめてから消す
+ls -d ~/.local/share/aquaproj-aqua/*.old.*
+```
+
+戻し方（共有をやめて各ユーザのホームに戻す）:
+
+```sh
+rm ~/.local/share/aquaproj-aqua/pkgs ~/.local/share/aquaproj-aqua/bin   # symlink を外す
+sudo mv /opt/aquaproj-aqua /opt/aquaproj-aqua.disabled                   # 共有側を無効にする
+# env.sh の判定が外れ、ホームの設定（~/.config/aquaproj-aqua）へ戻る。ツールは
+# aqua install -a （AQUA_ROOT_DIR をホームに向けた通常の環境）で入れ直す
+```

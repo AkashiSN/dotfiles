@@ -475,6 +475,26 @@ placement レコード（`despawn --force` が読む）は herdr driver が書�
 
 ---
 
+## aqua（CLI の管理）
+
+CLI は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理する。darwin / linux では実体を
+マシンで 1 つの共有ストア `/opt/aquaproj-aqua`（`pkgs` / `bin` / `config`）に置き、版は全ユーザで同じになる。
+仕組み・sudo・掃除・戻し方は [shared-store-cheatsheet.md](shared-store-cheatsheet.md)。
+
+| 項目 | 内容 |
+| --- | --- |
+| install する人 | apply が食い違いを見つけたときの root だけ（`bootstrap/20-shared-aqua.sh`）。ユーザは install しない |
+| `AQUA_ROOT_DIR` | ホーム（`~/.local/share/aquaproj-aqua`）のまま。`pkgs` / `bin` は `run_after_20-aqua-verify` が `/opt/aquaproj-aqua/{pkgs,bin}` への symlink にする |
+| `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` | 共有側があれば `/opt/aquaproj-aqua/config/{aqua.yaml,aqua-policy.yaml}`。`AQUA_DISABLE_LAZY_INSTALL=true` も付く |
+| 共有側が無いとき | 従来どおり `~/.config/aquaproj-aqua/` の設定を使う（判定は `.chezmoitemplates/aqua-shared-env`。env.sh と provisioning スクリプトが共通で使う） |
+| 判定の条件 | `/opt/aquaproj-aqua/config/aqua.yaml` が在り、かつホームの `pkgs` が symlink |
+| gh の認証 | 共有側の更新は呼び出したユーザの `gh auth token` で検証する。未認証なら apply が `gh auth login` を案内する（待たない） |
+
+sudo を通さなかった（共有側が無い）マシンでは、ホームの aqua は一切変更されない。そのため新しいマシンの
+最初の apply で sudo を通さないと、aqua のツールは入らない。
+
+---
+
 ## macOS のパッケージ管理
 
 aqua に無いシステムツール（GNU userland / zsh / tmux / git / ffmpeg など）と GUI アプリ・フォントは、

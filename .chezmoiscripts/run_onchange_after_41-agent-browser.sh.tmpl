@@ -14,6 +14,7 @@ step "agent-browser (ブラウザ自動化 CLI) を準備中"
 
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
 
 # aqua が本体を入れられなかった環境(未対応 OS/arch 等)では何もしない。
 command -v agent-browser >/dev/null 2>&1 || exit 0
