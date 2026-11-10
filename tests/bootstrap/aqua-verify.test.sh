@@ -17,7 +17,7 @@ cfgtoml="$tmp/chezmoi.toml"
 chezmoi_config "$cfgtoml"
 script="$tmp/verify.sh"
 chezmoi --source "$REPO" --config "$cfgtoml" execute-template <"$REPO/.chezmoiscripts/run_after_20-aqua-verify.sh.tmpl" |
-	sed "s#^SHARED=/opt/aquaproj-aqua#SHARED=$tmp/shared#" >"$script"
+	sed -e "s#^SHARED=/opt/aquaproj-aqua#SHARED=$tmp/shared#" -e "s#^SHARED_KEY=.*#SHARED_KEY=$tmp/keys/20#" >"$script"
 grep -q "^SHARED=$tmp/shared" "$script" || fail "SHARED の差し替えに失敗"
 
 export HOME="$tmp/home" XDG_DATA_HOME="" XDG_CONFIG_HOME=""
@@ -26,7 +26,25 @@ root="$HOME/.local/share/aquaproj-aqua"
 mkdir -p "$root/pkgs/x" "$root/bin"
 echo data >"$root/pkgs/x/file"
 
-# ---- 共有側が無い: ホームに何もしない ----
+# ---- 共有側が無い: ホームの pkgs / bin は動かさず、ユーザ単位で install する ----
+mkdir -p "$HOME/.config/aquaproj-aqua" "$tmp/bin"
+echo 'packages: []' >"$HOME/.config/aquaproj-aqua/aqua.yaml"
+echo 'packages: []' >"$HOME/.config/aquaproj-aqua/registry.yaml"
+echo 'registries: []' >"$HOME/.config/aquaproj-aqua/aqua-policy.yaml"
+echo '{}' >"$HOME/.config/aquaproj-aqua/aqua-checksums.json"
+calls="$tmp/calls"
+cat >"$tmp/bin/aqua" <<'FAKE'
+#!/usr/bin/env bash
+echo "aqua $* ROOT=${AQUA_ROOT_DIR:-} GLOBAL=${AQUA_GLOBAL_CONFIG:-}" >>"$CALLS"
+[ "${FAKE_AQUA_FAIL:-}" = 1 ] && [ "$1 $2" = "install -a" ] && exit 1
+exit 0
+FAKE
+cat >"$tmp/bin/gh" <<'FAKE'
+#!/usr/bin/env bash
+exit "${FAKE_GH_RC:-1}"
+FAKE
+chmod +x "$tmp/bin/aqua" "$tmp/bin/gh"
+export CALLS="$calls" PATH="$tmp/bin:$PATH"
 rc=0
 out="$(bash "$script" 2>&1)" || rc=$?
 assert_eq "0" "$rc" "共有側なし: 終了コード 0"
@@ -35,11 +53,39 @@ assert_contains "$out" "共有 aqua ストア" "共有側なし: 警告する"
 [ -d "$root/bin" ] && [ ! -L "$root/bin" ] || fail "共有側なしなのにホームの bin を変えた"
 set -- "$root"/*.old.*
 [ ! -e "$1" ] || fail "共有側なしなのに退避した"
-echo "PASS: 共有側が無ければホームは何も消さない・動かさない"
+echo "PASS: 共有側が無ければホームの既存ファイルは消さない・動かさない"
+c="$(cat "$calls")"
+assert_contains "$c" "aqua policy allow" "共有側なし: policy allow"
+assert_contains "$c" "aqua install -a -t bootstrap" "共有側なし: 未認証なら bootstrap の gh を先に入れる"
+assert_contains "$c" "aqua install -a ROOT=$root GLOBAL=$HOME/.config/aquaproj-aqua/aqua.yaml" "共有側なし: ホームの設定で install -a"
+[ -f "$HOME/.cache/dotfiles/aqua-user.key" ] || fail "成功したのにマーカーを書かなかった"
+# 設定が同じなら 2 回目は install しない
+: >"$calls"
+bash "$script" >/dev/null 2>&1
+[ ! -s "$calls" ] || fail "設定が同じなのに再 install した"
+echo "PASS: 設定が変わらなければ install を省く"
+# 設定が変われば再 install、失敗したらマーカーを更新しない
+echo '# changed' >>"$HOME/.config/aquaproj-aqua/aqua.yaml"
+oldkey="$(cat "$HOME/.cache/dotfiles/aqua-user.key")"
+rc=0
+FAKE_AQUA_FAIL=1 bash "$script" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "install 失敗でも apply は止めない"
+assert_eq "$oldkey" "$(cat "$HOME/.cache/dotfiles/aqua-user.key")" "失敗したらマーカーを進めない"
+# gh が認証済みなら bootstrap を先に入れない
+: >"$calls"
+FAKE_GH_RC=0 bash "$script" >/dev/null 2>&1
+assert_not_contains "$(cat "$calls")" "-t bootstrap" "認証済みなら bootstrap を別に入れない"
 
-# ---- 共有側あり: 退避して symlink、動いていなければ古いものを消す ----
+# 共有側の config だけでキーが無いときも、共有側は使わない
 mkdir -p "$tmp/shared/config" "$tmp/shared/pkgs" "$tmp/shared/bin"
 echo 'packages: []' >"$tmp/shared/config/aqua.yaml"
+bash "$script" >/dev/null 2>&1
+[ -d "$root/pkgs" ] && [ ! -L "$root/pkgs" ] || fail "キーが無いのに共有側へ向けた"
+echo "PASS: config だけでキーが無ければ共有側は未完成として扱う"
+mkdir -p "$tmp/keys"
+echo k >"$tmp/keys/20"
+
+# ---- 共有側あり: 退避して symlink、動いていなければ古いものを消す ----
 # 動いているプロセスを pkgs の実体の下で立てる
 cp /bin/sleep "$root/pkgs/x/sleeper"
 if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$root/pkgs/x/sleeper" 2>/dev/null; fi

@@ -486,12 +486,12 @@ CLI は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理す�
 | install する人 | apply が食い違いを見つけたときの root だけ（`bootstrap/20-shared-aqua.sh`）。ユーザは install しない |
 | `AQUA_ROOT_DIR` | ホーム（`~/.local/share/aquaproj-aqua`）のまま。`pkgs` / `bin` は `run_after_20-aqua-verify` が `/opt/aquaproj-aqua/{pkgs,bin}` への symlink にする |
 | `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` | 共有側があれば `/opt/aquaproj-aqua/config/{aqua.yaml,aqua-policy.yaml}`。`AQUA_DISABLE_LAZY_INSTALL=true` も付く |
-| 共有側が無いとき | 従来どおり `~/.config/aquaproj-aqua/` の設定を使う（判定は `.chezmoitemplates/aqua-shared-env`。env.sh と provisioning スクリプトが共通で使う） |
-| 判定の条件 | `/opt/aquaproj-aqua/config/aqua.yaml` が在り、かつホームの `pkgs` が symlink |
+| 共有側が使えない（sudo を通していない）とき | 従来どおり `~/.config/aquaproj-aqua/` の設定を使い、`run_after_20-aqua-verify` がホームへ `aqua policy allow` と `aqua install -a` を行う（設定が変わったときだけ。`~/.cache/dotfiles/aqua-user.key` に設定のハッシュを置く） |
+| 判定の条件 | `/opt/aquaproj-aqua/config/aqua.yaml` と `/opt/dotfiles-shared/keys/20`（揃え終えた印）が在り、かつホームの `pkgs` が symlink（`.chezmoitemplates/aqua-shared-env`。env.sh と provisioning スクリプトが共通で使う） |
 | gh の認証 | 共有側の更新は呼び出したユーザの `gh auth token` で検証する。未認証なら apply が `gh auth login` を案内する（待たない） |
 
-sudo を通さなかった（共有側が無い）マシンでは、ホームの aqua は一切変更されない。そのため新しいマシンの
-最初の apply で sudo を通さないと、aqua のツールは入らない。
+sudo を通さなかったマシンでは、ホームの aqua はこれまでどおりユーザ単位で入る。後から sudo が通って共有側が揃うと、
+ホームの `pkgs` / `bin` は共有側への symlink に切り替わる（元の実体は `.old.<時刻>` に退避され、動いていなければ消える）。
 
 ---
 

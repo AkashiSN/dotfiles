@@ -44,11 +44,20 @@ assert_eq "0" "$rc" "running_from_any: 末尾スラッシュでも 0"
 rc=0
 running_from_any "$tmp/other" || rc=$?
 assert_eq "1" "$rc" "running_from_any: 別ディレクトリなら 1"
+rc=0
+running_matching "/run/sleep" || rc=$?
+assert_eq "0" "$rc" "running_matching: 実行パスに部分文字列があれば 0"
+rc=0
+running_matching "/no-such-dir-$$/" || rc=$?
+assert_eq "1" "$rc" "running_matching: 無ければ 1"
 kill "$pid"
 wait "$pid" 2>/dev/null || true
 rc=0
 running_from_any "$tmp/run" || rc=$?
 assert_eq "1" "$rc" "running_from_any: kill 後は 1"
+rc=0
+running_matching "/run/sleep" || rc=$?
+assert_eq "1" "$rc" "running_matching: kill 後は 1"
 
 # --- shared_owner_group ---
 case "$(uname -s)" in

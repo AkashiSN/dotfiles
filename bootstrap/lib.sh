@@ -70,6 +70,29 @@ running_from_any() {
 	return 1
 }
 
+# running_matching <substring>
+# 全ユーザのプロセスのうち、実行ファイルのパスに <substring> を含むものが 1 つでもあれば 0、
+# 無ければ 1 を返す。macOS の ps は symlink 経由で起動したパス（ホームの pkgs など）を
+# そのまま出すため、実体のパスでは照合できない場合の補助に使う。
+running_matching() {
+	local sub="$1" exe comm
+	if [ -d /proc/self ]; then
+		for exe in /proc/[0-9]*/exe; do
+			comm="$(readlink "$exe" 2>/dev/null)" || continue
+			case "$comm" in
+			*"$sub"*) return 0 ;;
+			esac
+		done
+	else
+		while IFS= read -r comm; do
+			case "$comm" in
+			*"$sub"*) return 0 ;;
+			esac
+		done < <(ps -axo comm= 2>/dev/null)
+	fi
+	return 1
+}
+
 # _has_prefix <path> <prefix...>: <path> がいずれかの <prefix> で始まれば 0。
 _has_prefix() {
 	local path="$1" p

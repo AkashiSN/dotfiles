@@ -52,16 +52,24 @@ log "共有 aqua ストア ${STORE} を準備 (${owner_group})"
 mkdir -p "$CONFIG"
 set_owner "$STORE" "$CONFIG"
 chmod 755 "$STORE" "$CONFIG"
-for f in $PIN_FILES; do
-	cp "$SRC_CFG/$f" "$CONFIG/.$f.new"
-	chmod 644 "$CONFIG/.$f.new"
-	set_owner "$CONFIG/.$f.new"
-	mv -f "$CONFIG/.$f.new" "$CONFIG/$f"
-done
 
+# 新しい config は config.new/ に置き、そこを向けて install する。成功したときだけ config/ へ移す。
+# 失敗したら config/ には触れず、中途半端な状態を共有側として採用しない。
+STAGE="$STORE/config.new"
+trap 'rm -rf "$STAGE"' EXIT
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+for f in $PIN_FILES; do
+	cp "$SRC_CFG/$f" "$STAGE/$f"
+	chmod 644 "$STAGE/$f"
+done
+set_owner "$STAGE" "$STAGE"/*
+
+# 作業ディレクトリに aqua.yaml があると拾われるため、ルートへ移る。
+cd /
 export AQUA_ROOT_DIR="$STORE"
-export AQUA_GLOBAL_CONFIG="$CONFIG/aqua.yaml"
-export AQUA_POLICY_CONFIG="$CONFIG/aqua-policy.yaml"
+export AQUA_GLOBAL_CONFIG="$STAGE/aqua.yaml"
+export AQUA_POLICY_CONFIG="$STAGE/aqua-policy.yaml"
 # attestation の検証が呼ぶ gh は共有 bin にある。
 export PATH="$STORE/bin:$PATH"
 
@@ -77,31 +85,75 @@ fi
 log "aqua 管理ツールを共有ストアへ install"
 "$AQUA_BIN" install -a
 
-# 共有 aqua の github_release は pkgs/github_release/github.com/<owner>/<repo>/<version>/ に置かれる。
-# 共有 config に <owner>/<repo>@<別の版> として載っているパッケージの、参照されなくなった版を消す。
-# config に名前が出てこないパッケージ（依存や他の種別）には触らない。どのユーザのプロセスでも
-# その版の下から動いていれば消さず、次回に回す。
+# install が通ったので config/ へ移す。aqua.yaml を最後にして、途中で止まっても旧い組のまま読まれない順にする。
+for f in registry.yaml aqua-policy.yaml aqua-checksums.json aqua.yaml; do
+	mv -f "$STAGE/$f" "$CONFIG/$f"
+done
+rmdir "$STAGE"
+export AQUA_GLOBAL_CONFIG="$CONFIG/aqua.yaml"
+export AQUA_POLICY_CONFIG="$CONFIG/aqua-policy.yaml"
+"$AQUA_BIN" policy allow "$AQUA_POLICY_CONFIG"
+
+# 共有 aqua の github_release は pkgs/github_release/<host>/<owner>/<repo>/<version>/ に置かれる。
+# 共有 config に次の行として載るパッケージの、参照されなくなった版だけを消す。
+#   - name: <owner>/<repo>@<version>   （引用符なし、version に / や空白なし、行末コメントのみ可）
+# <owner>/<repo> がそれ以外の形（引用符つき、version: 別行、/ を含む版、コメントのみの言及など）でも
+# 出てくる場合、または版が載っていなければ、そのパッケージの版は全て残す。
+# 設定の版で終わる名前や、設定の版と同名のディレクトリが無いパッケージ（version_prefix つきのタグ）も残す。
+# どのユーザのプロセスでも、その版の下から動いていれば消さず次回に回す。macOS の ps は
+# ホームの symlink 経由で起動したパス（.../aquaproj-aqua/pkgs/...）を出すため、それでも照合する。
 gc_old_versions() {
-	local base="$STORE/pkgs/github_release/github.com" refs d v r o key
+	local base="$STORE/pkgs/github_release" d rel host o r v key lines line l nm ver vers ok x found
 	[ -d "$base" ] || return 0
-	refs="$(grep -oE '[A-Za-z0-9._-]+/[A-Za-z0-9._-]+@[^ "]+' "$CONFIG/aqua.yaml" | tr '[:upper:]' '[:lower:]' || true)"
-	for d in "$base"/*/*/*; do
+	for d in "$base"/*/*/*/*; do
 		[ -d "$d" ] || continue
+		rel="${d#"$base"/}"
+		host="${rel%%/*}"
 		v="${d##*/}"
 		r="${d%/*}"
 		r="${r##*/}"
 		o="${d%/*/*}"
 		o="${o##*/}"
 		key="$(printf '%s/%s' "$o" "$r" | tr '[:upper:]' '[:lower:]')"
-		# 名前が載っていなければ対象外。
-		printf '%s\n' "$refs" | awk -v p="$key@" 'index($0, p) == 1 { f = 1 } END { exit !f }' || continue
-		# この版が載っていれば残す。
-		printf '%s\n' "$refs" | grep -qixF "$key@$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" && continue
-		if running_from_any "$d"; then
+		lines="$(grep -iF -- "$key" "$CONFIG/aqua.yaml" || true)"
+		ok=1
+		vers=""
+		while IFS= read -r line; do
+			[ -n "$line" ] || continue
+			l="$(printf '%s\n' "$line" | sed -nE "s|^[[:space:]]*-[[:space:]]*name:[[:space:]]*([^[:space:]\"'#@]+)@([^[:space:]\"'#/]+)[[:space:]]*(#.*)?\$|\\1 \\2|p")"
+			if [ -z "$l" ]; then
+				ok=0
+				break
+			fi
+			nm="$(printf '%s' "${l% *}" | tr '[:upper:]' '[:lower:]')"
+			ver="$(printf '%s' "${l#* }" | tr '[:upper:]' '[:lower:]')"
+			if [ "$nm" != "$key" ]; then
+				ok=0
+				break
+			fi
+			vers="$vers $ver"
+		done <<<"$lines"
+		[ "$ok" -eq 1 ] && [ -n "$vers" ] || continue
+		v="$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')"
+		# 設定の版と同名の版ディレクトリが 1 つも無ければ、設定と dir の命名が対応しているか分からないので残す。
+		found=0
+		for x in "${d%/*}"/*; do
+			x="$(printf '%s' "${x##*/}" | tr '[:upper:]' '[:lower:]')"
+			case " $vers " in
+			*" $x "*) found=1 ;;
+			esac
+		done
+		[ "$found" -eq 1 ] || continue
+		for x in $vers; do
+			case "$v" in
+			*"$x") continue 2 ;;
+			esac
+		done
+		if running_from_any "$d" || running_matching "/aquaproj-aqua/pkgs/github_release/$host/$o/$r/${d##*/}/"; then
 			note "使用中のため残します: $d"
 			continue
 		fi
-		note "古い版を削除: $key@$v"
+		note "古い版を削除: $key@${d##*/}"
 		rm -rf "$d"
 	done
 }

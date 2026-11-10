@@ -81,8 +81,10 @@ for f in aqua.yaml registry.yaml aqua-policy.yaml aqua-checksums.json; do
 done
 echo "PASS: config へ 4 ファイルをコピーする"
 l="$(cat "$log")"
-assert_contains "$l" "ARGS=policy allow $store/config/aqua-policy.yaml" "policy allow を共有側の policy へ"
-assert_contains "$l" "ARGS=install -a ROOT=$store GLOBAL=$store/config/aqua.yaml POLICY=$store/config/aqua-policy.yaml" "install -a を共有側の root / config で"
+assert_contains "$l" "ARGS=policy allow $store/config.new/aqua-policy.yaml" "install 前に staging の policy を許可する"
+assert_contains "$l" "ARGS=policy allow $store/config/aqua-policy.yaml" "反映後に共有側の policy を許可する"
+assert_contains "$l" "ARGS=install -a ROOT=$store GLOBAL=$store/config.new/aqua.yaml POLICY=$store/config.new/aqua-policy.yaml" "install -a を staging の config で"
+[ ! -e "$store/config.new" ] || fail "config.new が残った"
 assert_not_contains "$l" "-t bootstrap" "token あり: bootstrap 先行は不要"
 assert_not_contains "$l" "NOATTEST=true" "token あり: 検証を切らない"
 assert_not_contains "$out" "SECRET_TOKEN" "token を表示しない"
@@ -105,14 +107,38 @@ rc=0
 out="$(FAKE_FAIL_VERIFIED=1 AQUA_BIN="$fake" bash "$STEP" 2>&1)" || rc=$?
 [ "$rc" -ne 0 ] || fail "検証つき install の失敗で成功した"
 [ ! -e "$keyfile" ] || fail "install 失敗なのにキーを書いた"
+[ ! -e "$store/config.new" ] || fail "失敗後に config.new が残った"
 echo "PASS: install 失敗は非 0 でキーを書かない"
 
+# 失敗した実行は config/ を変えない
+echo 'packages: [old]' >"$store/config/aqua.yaml"
+rm -f "$keyfile"
+rc=0
+FAKE_FAIL_VERIFIED=1 AQUA_BIN="$fake" bash "$STEP" >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "失敗が成功した"
+assert_eq "packages: [old]" "$(cat "$store/config/aqua.yaml")" "失敗した実行は config/ を変えない"
+[ ! -e "$store/config.new" ] || fail "失敗後に config.new が残った"
+
 # ---- 古い版の掃除 ----
+setup_cfg() {
+	printf 'packages:\n%s\n' "$1" >"$cfg/aqua.yaml"
+}
 gh="$store/pkgs/github_release/github.com"
-rm -rf "$store/pkgs"
-mkdir -p "$gh/cli/cli/v1.0.0/x" "$gh/cli/cli/v2.0.0/x" "$gh/cli/cli/v2.0.1/x" \
-	"$gh/Foo/Bar/v0.1.0/x" "$gh/Foo/Bar/v0.2.0/x" \
-	"$gh/other/tool/v9.9.9/x" "$gh/aquaproj/aqua-proxy/v1.2.3/x"
+mkgc() {
+	rm -rf "$store/pkgs"
+	local d
+	for d in "$@"; do mkdir -p "$gh/$d/x"; done
+}
+rungc() {
+	rm -f "$keyfile"
+	AQUA_BIN="$fake" GITHUB_TOKEN=t bash "$STEP" >/dev/null 2>&1
+}
+keep() { [ -d "$gh/$1" ] || fail "消してはいけない版を消した: $1 ($2)"; }
+gone() { [ ! -d "$gh/$1" ] || fail "古い版が残った: $1"; }
+
+setup_cfg '  - name: cli/cli@v2.0.0
+  - name: Foo/Bar@v0.2.0 # x'
+mkgc cli/cli/v1.0.0 cli/cli/v2.0.0 cli/cli/v2.0.1 Foo/Bar/v0.1.0 Foo/Bar/v0.2.0 other/tool/v9.9.9 aquaproj/aqua-proxy/v1.2.3
 # 古い Foo/Bar の下から動いているプロセスを立てる
 cp /bin/sleep "$gh/Foo/Bar/v0.1.0/x/sleeper"
 # macOS はコピーした署名つきバイナリを起動時に殺すため、ad-hoc 署名し直す。
@@ -120,26 +146,60 @@ if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$gh/Foo/Bar/v0.1.0/x/sleep
 "$gh/Foo/Bar/v0.1.0/x/sleeper" 60 &
 bgpid=$!
 sleep 1
-rm -f "$keyfile"
-AQUA_BIN="$fake" GITHUB_TOKEN=t bash "$STEP" >/dev/null 2>&1
-[ ! -d "$gh/cli/cli/v1.0.0" ] || fail "参照されない古い版が残った (cli v1.0.0)"
-[ ! -d "$gh/cli/cli/v2.0.1" ] || fail "参照されない版が残った (cli v2.0.1)"
+rungc
+gone cli/cli/v1.0.0
+gone cli/cli/v2.0.1
 echo "PASS: 参照されない版を消す"
-[ -d "$gh/cli/cli/v2.0.0" ] || fail "参照される版を消した (cli v2.0.0)"
-[ -d "$gh/Foo/Bar/v0.2.0" ] || fail "参照される版を消した (Foo/Bar v0.2.0。大文字小文字違い)"
+keep cli/cli/v2.0.0 参照中
+keep Foo/Bar/v0.2.0 "参照中。大文字小文字違い"
 echo "PASS: 参照される版は残す"
-[ -d "$gh/Foo/Bar/v0.1.0" ] || fail "動いている版を消した"
+keep Foo/Bar/v0.1.0 動作中
 echo "PASS: 動いている版は次回へ回す"
-[ -d "$gh/other/tool/v9.9.9" ] || fail "設定に出てこないパッケージを消した"
-[ -d "$gh/aquaproj/aqua-proxy/v1.2.3" ] || fail "aqua-proxy を消した"
+keep other/tool/v9.9.9 未掲載
+keep aquaproj/aqua-proxy/v1.2.3 未掲載
 echo "PASS: 設定に出てこないパッケージには触らない"
 kill "$bgpid" 2>/dev/null || true
+wait "$bgpid" 2>/dev/null || true
+bgpid=""
+rungc
+gone Foo/Bar/v0.1.0
+echo "PASS: 動いていなくなった版は次回で消える"
+
+# symlink 経由（macOS の ps が出すパス）で動いている版は消さない
+mkgc cli/cli/v1.0.0 cli/cli/v2.0.0
+mkdir -p "$tmp/home/aquaproj-aqua"
+ln -s "$store/pkgs" "$tmp/home/aquaproj-aqua/pkgs"
+cp /bin/sleep "$gh/cli/cli/v1.0.0/x/sleeper"
+if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$gh/cli/cli/v1.0.0/x/sleeper" 2>/dev/null; fi
+"$tmp/home/aquaproj-aqua/pkgs/github_release/github.com/cli/cli/v1.0.0/x/sleeper" 60 &
+bgpid=$!
+sleep 1
+if [ "$(uname -s)" = Darwin ]; then
+	rungc
+	keep cli/cli/v1.0.0 symlink経由で実行中
+	echo "PASS: symlink 経由で動く版は消さない"
+fi
+kill "$bgpid" 2>/dev/null || true
+wait "$bgpid" 2>/dev/null || true
 bgpid=""
 
-# 次回（動いていない）で消える
-rm -f "$keyfile"
-AQUA_BIN="$fake" GITHUB_TOKEN=t bash "$STEP" >/dev/null 2>&1
-[ ! -d "$gh/Foo/Bar/v0.1.0" ] || fail "動いていなくなった版が残った"
-echo "PASS: 動いていなくなった版は次回で消える"
+# 厳密に読めない書き方は、そのパッケージの版を全て残す
+check_skip() { # <説明> <設定> <dir...>
+	local what="$1" conf="$2" d
+	shift 2
+	setup_cfg "$conf"
+	mkgc "$@"
+	rungc
+	for d in "$@"; do keep "$d" "$what"; done
+	echo "PASS: $what は消さない"
+}
+check_skip "引用符つきの name" '  - name: "cli/cli@v2.0.0"' cli/cli/v1.0.0 cli/cli/v2.0.0
+check_skip "/ を含む版" '  - name: cli/cli@go/v2.0.0' cli/cli/v1.0.0 cli/cli/go
+check_skip "version_prefix つきのタグ" '  - name: cli/cli@2.0.0' cli/cli/prefix-1.0.0 cli/cli/prefix-2.0.0
+check_skip "version: が別行" '  - name: cli/cli
+    version: v2.0.0' cli/cli/v1.0.0 cli/cli/v2.0.0
+check_skip "コメントだけの言及" '  # cli/cli@v2.0.0 を使う予定' cli/cli/v1.0.0 cli/cli/v2.0.0
+check_skip "別の形でも出てくる" '  - name: cli/cli@v2.0.0
+  - name: "cli/cli@v3"' cli/cli/v1.0.0 cli/cli/v2.0.0
 
 echo "ALL PASS"

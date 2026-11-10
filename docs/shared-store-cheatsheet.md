@@ -72,21 +72,33 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 | `/opt/dotfiles-shared/keys/20` | 上の 4 ファイルをこの順に連結した `pins_key` |
 | `~/.local/share/aquaproj-aqua/{pkgs,bin}` | `/opt/aquaproj-aqua/{pkgs,bin}` への symlink（ホームの `AQUA_ROOT_DIR`。metadata などの書き込みはホーム側に残る） |
 
-流れ: `AQUA_BIN`（呼び出したユーザの aqua）を root で使い、`aqua policy allow` のあと `aqua install -a`。
+流れ: 新しい config を `config.new/` に置き、そこを向けて `AQUA_BIN`（呼び出したユーザの aqua）を root で使い、`aqua policy allow` のあと `aqua install -a`。成功したときだけ `config/` へ移してキーを書く（`aqua.yaml` を最後に移す）。失敗したら `config/` は元のままで `config.new/` も消す。root の aqua は `cd /` してから動かす（作業ディレクトリの `aqua.yaml` を拾わないため）。
 `GITHUB_TOKEN` が空のときは、bootstrap タグの gh だけ検証なしで入れてから、残りを検証つきで入れる。
 検証つきの install が失敗したらこのステップだけ失敗し、他のステップ（npm / uv / rust）は続く。
 `AQUA_BIN` が空か実行できなければ、メッセージを出して失敗する。
 
-古い版の掃除: `pkgs/github_release/github.com/<owner>/<repo>/<version>/` のうち、共有の `aqua.yaml` に
-`<owner>/<repo>@<別の版>` として載っているパッケージの、参照されなくなった版を消す。ただし
-その版の下から動いているプロセスがあれば（全ユーザ）消さず、次回に回す。`aqua.yaml` に名前が出てこない
+古い版の掃除（読めないときは残す方針）: `pkgs/github_release/<host>/<owner>/<repo>/<version>/` のうち、共有の
+`aqua.yaml` に `- name: <owner>/<repo>@<version>`（引用符なし、version に `/` や空白なし、行末コメントのみ可）
+として載っているパッケージの、載っていない版を消す。次のどれかに当てはまるパッケージは全ての版を残す。
+引用符つきの name、`version:` が別行、`/` を含む版、コメントだけの言及、別の形でも同じ名前が出てくる、
+設定の版と同名の dir が無い（version_prefix つきのタグ）。その版の下から動いているプロセスがあれば
+（全ユーザ）消さず次回に回す。macOS の ps は symlink 経由の起動パスを出すため、
+`.../aquaproj-aqua/pkgs/github_release/...` を含むパスでも照合する。`aqua.yaml` に名前が出てこない
 パッケージ（依存や github_release 以外の種別）には触らない。
 
 ユーザ側（`run_after_20-aqua-verify.sh.tmpl`、毎回実行）は、共有側（`config/aqua.yaml`）が在るときだけ
 ホームの `pkgs` / `bin` を symlink にする。実ディレクトリなら `<dir>.old.<時刻>` へ退避し、
-その下から動くプロセスが無ければ消す（動いていれば次回）。共有側が無いときはホームに何もせず警告だけ出す。
+その下から動くプロセスが無ければ消す（動いていれば次回）。共有側が揃っていない（`config/aqua.yaml` と `/opt/dotfiles-shared/keys/20` の両方が無い）ときは、ホームの既存ファイルを消さず動かさず、
+ホームの設定でユーザ単位の `aqua policy allow` / `aqua install -a` を行う（設定が変わったときだけ。`~/.cache/dotfiles/aqua-user.key` に置いたハッシュで判定する。未認証の gh は bootstrap タグだけ検証なしで入れ、`gh auth login` は案内だけ出して待たない）。
 
 経緯: 以前は `run_onchange_after_20-aqua-install.sh.tmpl` が各ユーザのホームへ install し、未認証なら `gh auth login` を対話で呼んでいた。共有ストアへの移行で `run_after_20-aqua-verify.sh.tmpl` に置き換え、ユーザ側は install も対話もしない。
+
+プロジェクトの `aqua.yaml`: `pkgs` は root 所有の共有ストアで、lazy install も無効（`AQUA_DISABLE_LAZY_INSTALL=true`）のため、プロジェクト側の `aqua.yaml` にあるツールはそのままでは入らない。次のどちらかで回避する。
+
+- プロジェクトごとに別の `AQUA_ROOT_DIR` を使う（direnv の `.envrc` など）: `export AQUA_ROOT_DIR="$PWD/.aqua"` と `PATH_add "$PWD/.aqua/bin"`、`unset AQUA_DISABLE_LAZY_INSTALL`。
+- 全員で使うツールなら、グローバルの `dot_config/aquaproj-aqua/aqua.yaml` に足す。
+
+macOS では、使用中のプロセスが残るため `~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` が何度かの apply をまたいで残ることがある。動いているものが無いことを確かめて `rm -rf ~/.local/share/aquaproj-aqua/{pkgs,bin}.old.*` で消してよい。
 
 手で掃除する:
 
