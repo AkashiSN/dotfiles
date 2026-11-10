@@ -33,6 +33,15 @@
         "UV_TOOLS=\"\\$UV_TOOLS (?<depName>[^\\[=\\s\"]+)(?:\\[[^\\]\\s\"]*\\])?==(?<currentValue>[^\\s\"]+)\""
       ],
       "datasourceTemplate": "pypi"
+    },
+    {
+      "description": "共有ストアへ入れる Rust の toolchain（RUST_VERSION=\"<ver>\"）",
+      "customType": "regex",
+      "managerFilePatterns": ["/^bootstrap/25-shared-rust\\.sh$/"],
+      "matchStrings": ["RUST_VERSION=\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [

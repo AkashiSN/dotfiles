@@ -1,0 +1,105 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# Rust の toolchain を、このユーザで使える状態にする。
+# - 共有側が揃っている間: 実体は root が /opt/rustup に置く（bootstrap/25-shared-rust.sh。版は
+#   RUST_VERSION で固定）。プロキシは /opt/cargo/bin、RUSTUP_HOME と PATH は ~/.config/shell/env.sh が通す。
+#   ここでは取得せず、ホームに残った rustup の toolchain と、CARGO_HOME/bin の rustup のプロキシを
+#   消すだけを行う（.chezmoitemplates/rust-cleanup.sh）。cargo install したものと CARGO_HOME の
+#   キャッシュは残す。
+# - 共有側が揃っていない間（sudo を使えなかったなど）: 共有側と同じ版の toolchain を rustup(aqua 管理) で
+#   ユーザ単位に入れる。ホームのものは消さない。版か rustup のピンが変わったときだけ流す
+#   （~/.cache/dotfiles/rust-user.key。成功したときだけ進める）。
+# run_after: chezmoi apply のたびに実行する（動いている間は消さずに次へ回すため）。
+set -eu
+set -o pipefail
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/rust-cleanup.sh"
+{{ template "shell-log" }}
+step "Rust の toolchain を確認中"
+
+SHARED_RUSTUP=/opt/rustup
+SHARED_CARGO_BIN=/opt/cargo/bin
+SHARED_RUST_KEY=/opt/dotfiles-shared/keys/25
+
+OLD_RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
+CARGO_HOME_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
+
+# 共有の Rust が使えるのは、toolchain とプロキシが在り、揃え終えた印のキーも在るときだけ（env.sh と同じ判定）。
+shared_ready() {
+	[ -f "$SHARED_RUST_KEY" ] || return 1
+	[ -x "$SHARED_CARGO_BIN/cargo" ] || return 1
+	[ -n "$(find "$SHARED_RUSTUP/toolchains" -mindepth 1 -maxdepth 1 2>/dev/null | head -1)" ]
+}
+
+if shared_ready; then
+	rust_cleanup_home "$OLD_RUSTUP_HOME" "$CARGO_HOME_DIR/bin"
+	# 後で共有側が使えなくなったとき、ユーザ単位の導入をやり直せるようマーカーを消す。
+	rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/rust-user.key"
+	exit 0
+fi
+
+warn "共有の Rust ($SHARED_RUSTUP) がまだ揃っていません。toolchain をユーザ単位で入れます"
+note "端末から chezmoi apply を実行して sudo を通すと、共有側が作られます"
+
+export RUSTUP_HOME="$OLD_RUSTUP_HOME"
+export CARGO_HOME="$CARGO_HOME_DIR"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+# aqua-proxy はバージョン解決に aqua.yaml を読む。zshenv を経由しない実行なので明示する
+# (未設定だと CWD から aqua.yaml を探して見つからず "command is not found" になる)。
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
+# aqua(rustup) と cargo プロキシ(CARGO_HOME/bin)を解決可能にする。
+export PATH="$AQUA_ROOT_DIR/bin:$CARGO_HOME/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# rustup 本体は aqua 管理。まだ入っていない(=aqua install 前)なら何もしない。
+if ! command -v rustup-init >/dev/null 2>&1; then
+	exit 0
+fi
+
+# 版とコンポーネントは bootstrap/25-shared-rust.sh の宣言を読む。
+# shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
+rust_version="$(sed -n 's/^RUST_VERSION="\(.*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/25-shared-rust.sh" | head -1)"
+# shellcheck disable=SC2016
+rust_components="$(sed -n 's/^RUST_COMPONENTS="\(.*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/25-shared-rust.sh" | head -1)"
+if [ -z "$rust_version" ]; then
+	warn "bootstrap/25-shared-rust.sh から RUST_VERSION を読めません。ユーザ単位の toolchain は入れません"
+	exit 0
+fi
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+marker="$cache_dir/rust-user.key"
+# aqua.yaml の rustup のピンが上がったときも入れ直す（rustup-init がプロキシごと入れ替える）。
+rustup_pin="$(grep -E '^[[:space:]]*-[[:space:]]*name:[[:space:]]*rust-lang/rustup@' {{ joinPath .chezmoi.sourceDir "dot_config/aquaproj-aqua/aqua.yaml" | quote }} | head -1 || true)"
+key="$(pins_key <(printf 'rust-user-1\n%s\n%s\n%s\n' "$rust_version" "$rust_components" "$rustup_pin"))"
+if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+	note "ユーザ単位の toolchain は変更が無いため省きます"
+	exit 0
+fi
+
+# cargo が無ければ rustup-init が toolchain とプロキシ(cargo/rustc/rustup)を CARGO_HOME/bin に作る
+# (--no-modify-path: PATH は env.sh 側で通済み)。あれば toolchain を入れて既定にする。
+# どれかが失敗したら非 0 で終え、マーカーは進めない。
+install_user_rust() {
+	local c comp=""
+	if [ ! -x "$CARGO_HOME/bin/cargo" ]; then
+		rustup-init -y --no-modify-path --default-toolchain "$rust_version" || return 1
+	else
+		for c in $rust_components; do
+			comp="$comp -c $c"
+		done
+		# shellcheck disable=SC2086
+		rustup toolchain install "$rust_version" --no-self-update $comp || return 1
+	fi
+	rustup default "$rust_version" || return 1
+}
+if install_user_rust; then
+	mkdir -p "$cache_dir"
+	printf '%s\n' "$key" >"$marker"
+else
+	warn "ユーザ単位の toolchain の導入に失敗しました。次の apply で再試行します"
+fi
+{{- end }}
