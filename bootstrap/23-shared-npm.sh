@@ -109,16 +109,25 @@ link_target() {
 	printf '%s/%s\n' "$d" "$(basename "$t")"
 }
 
+# write_wrapper <出力先> <JS の実体>: 共有の node を絶対パスで呼ぶラッパーを書く。
+write_wrapper() {
+	cat >"$1" <<WRAP || return 1
+#!/bin/sh
+PATH="$NODE_DIR:\$PATH" exec "$NODE" "$2" "\$@"
+WRAP
+	chmod 755 "$1"
+}
+
 # $DEST に入れる。途中で失敗したら $DEST を消して非 0 を返す（current とキーには触れない）。
 install_set() {
-	local cache link name target rel real rc=0
-	cache="$(mktemp -d)"
+	local cache link name target rel real spec rc=0
+	cache="$(mktemp -d)" || return 1
 	rm -rf "$DEST"
-	mkdir -p "$DEST"
+	mkdir -p "$DEST" || return 1
 	# --ignore-scripts: 一覧のどれも install script を走らせなくてよい（cline のは失敗しても無視される後処理）。
 	# npm のキャッシュは一時ディレクトリに置き、終わったら消す（root が誰かのキャッシュに書かない）。
 	# shellcheck disable=SC2086
-	npm_config_cache="$cache" PATH="$NODE_DIR:$PATH" "$NPM" install -g --prefix "$DEST/prefix" \
+	npm_config_cache="$cache" npm_config_userconfig=/dev/null npm_config_globalconfig=/dev/null PATH="$NODE_DIR:$PATH" "$NPM" install -g --prefix "$DEST/prefix" \
 		--ignore-scripts --no-fund --no-audit --no-update-notifier $NPM_GLOBALS || rc=$?
 	rm -rf "$cache"
 	if [ "$rc" -ne 0 ]; then
@@ -126,21 +135,43 @@ install_set() {
 		return "$rc"
 	fi
 
-	mkdir -p "$DEST/bin"
+	# errexit は if の条件内で効かないため、大事なコマンドごとに失敗を返す。
+	mkdir -p "$DEST/bin" || {
+		rm -rf "$DEST"
+		return 1
+	}
 	# link_target は pwd -P で実体のパスにする（macOS の /var -> /private/var など）ので、$DEST も実体で揃えて剥がす。
-	real="$(cd "$DEST" && pwd -P)"
+	real="$(cd "$DEST" && pwd -P)" || {
+		rm -rf "$DEST"
+		return 1
+	}
 	for link in "$DEST/prefix/bin/"*; do
 		[ -L "$link" ] || continue
 		name="$(basename "$link")"
-		target="$(link_target "$link")"
+		target="$(link_target "$link")" || {
+			rm -rf "$DEST"
+			return 1
+		}
 		rel="${target#"$real"/}"
-		cat >"$DEST/bin/$name" <<WRAP
-#!/bin/sh
-PATH="$NODE_DIR:\$PATH" exec "$NODE" "$DEST/$rel" "\$@"
-WRAP
-		chmod 755 "$DEST/bin/$name"
+		if ! write_wrapper "$DEST/bin/$name" "$DEST/$rel"; then
+			rm -rf "$DEST"
+			return 1
+		fi
 	done
-	touch "$DEST/.complete"
+	# NPM_GLOBALS の各パッケージの bin（パッケージ名の末尾と同名）が実行できることを確かめてから完了にする。
+	for spec in $NPM_GLOBALS; do
+		name="${spec%@*}"
+		name="${name##*/}"
+		if [ ! -x "$DEST/bin/$name" ]; then
+			echo "$name の実行ファイルが $DEST/bin にありません" >&2
+			rm -rf "$DEST"
+			return 1
+		fi
+	done
+	touch "$DEST/.complete" || {
+		rm -rf "$DEST"
+		return 1
+	}
 }
 
 if [ -f "$DEST/.complete" ]; then
@@ -180,8 +211,24 @@ set_busy() {
 	return 1
 }
 
-log "使わなくなった組を削除"
 # 動いている MCP サーバーなどが読んでいるかもしれないので、1 つ前の組は残す。
+# 同じ key で入れ直した（prev が KEY と同じ）ときは、実際の 1 つ前が分からないため、
+# KEY 以外で mtime が最も新しい組を 1 つ前として残す。
+if [ "$prev" = "$KEY" ]; then
+	prev=""
+	best=""
+	for d in "$ROOT"/*/; do
+		d="${d%/}"
+		[ -L "$d" ] && continue
+		[ "$(basename "$d")" = "$KEY" ] && continue
+		if [ -z "$best" ] || [ "$d" -nt "$best" ]; then
+			best="$d"
+		fi
+	done
+	[ -z "$best" ] || prev="$(basename "$best")"
+fi
+
+log "使わなくなった組を削除"
 for d in "$ROOT"/*/; do
 	d="${d%/}"
 	[ -L "$d" ] && continue

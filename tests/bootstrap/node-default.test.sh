@@ -84,12 +84,14 @@ mv "$stubs/fnm.off" "$stubs/fnm"
 # ---- 共有側が揃っている: fnm の Node を消し、取得しない ----
 mkdir -p "$tmp/shared/npm-global/current/bin" "$tmp/shared/keys"
 echo k >"$tmp/shared/keys/23"
-rm -rf "$home/.cache/dotfiles"
+mkdir -p "$home/.cache/dotfiles"
+echo stale >"$home/.cache/dotfiles/node-user.key"
 out="$(run30)" || fail "共有側ありで失敗" "$out"
 assert_eq "" "$(cat "$CALLS")" "共有側あり: fnm / npm を流さない"
 [ ! -e "$home/.local/share/fnm/node-versions" ] && [ ! -e "$home/.local/share/fnm/aliases" ] || fail "共有側ありなのに fnm の Node が残った"
 [ -d "$home/.local/share/fnm/keep" ] || fail "fnm の他のディレクトリまで消した"
-echo "PASS: 共有側あり: fnm の Node だけ消す"
+[ ! -e "$home/.cache/dotfiles/node-user.key" ] || fail "共有側ありでマーカーが残った"
+echo "PASS: 共有側あり: fnm の Node だけ消し、マーカーも消す"
 
 # 共有側が片方だけ（キーが無い）なら揃っていない扱い
 mkfnm

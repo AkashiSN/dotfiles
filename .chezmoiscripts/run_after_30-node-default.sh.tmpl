@@ -26,6 +26,8 @@ SHARED_NPM_KEY=/opt/dotfiles-shared/keys/23
 # 共有の npm の CLI が使えるのは、current/bin が在り、揃え終えた印のキーも在るときだけ。
 if [ -d "$SHARED_NPM/current/bin" ] && [ -f "$SHARED_NPM_KEY" ]; then
 	node_cleanup_home "${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
+	# 後で共有側が使えなくなったとき、ユーザ単位の導入をやり直せるようマーカーを消す。
+	rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/node-user.key"
 	exit 0
 fi
 

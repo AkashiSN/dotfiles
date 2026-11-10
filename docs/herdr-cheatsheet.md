@@ -370,7 +370,7 @@ claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる�
 | 項目 | 内容 |
 | --- | --- |
 | 導入 | 共有ストアの npm の CLI として root が置く（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS` の `cline@<版>`。実体は `/opt/npm-global/current/bin/cline`）。共有側が揃っていない間は `run_after_30-node-default.sh.tmpl` が fnm の node でユーザ単位に入れる |
-| Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。導入のときだけ npm が要り、共有側は共有 aqua の `nodejs/node` を使う |
+| Node | 共有側のラッパーが、共有 aqua の `nodejs/node` で cline を起動する（Node は実行時にも使う）。プラットフォーム別バイナリは optional dependencies で解決する。導入のときも共有 aqua の npm を使う |
 | 認証 | 自動化しない。導入後に端末で一度 `cline auth`（対話ウィザード）か `cline auth --provider <name> --apikey <key> --modelid <model>` |
 | 更新 | `NPM_GLOBALS` の版を上げる（Renovate が PR を出す）。共有側の実体は一般ユーザが書き換えられないため、本体の `cline update` は使わない |
 

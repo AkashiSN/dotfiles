@@ -28,7 +28,7 @@ printf '#!/bin/sh\necho v1.0.0\n' >"$fakebin/node"
 cat >"$fakebin/npm" <<'FAKE'
 #!/usr/bin/env bash
 # install -g --prefix P ... <pkg>... を真似て P/bin/<名前> -> ../lib/node_modules/<pkg>/bin/<名前>.js を作る。
-echo "npm $* | cwd=$PWD cache=${npm_config_cache:-} PATH0=${PATH%%:*}" >>"$FAKE_LOG"
+echo "npm $* | cwd=$PWD cache=${npm_config_cache:-} PATH0=${PATH%%:*} userconfig=${npm_config_userconfig:-} globalconfig=${npm_config_globalconfig:-}" >>"$FAKE_LOG"
 [ -n "${npm_config_cache:-}" ] && : >"$npm_config_cache/cachefile"
 prefix=""
 pkgs=()
@@ -41,6 +41,7 @@ while [ $# -gt 0 ]; do
 	shift
 done
 [ -n "$prefix" ] || exit 2
+[ "${FAKE_NPM_NOBIN:-}" = 1 ] && exit 0
 for p in "${pkgs[@]}"; do
 	n="${p%@*}"
 	b="${n##*/}"
@@ -163,11 +164,31 @@ assert_eq "3" "$(find "$root" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" "失
 failcache="$(sed -n 's/.*cache=\([^ ]*\) PATH0.*/\1/p' "$FAKE_LOG" | tail -1)"
 [ ! -e "$failcache" ] || fail "失敗時に npm の一時キャッシュを残した"
 echo "PASS: 失敗時も一時キャッシュを消す"
+# npm が成功しても bin が無ければ失敗扱い
+rc=0
+out="$(FAKE_NPM_NOBIN=1 run)" || rc=$?
+[ "$rc" -ne 0 ] || fail "bin が無いのに成功した"
+assert_eq "$k3" "$(cur)" "bin が無ければ current は変えない"
+assert_eq "$k3" "$(cat "$keyfile")" "bin が無ければキーを進めない"
+assert_eq "3" "$(find "$root" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" "bin が無い組は残さない"
+# root が npm を流すときはユーザの npmrc を読ませない
+assert_contains "$(cat "$FAKE_LOG")" "userconfig=/dev/null globalconfig=/dev/null" "npm_config_userconfig / globalconfig を /dev/null にする"
 # 失敗の後に成功すれば入る
 out="$(run)" || fail "失敗の後の再実行が失敗" "$out"
 k4="$(cat "$keyfile")"
 assert_eq "$k4" "$(cur)" "失敗の後の再実行で current が進む"
 [ -d "$root/$k3" ] && [ ! -e "$root/$k2" ] || fail "再実行後の組の入れ替えが違う"
+
+# ---- 同じ key での入れ直し（keys/23 を消した再実行）: 1 つ前の組を消さない ----
+mkdir -p "$root/ancient/bin"
+: >"$root/ancient/.complete"
+touch -t 200001010000 "$root/ancient"
+rm -f "$keyfile"
+run >/dev/null || fail "同じ key の再実行が失敗"
+assert_eq "$k4" "$(cur)" "同じ key: current は変わらない"
+[ -d "$root/$k3" ] || fail "同じ key の再実行で 1 つ前の組を消した"
+[ ! -e "$root/ancient" ] || fail "同じ key の再実行で古い組が残った"
+echo "PASS: 同じ key の再実行でも 1 つ前の組を残し、それ以前は消す"
 
 # ---- macOS 形式の ps（リンクのパスだけ）でも動作中の古い組を消さない ----
 # lib.sh の本物の running_* を使い、ps だけを PATH 上の偽物にする（/proc の無い macOS でのみ意味がある）。
