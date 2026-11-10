@@ -12,6 +12,55 @@ if [ "$(uname -sm)" = "Darwin arm64" ]; then
 	assert_contains "$out" "homebrew_shared_ok" "before_05 includes the shared functions"
 fi
 
+# (a2) before_05 を偽の sudo / dseditgroup で流す（prefix は一時ディレクトリへ差し替える）
+if [ "$(uname -sm)" = "Darwin arm64" ]; then
+	b5="$(mktemp -d)"
+	script="$b5/before05.sh"
+	printf '%s\n' "$out" | sed -e "s#^PREFIX=/opt/homebrew\$#PREFIX=$b5/prefix#" >"$script"
+	grep -q "^PREFIX=$b5/prefix" "$script" || fail "before_05: prefix の差し替えに失敗"
+	mkdir -p "$b5/prefix" "$b5/stubs"
+	chmod 755 "$b5/prefix"
+	# 偽 sudo: 引数を記録し、FAKE_SUDO_FAIL に "<最初の非オプション引数>" か "-v" が入っていれば失敗する。
+	cat >"$b5/stubs/sudo" <<'FAKE'
+#!/bin/sh
+echo "sudo $*" >>"$CALLS"
+case " ${FAKE_SUDO_FAIL:-} " in *" $1 "*) exit 1 ;; esac
+exit 0
+FAKE
+	cat >"$b5/stubs/dseditgroup" <<'FAKE'
+#!/bin/sh
+echo "dseditgroup $*" >>"$CALLS"
+exit "${FAKE_DSEDIT_RC:-0}"
+FAKE
+	chmod +x "$b5/stubs/sudo" "$b5/stubs/dseditgroup"
+	export CALLS="$b5/calls"
+	run05() {
+		: >"$CALLS"
+		BREW_GROUP=brew PATH="$b5/stubs:/usr/bin:/bin" sh "$script" </dev/null 2>&1
+	}
+
+	# sudo -v（認証）を断られたら 0 で終え、以降の sudo を呼ばない
+	rc=0
+	o="$(FAKE_SUDO_FAIL="-v" run05)" || rc=$?
+	assert_eq "0" "$rc" "before_05: sudo -v が失敗しても 0"
+	assert_contains "$o" "見送りました" "before_05: sudo -v の失敗を案内する"
+	assert_eq "sudo -v" "$(grep '^sudo' "$CALLS" | grep -v '^sudo -n' | tr '\n' ';' | sed 's/;$//')" "before_05: sudo -v の失敗後は sudo を呼ばない"
+
+	# 途中の sudo（chgrp）が失敗しても 0 で終え、後続の sudo を呼ばない
+	rc=0
+	o="$(FAKE_SUDO_FAIL="chgrp" run05)" || rc=$?
+	assert_eq "0" "$rc" "before_05: sudo chgrp が失敗しても 0"
+	assert_contains "$o" "見送りました" "before_05: chgrp の失敗を案内する"
+	assert_eq "sudo chgrp -R brew $b5/prefix" "$(grep '^sudo' "$CALLS" | tail -n 1)" "before_05: chgrp の失敗後は sudo を呼ばない"
+
+	# 全部通れば chmod / find まで呼ぶ
+	rc=0
+	o="$(run05)" || rc=$?
+	assert_eq "0" "$rc" "before_05: 成功で 0"
+	assert_contains "$(cat "$CALLS")" "sudo find $b5/prefix -type d -exec chmod g+s {} +" "before_05: setgid まで流す"
+	rm -rf "$b5"
+fi
+
 # (b) brew_shared は umask 002 で brew を呼ぶ
 # shellcheck source=../../.chezmoitemplates/homebrew-shared.sh
 . "$REPO/.chezmoitemplates/homebrew-shared.sh"

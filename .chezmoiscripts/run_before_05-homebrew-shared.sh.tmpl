@@ -28,16 +28,26 @@ if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
 	exit 0
 fi
 
+# sudo を断られた・失敗したときは共有を見送り、apply は止めない。次の apply で再試行する。
+give_up() {
+	notice "sudo を使えないため Homebrew の共有を見送りました（$1）"
+	note "次の chezmoi apply で再試行します"
+	exit 0
+}
+
 step "Homebrew をグループ ${BREW_GROUP} で共有する設定中"
 
-if ! dseditgroup -o read "$BREW_GROUP" >/dev/null 2>&1; then
-	sudo dseditgroup -o create "$BREW_GROUP"
-fi
-sudo dseditgroup -o edit -a "$(id -un)" -t user "$BREW_GROUP"
+# 最初にまとめて認証する。パスワードを断られたら、ここで止める。
+sudo -v || give_up "認証"
 
-sudo chgrp -R "$BREW_GROUP" "$PREFIX"
-sudo chmod -R g+w "$PREFIX"
-sudo find "$PREFIX" -type d -exec chmod g+s {} +
+if ! dseditgroup -o read "$BREW_GROUP" >/dev/null 2>&1; then
+	sudo dseditgroup -o create "$BREW_GROUP" || give_up "グループ作成"
+fi
+sudo dseditgroup -o edit -a "$(id -un)" -t user "$BREW_GROUP" || give_up "グループへの追加"
+
+sudo chgrp -R "$BREW_GROUP" "$PREFIX" || give_up "chgrp"
+sudo chmod -R g+w "$PREFIX" || give_up "chmod g+w"
+sudo find "$PREFIX" -type d -exec chmod g+s {} + || give_up "setgid"
 
 # グループへ追加しただけでは、すでに動いているプロセスの所属は変わらない。
 if ! id -Gn | tr ' ' '\n' | grep -qx "$BREW_GROUP"; then
