@@ -194,3 +194,16 @@ work の `docs/claude-settings.md` に足された「popup へ来るのはログ
 `/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系と `/opt/npm-global`（`bootstrap/23-shared-npm.sh`）、`/opt/uv`（`bootstrap/24-shared-uv.sh`）、`/opt/rustup`（`bootstrap/25-shared-rust.sh`。work は `--profile default`、こちらは `minimal` に現行のコンポーネントを足し、`RUSTUP_HOME` / `CARGO_HOME` がホームの `~/.local/share` 配下なので、掃除もそこを対象にする）、`/opt/tenv`（`bootstrap/21-shared-tenv.sh`。work は `/opt/tenv` を `TENV_ROOT` として共有し、各ユーザが `~/.tenv` の版のディレクトリへ terraform を symlink する。こちらも同じ形で、`SHARED_ROOT` 基準・`--check` とキー・失敗時に前の版を残す・一覧に無い版は動いていなければ消す点が違う。版は `tenv-versions.txt`）、`/opt/agmsg`（`bootstrap/22-shared-agmsg.sh`。work との違いは、`SHARED_ROOT` 基準・`--check` とキー・取得した commit が違えば `current` を動かさない・1 つ前の版を残し動いている版は消さない・`swap_symlink` で付け替える点。ユーザ側は `run_after_40` が共有の `install.sh` を流し、共有側が無い間は従来の `setup.sh`）は取り込んだ。uv の `UV_TOOLS` は work の AWS MCP サーバー（`mcp-proxy-for-aws-cli` / `awslabs.aws-pricing-mcp-server`）を入れず、ansible と graphifyy だけ。work は Python を `/opt/uv/python` に直接入れるが、こちらは組（`<key>`）で切り替えるのでツールを組の中へ、Python は組の外の固定の場所へ置く）は、Mac での設計を
 別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
 sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。
+
+2026-11-10 に、work が先に入れていた `/opt` の共有ストアを、こちらにも入れた（上の 2026-11-09 で「Mac での設計を別に詰めてから」とした分）。aqua（`/opt/aquaproj-aqua`）・tenv・agmsg・npm の CLI・uv・Rust を `bootstrap/NN-*.sh` のステップにし、各ユーザの `chezmoi apply`（`run_after_15-shared-store`）が食い違いを見つけたときだけ sudo で `bootstrap/run-all.sh` を流す。work との違いは次のとおり。
+
+| 違い | 中身 |
+| --- | --- |
+| 起動の仕方 | work は手で `sudo bootstrap/run-all.sh`。こちらは apply のたびに `--check`（root 不要）で調べ、食い違うときだけ sudo。非対話で sudo を使えなければ警告だけで apply は止めない |
+| ダウングレード防止 | `/opt/dotfiles-shared/state` に最後に揃えたコミットを置き、`HEAD` が `origin/main` に含まれ、かつ state の子孫のときだけ更新する（`bootstrap/guard.sh`。`DOTFILES_SHARED_FORCE=1` で無視） |
+| キー | 各ステップはピンのハッシュを `/opt/dotfiles-shared/keys/NN` に書き、`--check` はこれと比べる |
+| 古い版 | 1 つ前を残し、どのユーザのプロセスでも使用中のものは消さない（Linux `/proc/*/exe`、macOS `ps`）。消し残しは `pending/NN` で次の apply に回す |
+| macOS | bash 3.2 / BSD コマンドで動かし、所有者は `root:wheel`。Kiro CLI だけ `/Applications` の公式インストーラ |
+| 自己更新 | Claude Code / Codex / CodeGraph / Kiro の自己更新を止め、版は Renovate が上げる |
+
+通しの検証は `tests/docker/run.sh`（Ubuntu 24.04 で 2 ユーザ。[shared-store-cheatsheet.md](shared-store-cheatsheet.md#2-ユーザでの通し検証docker)）。その中で次を直した: 初回の apply で `~/.local/bin/aqua` が PATH に無く共有側が作られない、arm64 の Linux で amd64 の aqua を取得する、`aqua-checksums.json` に arm64 Linux の rustup-init が無い、root の npm が `/dev/null` を user / global の両方の設定にして止まる、使用中で残した古い版がピンが変わるまで消えない、Linux arm64 で Chrome for Testing の取得が apply を止める、`fnm env` が作る空のディレクトリを apply のたびに「削除」する。macOS の 2 ユーザでの確認は手で行う。
