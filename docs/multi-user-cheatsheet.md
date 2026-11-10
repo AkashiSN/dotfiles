@@ -38,7 +38,7 @@ chezmoi apply
 
 - `~/.ssh/config` の個人の Host（`gw-suita` / `ix2215-suita` / `er-x-suita` / `truenas-suita` / `gw-tokyo` / `ix2215-tokyo` / `develop-server` / `truenas`）と、`172.16.*` 宛の `Match` による踏み台設定。
 - `gitlab.com` / `gist.github.com` の `IdentityFile`。`github.com` は `github.com-AkashiSN` の別名と鍵指定を外し、ssh-agent / 既定の鍵に任せる。
-- `.ssh/1password_AkashiSN.pub` / `.ssh/allowed_signers` / `.ssh/authorized_keys` / `.ssh/gpg.pub`（`.chezmoiignore` で除外）。
+- `.ssh/1password_AkashiSN.pub` / `.ssh/1password_su-nishi.pub` / `.ssh/allowed_signers` / `.ssh/authorized_keys` / `.ssh/gpg.pub`（`.chezmoiignore` で除外）。
 
 `work.*` の Host は `personal` と独立に、`work.*` が設定されていれば出る。
 

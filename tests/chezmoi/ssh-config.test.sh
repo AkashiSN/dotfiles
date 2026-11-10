@@ -24,7 +24,7 @@ assert_contains "$out_default" "IdentityFile    ~/.ssh/1password_AkashiSN.pub" "
 # 管理対象の一覧
 managed_false="$(chezmoi_managed personal=false)" || fail "managed personal=false"
 managed_true="$(chezmoi_managed)" || fail "managed default"
-for f in .ssh/1password_AkashiSN.pub .ssh/allowed_signers .ssh/authorized_keys .ssh/gpg.pub; do
+for f in .ssh/1password_AkashiSN.pub .ssh/1password_su-nishi.pub .ssh/allowed_signers .ssh/authorized_keys .ssh/gpg.pub; do
 	assert_not_contains "$managed_false" "$f" "$f not managed when personal=false"
 	assert_contains "$managed_true" "$f" "$f managed by default"
 done
