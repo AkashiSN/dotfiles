@@ -82,7 +82,7 @@ sudo dseditgroup -o delete brew                     # グループ自体を消�
 - **portfwd の launchd 登録**: `launchctl bootstrap gui/<uid>` は、そのユーザの GUI セッションが無いと失敗する。`risa` は GUI ログインした状態で apply する。
 - **`/tmp` の固定名**: `run_onchange_before_10-install-packages` の aqua / ffmpeg の一時ファイル（Linux と Intel Mac の経路）が `/tmp/aqua.tar.gz` などの固定名。同時に 2 人が走らせると衝突するが、apply を同時に実行しなければ起きない。Apple Silicon の macOS は通らない。
 - **Homebrew グループ追加後の再ログイン**: [Homebrew](#homebrew-apple-silicon-の共有) を参照。
-- **共有の対象外（計画 2）**: aqua は `/opt/aquaproj-aqua` の共有ストアに移った（[shared-store-cheatsheet.md](shared-store-cheatsheet.md)）。npm / uv / rust / AI CLI は未対応で、今は各ユーザの `$HOME` 配下に入る。
+- **共有の対象外（計画 2）**: aqua は `/opt/aquaproj-aqua` の共有ストアに移った（[shared-store-cheatsheet.md](shared-store-cheatsheet.md)）。npm / uv / rust も共有に移った。AI CLI は未対応で、今は各ユーザの `$HOME` 配下に入る。
 - **終了案内**: `run_once_after_90-final-notice` はログインシェルが zsh でないときの `usermod`（Linux 用）と `direnv allow ~` だけを案内する。macOS の新規ユーザは既定が zsh で、案内は出ない。
 
 ## テスト

@@ -16,8 +16,13 @@ step "sheldon {{ $version }} を cargo でビルド中(Intel Mac)"
 export RUSTUP_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/rustup"
 export CARGO_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/cargo"
 export PATH="$CARGO_HOME/bin:$PATH"
+# 共有の Rust が揃っているときは、その toolchain とプロキシを使う（~/.config/shell/env.sh と同じ判定）。
+if [ -d /opt/rustup/toolchains ] && [ -x /opt/cargo/bin/cargo ] && [ -f /opt/dotfiles-shared/keys/25 ]; then
+	export RUSTUP_HOME=/opt/rustup
+	export PATH="$PATH:/opt/cargo/bin"
+fi
 
-# cargo は 32-rust-default が用意する。まだ無ければ何もしない。
+# cargo は 32-rust-default（共有側は bootstrap/25-shared-rust.sh）が用意する。まだ無ければ何もしない。
 command -v cargo >/dev/null 2>&1 || exit 0
 
 # 同じ版が入っていれば cargo install は何もせず終わる。CARGO_HOME/bin は PATH で

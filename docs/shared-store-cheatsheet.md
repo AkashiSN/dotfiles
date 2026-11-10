@@ -193,6 +193,37 @@ rm ~/.cache/dotfiles/uv-user.key
 初めて共有側が揃った apply のあとは、新しいシェルを開く（`env.sh` が PATH に `/opt/uv/bin` を足すのは新しいシェルから。開いたままのシェルは `hash -r` では足りず、`exec $SHELL -l` でもよい）。
 経緯: 以前は `run_onchange_after_35-uv-tools.sh.tmpl` が各ユーザのホームへ Python と ansible を、`run_after_40` が graphify を別に入れていた。共有ストア導入で、版の固定を `UV_TOOLS` にまとめ、root が 1 組だけ置く形へ移した。
 
+## Rust の toolchain（`bootstrap/25-shared-rust.sh`）
+
+Rust の toolchain を、共有 aqua の `rustup-init` で入れて `/opt/rustup` に置く。
+
+| パス | 内容 |
+| --- | --- |
+| `bootstrap/25-shared-rust.sh` | ステップ。版は `RUST_VERSION="<ver>"` の行（Renovate が上げる）、コンポーネントは `RUST_COMPONENTS` |
+| `/opt/rustup` | `RUSTUP_HOME`。toolchain と `settings.toml`（既定の toolchain） |
+| `/opt/cargo/bin` | `cargo` / `rustc` / `rustup` などのプロキシ（`rustup-init` が置く） |
+| `/opt/dotfiles-shared/keys/25` | key（`RUST_VERSION`・コンポーネント・`aqua.yaml` の `rust-lang/rustup@` の行のハッシュ 12 桁） |
+
+- **導入**: root が、ルートへ移り、`RUSTUP_HOME=/opt/rustup` / `CARGO_HOME=/opt/cargo` で、`rustup-init -y --no-modify-path --profile minimal --default-toolchain none`、`rustup toolchain install <版> --profile minimal -c clippy -c rustfmt -c rust-docs` の順に流す。ユーザやルートの設定は読まない。`rustc` / `cargo` / `rustfmt` / `cargo-clippy` / `clippy-driver` が toolchain の `bin` で実行でき、プロキシが在ると確かめてから `rustup default <版>` を書き、キーを書く。失敗したら入れた toolchain を消し、既定とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または `rustup-init` が無いときは明確なメッセージで失敗する。
+- **GC**: 1 つ前の toolchain は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが toolchain の下、パスに `/rustup/toolchains/<tc>/` を含む、`ps` の引数に含む）は消さず次回に回す。共有のプロキシ（`/opt/cargo/bin/*`）が動いているときは、macOS の `ps` がどの toolchain かを出さないことがあるので、そのたびの GC を見送る。
+- **PATH / RUSTUP_HOME**: `env.sh` が、`/opt/rustup/toolchains`・`/opt/cargo/bin/cargo`・`keys/25` が揃っているときだけ `RUSTUP_HOME=/opt/rustup` にして、`/opt/cargo/bin` を `$CARGO_HOME/bin` の後ろに足す。`CARGO_HOME`（`~/.local/share/cargo`）はユーザごとのまま。
+- **ユーザ側**（`run_after_32-rust-default.sh.tmpl`、毎回実行）:
+  - 揃っている間は、ホームの掃除（`.chezmoitemplates/rust-cleanup.sh`）。`~/.local/share/cargo/bin` のうち `rustup` と同じ inode のもの（`rustup` 本体とハードリンクのプロキシ）と、`~/.local/share/rustup` を消す。`cargo install` したものは残す。動いている Rust があれば何も消さず次の apply に回す。
+  - 揃っていない間は、固定の版をユーザ単位で入れる。`~/.cache/dotfiles/rust-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。
+- **制限**: `/opt/rustup` は読み取り専用なので、プロジェクトの `rust-toolchain.toml` が別の toolchain を求めても各ユーザは入れられない。既定の toolchain は root が書く `settings.toml` から解決するので、`RUSTUP_TOOLCHAIN` の設定は要らない。回避策（プロジェクトだけ書ける `RUSTUP_HOME` にする、または共有のステップに足す）は [zsh-cheatsheet.md](zsh-cheatsheet.md#rust-の共有-toolchain)。
+
+手で確かめる・やり直す:
+
+```sh
+rustc --version; echo $RUSTUP_HOME     # RUST_VERSION と /opt/rustup（新しいシェルで）
+cat /opt/rustup/settings.toml; ls /opt/rustup/toolchains
+cat /opt/dotfiles-shared/keys/25
+# 共有側を作り直す（root）。次の apply で食い違いとして検出され、揃え直される
+sudo rm -f /opt/dotfiles-shared/keys/25
+# ユーザ側の fallback を再実行する（共有側が揃っていない間）
+rm ~/.cache/dotfiles/rust-user.key
+```
+
 ## AI エージェントの CLI（`aqua.yaml` と `run_after_40-ai-assistants.sh.tmpl`）
 
 Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は、共有 aqua ストア（上の節）に入る。

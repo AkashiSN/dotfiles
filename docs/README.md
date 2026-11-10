@@ -25,7 +25,7 @@
 | agent-browser（ブラウザ自動化 CLI） | [agent-browser-cheatsheet.md](agent-browser-cheatsheet.md) | `dot_config/aquaproj-aqua/aqua.yaml` / `.chezmoiscripts/run_onchange_after_41-agent-browser.sh.tmpl` |
 | Renovate（依存の更新 PR） | [renovate-cheatsheet.md](renovate-cheatsheet.md) | `.github/renovate.json` / `.github/workflows/update-aqua-checksum.yaml` |
 | マルチユーザ（2 人目のユーザの始め方 / git identity） | [multi-user-cheatsheet.md](multi-user-cheatsheet.md) | `.chezmoi.toml.tmpl` / `dot_gitconfig.tmpl` |
-| 共有ストア（`/opt` の共有ツール / 起動役 / guard） | [shared-store-cheatsheet.md](shared-store-cheatsheet.md) | `.chezmoiscripts/run_after_15-shared-store.sh.tmpl` / `run_after_20-aqua-verify.sh.tmpl` / `.chezmoitemplates/shared-store-trigger.sh` / `.chezmoitemplates/ai-cleanup.sh` / `run_after_40-ai-assistants.sh.tmpl`（AI CLI） / `bootstrap/`（`31-codex-policy.sh` を含む） |
+| 共有ストア（`/opt` の共有ツール / 起動役 / guard） | [shared-store-cheatsheet.md](shared-store-cheatsheet.md) | `.chezmoiscripts/run_after_15-shared-store.sh.tmpl` / `run_after_20-aqua-verify.sh.tmpl` / `.chezmoitemplates/shared-store-trigger.sh` / `.chezmoitemplates/ai-cleanup.sh` / `run_after_40-ai-assistants.sh.tmpl`（AI CLI） / `bootstrap/`（`25-shared-rust.sh` / `31-codex-policy.sh` を含む） |
 | work 用 dotfiles との同期 | [work-sync.md](work-sync.md) | （運用手順。`cloudsa-dotfiles` との共有スクリプト全般） |
 
 > これらは chezmoi のソースリポジトリ内のドキュメントで、ホームへは展開されない

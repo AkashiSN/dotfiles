@@ -10,7 +10,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 - Python: `~/.local/bin` を `dot_config/shell/env.sh.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`env.sh` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）や bash でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
 - npm の CLI（difit / cline）: 共有側が揃っている（`/opt/npm-global/current/bin` と `/opt/dotfiles-shared/keys/23` が在る）ときだけ、`env.sh` が `/opt/npm-global/current/bin` を `~/.local/bin` の**後ろ**に足す。判定は実行時の `[ -d ]` / `[ -f ]` だけ。詳細は [shared-store-cheatsheet.md](shared-store-cheatsheet.md#npm-の-clibootstrap23-shared-npmsh)
 - macOS のパッケージ: Apple Silicon は **Homebrew**、Intel Mac は **MacPorts**（[macOS のパッケージ管理](#macos-のパッケージ管理)）
-- Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
+- Rust: 共有側が揃っている（`/opt/rustup/toolchains` と `/opt/cargo/bin/cargo` と `/opt/dotfiles-shared/keys/25` が在る）ときは、`env.sh` が `RUSTUP_HOME=/opt/rustup`（読み取り専用）にして、`/opt/cargo/bin` を `$CARGO_HOME/bin` の**後ろ**に足す。`CARGO_HOME`（=`~/.local/share/cargo`）はユーザごとのままなので `cargo install` は各自のホームに入る。判定は実行時の `[ -d ]` / `[ -x ]` / `[ -f ]` だけ。揃っていない間は `rustup`（aqua 管理）で各ユーザの `RUSTUP_HOME`（=`~/.local/share/rustup`）に入れる。実体は `run_after_32-rust-default` が用意する（下の「Rust の共有 toolchain」）
 - Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_config/shell/env.sh.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
 - 構成: 環境変数と alias は zsh・bash 共通の `~/.config/shell/{env,aliases}.sh`（[シェルの役割分担](#シェルの役割分担)）。`dot_zshrc` はローダーで、対話専用の実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
 
@@ -556,13 +556,25 @@ MacPorts には cask に当たる仕組みが無いので、フォントはス�
 
 入っている版は `~/.local/state/macos-fonts/<名前>` に書いた版で判定する。
 
+### Rust の共有 toolchain
+
+toolchain は root が `/opt/rustup` に 1 つだけ置く（`bootstrap/25-shared-rust.sh`。版は `RUST_VERSION` で固定、Renovate が上げる）。プロキシ（`cargo` / `rustc` / `rustup` など）は `/opt/cargo/bin`。構成と操作は [shared-store-cheatsheet.md](shared-store-cheatsheet.md#rust-の-toolchainbootstrap25-shared-rustsh)。
+
+- **既定の toolchain の解決**: root が書く `/opt/rustup/settings.toml` の `default_toolchain` から解決する。ユーザ側で `RUSTUP_TOOLCHAIN` を設定する必要は無い（`rustup default` / `rustc --version` は固定の版を指す）。
+- **制限**: `RUSTUP_HOME` が読み取り専用なので、プロジェクトの `rust-toolchain.toml` が共有側に無い toolchain（別の版・`nightly`・追加の `targets`/`components`）を求めても、`rustup` はその場で入れられず `could not create temp file ... /opt/rustup/tmp/...: Permission denied` で失敗する。固定の版と同じ `channel` なら動く。
+- **回避策**: そのプロジェクトだけ、書ける場所を `RUSTUP_HOME` にする。`.envrc` に `export RUSTUP_HOME="$HOME/.local/share/rustup-project"` と書く（direnv）。この `RUSTUP_HOME` では `rustup` が必要な toolchain を自動で入れる。全ユーザに必要なら `bootstrap/25-shared-rust.sh` の `RUST_VERSION` / `RUST_COMPONENTS`（追加の `targets` は `rustup target add` を足す）を直して共有側に入れる。
+- **ホームの掃除**: 共有側が揃うと `run_after_32` が `~/.local/share/rustup` と、`~/.local/share/cargo/bin` のうち `rustup` と同じファイル（ハードリンク）のプロキシだけを消す。`cargo install` したもの（`cargo-foo` など）は残る。動いている rustc / cargo / rust-analyzer があれば、何も消さず次の apply に回す。初めて揃った apply のあとは新しいシェルを開く（`env.sh` が `RUSTUP_HOME` と PATH を変えるのは新しいシェルから）。
+- **揃っていない間**（sudo を使えなかったなど）は、共有側と同じ版を各ユーザの `RUSTUP_HOME` に入れる。`~/.cache/dotfiles/rust-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。
+
+経緯: 以前は `run_onchange_after_32-rust-default.sh.tmpl` が各ユーザのホームに `stable` を入れていた（`aqua.yaml` が変わったときだけ再実行）。共有ストア導入で、版を `RUST_VERSION` に固定して root が 1 つだけ置く形へ移し、毎回実行（`run_after`）のホーム側の掃除に置き換えた。
+
 ### Intel でソースからビルドするもの（sheldon）
 
 sheldon は Intel Mac 向けのバイナリを配布しておらず（0.8.0 以降は `aarch64-apple-darwin` のみ）、
 aqua registry も `darwin/arm64` しか対象にしないので、`aqua install` では入らない。そこで Intel Mac だけ
 `run_onchange_after_33-sheldon-intel-mac.sh.tmpl` が `cargo install --locked sheldon` でビルドし、
 `$CARGO_HOME/bin`（PATH で aqua の bin より前）に置く。版は `aqua.yaml` の `rossmacarthur/sheldon@` の
-ピンから読むので、Renovate が aqua.yaml を上げると同じ版でビルドし直す。cargo は `32-rust-default` が用意する。
+ピンから読むので、Renovate が aqua.yaml を上げると同じ版でビルドし直す。cargo は `32-rust-default`（共有側は `bootstrap/25-shared-rust.sh`）が用意する。共有の Rust が揃っていれば、このスクリプトも `RUSTUP_HOME=/opt/rustup` と `/opt/cargo/bin` を使う。
 
 sheldon が無いと `30-plugins` で compinit / bashcompinit が走らず、シェル起動時に
 `40-tools.zsh: command not found: complete` や `kubectl.zsh: command not found: compdef` が出る。
