@@ -85,7 +85,7 @@ function agmsg-bridge-reap () {
 # 作るファイルを、他のユーザも更新できるようにする。サブシェルなので umask は戻る。
 # PATH の絞り込みは aliases.sh の alias が担当し、この関数はその先で呼ばれる。
 # 詳細: ~/.local/share/chezmoi/docs/multi-user-cheatsheet.md
-brew() { ( umask 002; command brew "$@" ) }
+function brew { ( umask 002; command brew "$@" ) }
 
 # 対話シェルの `claude` を claude-wrapper へ渡す。Bedrock かどうかはそこがマーカー
 # (~/.config/zsh/no-claude-bedrock) で決める: 無ければ claude-bedrock、有れば素のバイナリ

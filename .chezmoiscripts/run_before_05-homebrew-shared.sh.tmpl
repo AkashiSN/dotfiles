@@ -2,6 +2,7 @@
 #!/bin/sh
 # Apple Silicon の Homebrew（/opt/homebrew）を、グループ $BREW_GROUP でユーザ間共有にする。
 # 所有者は変えず、グループと権限だけを調える。すでに共有済みなら何もしない（sudo も呼ばない）。
+# run_before（毎回実行）。共有済みなら sudo も呼ばず即終了するので軽い。skip した回も次の apply で再試行する。
 # run_onchange_before_10 より先に走る。
 set -eu
 

@@ -62,7 +62,8 @@ BREW_WRITABLE=1
 if [ ! -w /opt/homebrew/Cellar ]; then
 	BREW_WRITABLE=0
 	notice "Homebrew の formula / cask を飛ばしました（/opt/homebrew に書けません）"
-	note "グループ ${BREW_GROUP} への追加後は再ログインして、chezmoi apply をもう一度実行してください"
+	note "グループ ${BREW_GROUP} への追加後は再ログインして、次を実行してください:"
+	note "chezmoi state delete-bucket --bucket=scriptState && chezmoi apply"
 fi
 
 if [ "$BREW_WRITABLE" = 1 ]; then

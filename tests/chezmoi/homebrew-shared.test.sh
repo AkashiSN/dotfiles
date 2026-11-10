@@ -6,7 +6,7 @@ set -u
 
 # (a) before_05 が darwin/arm64 では /bin/sh のスクリプトを出す
 if [ "$(uname -sm)" = "Darwin arm64" ]; then
-	out="$(chezmoi_render "$REPO/.chezmoiscripts/run_onchange_before_05-homebrew-shared.sh.tmpl")" || fail "render before_05"
+	out="$(chezmoi_render "$REPO/.chezmoiscripts/run_before_05-homebrew-shared.sh.tmpl")" || fail "render before_05"
 	[ -n "$out" ] || fail "before_05 is empty on darwin/arm64"
 	assert_eq "#!/bin/sh" "$(printf '%s\n' "$out" | head -n 1)" "before_05 shebang"
 	assert_contains "$out" "homebrew_shared_ok" "before_05 includes the shared functions"
