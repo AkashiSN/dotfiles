@@ -6,6 +6,16 @@
 # fnm の本体と、fnm が使う他のディレクトリ（multishells など）には触れない。プロジェクトで使う版は
 # 各自が fnm install で入れ直す。
 
+# _node_dir_has_entries <dir>: <dir> に（隠しファイルを含め）何かあれば 0。
+_node_dir_has_entries() {
+	local f
+	for f in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+		[ -e "$f" ] || [ -L "$f" ] || continue
+		return 0
+	done
+	return 1
+}
+
 # node_cleanup_home <fnm_dir>
 # <fnm_dir>/node-versions と <fnm_dir>/aliases を、動いている node が無いときだけ消す。
 # 動いているかは次のどれかで見る。
@@ -15,7 +25,8 @@
 # パスで出し、実体の node-versions は出さない。fnm_multishells は fnm が各シェルに作るリンクの置き場。
 node_cleanup_home() {
 	local fnm_dir="$1" busy=0
-	[ -d "$fnm_dir/node-versions" ] || [ -d "$fnm_dir/aliases" ] || return 0
+	# fnm env は空の node-versions / aliases をシェルごとに作り直す。空なら消すものは無い。
+	_node_dir_has_entries "$fnm_dir/node-versions" || _node_dir_has_entries "$fnm_dir/aliases" || return 0
 	running_from_any "$fnm_dir/node-versions" && busy=1
 	if [ "$busy" -eq 0 ]; then
 		running_matching "$fnm_dir/node-versions/" && busy=1

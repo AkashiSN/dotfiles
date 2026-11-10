@@ -128,8 +128,14 @@ echo k >"$tmp/shared/keys/23"
 	running_matching() { return 1; }
 	node_cleanup_home "$d"
 	[ ! -e "$d/node-versions" ] && [ ! -e "$d/aliases" ] || fail "動いていないのに消えない"
+	# fnm env が作り直す空のディレクトリだけなら、消さず何も言わない
+	mkdir -p "$d/node-versions" "$d/aliases"
+	note() { echo "$1"; }
+	out="$(node_cleanup_home "$d")"
+	[ -z "$out" ] && [ -d "$d/node-versions" ] || fail "空の node-versions / aliases を消そうとした" "$out"
 ) || exit 1
 echo "PASS: 動いている node があれば fnm の Node を残す"
+echo "PASS: 空の node-versions / aliases（fnm env が作る）には触れない"
 
 # ---- macOS の ps は fnm_multishells のリンクのパスだけを出す ----
 if [ ! -d /proc/self ]; then
