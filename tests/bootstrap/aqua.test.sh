@@ -136,9 +136,9 @@ rungc() {
 keep() { [ -d "$gh/$1" ] || fail "消してはいけない版を消した: $1 ($2)"; }
 gone() { [ ! -d "$gh/$1" ] || fail "古い版が残った: $1"; }
 
-setup_cfg '  - name: cli/cli@v2.0.0
+setup_cfg '  - name: acme/tool@v2.0.0
   - name: Foo/Bar@v0.2.0 # x'
-mkgc cli/cli/v1.0.0 cli/cli/v2.0.0 cli/cli/v2.0.1 Foo/Bar/v0.1.0 Foo/Bar/v0.2.0 other/tool/v9.9.9 aquaproj/aqua-proxy/v1.2.3
+mkgc acme/tool/v1.0.0 acme/tool/v2.0.0 acme/tool/v2.0.1 Foo/Bar/v0.1.0 Foo/Bar/v0.2.0 other/tool/v9.9.9 aquaproj/aqua-proxy/v1.2.3
 # 古い Foo/Bar の下から動いているプロセスを立てる
 cp /bin/sleep "$gh/Foo/Bar/v0.1.0/x/sleeper"
 # macOS はコピーした署名つきバイナリを起動時に殺すため、ad-hoc 署名し直す。
@@ -147,10 +147,10 @@ if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$gh/Foo/Bar/v0.1.0/x/sleep
 bgpid=$!
 sleep 1
 rungc
-gone cli/cli/v1.0.0
-gone cli/cli/v2.0.1
+gone acme/tool/v1.0.0
+gone acme/tool/v2.0.1
 echo "PASS: 参照されない版を消す"
-keep cli/cli/v2.0.0 参照中
+keep acme/tool/v2.0.0 参照中
 keep Foo/Bar/v0.2.0 "参照中。大文字小文字違い"
 echo "PASS: 参照される版は残す"
 keep Foo/Bar/v0.1.0 動作中
@@ -166,17 +166,17 @@ gone Foo/Bar/v0.1.0
 echo "PASS: 動いていなくなった版は次回で消える"
 
 # symlink 経由（macOS の ps が出すパス）で動いている版は消さない
-mkgc cli/cli/v1.0.0 cli/cli/v2.0.0
+mkgc acme/tool/v1.0.0 acme/tool/v2.0.0
 mkdir -p "$tmp/home/aquaproj-aqua"
 ln -s "$store/pkgs" "$tmp/home/aquaproj-aqua/pkgs"
-cp /bin/sleep "$gh/cli/cli/v1.0.0/x/sleeper"
-if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$gh/cli/cli/v1.0.0/x/sleeper" 2>/dev/null; fi
-"$tmp/home/aquaproj-aqua/pkgs/github_release/github.com/cli/cli/v1.0.0/x/sleeper" 60 &
+cp /bin/sleep "$gh/acme/tool/v1.0.0/x/sleeper"
+if [ "$(uname -s)" = Darwin ]; then codesign -f -s - "$gh/acme/tool/v1.0.0/x/sleeper" 2>/dev/null; fi
+"$tmp/home/aquaproj-aqua/pkgs/github_release/github.com/acme/tool/v1.0.0/x/sleeper" 60 &
 bgpid=$!
 sleep 1
 if [ "$(uname -s)" = Darwin ]; then
 	rungc
-	keep cli/cli/v1.0.0 symlink経由で実行中
+	keep acme/tool/v1.0.0 symlink経由で実行中
 	echo "PASS: symlink 経由で動く版は消さない"
 fi
 kill "$bgpid" 2>/dev/null || true
@@ -193,13 +193,21 @@ check_skip() { # <説明> <設定> <dir...>
 	for d in "$@"; do keep "$d" "$what"; done
 	echo "PASS: $what は消さない"
 }
-check_skip "引用符つきの name" '  - name: "cli/cli@v2.0.0"' cli/cli/v1.0.0 cli/cli/v2.0.0
-check_skip "/ を含む版" '  - name: cli/cli@go/v2.0.0' cli/cli/v1.0.0 cli/cli/go
-check_skip "version_prefix つきのタグ" '  - name: cli/cli@2.0.0' cli/cli/prefix-1.0.0 cli/cli/prefix-2.0.0
-check_skip "version: が別行" '  - name: cli/cli
-    version: v2.0.0' cli/cli/v1.0.0 cli/cli/v2.0.0
-check_skip "コメントだけの言及" '  # cli/cli@v2.0.0 を使う予定' cli/cli/v1.0.0 cli/cli/v2.0.0
-check_skip "別の形でも出てくる" '  - name: cli/cli@v2.0.0
-  - name: "cli/cli@v3"' cli/cli/v1.0.0 cli/cli/v2.0.0
+check_skip "引用符つきの name" '  - name: "acme/tool@v2.0.0"' acme/tool/v1.0.0 acme/tool/v2.0.0
+check_skip "/ を含む版" '  - name: acme/tool@go/v2.0.0' acme/tool/v1.0.0 acme/tool/go
+check_skip "version_prefix つきのタグ" '  - name: acme/tool@2.0.0' acme/tool/prefix-1.0.0 acme/tool/prefix-2.0.0
+check_skip "version: が別行" '  - name: acme/tool
+    version: v2.0.0' acme/tool/v1.0.0 acme/tool/v2.0.0
+check_skip "コメントだけの言及" '  # acme/tool@v2.0.0 を使う予定' acme/tool/v1.0.0 acme/tool/v2.0.0
+check_skip "別の形でも出てくる" '  - name: acme/tool@v2.0.0
+  - name: "acme/tool@v3"' acme/tool/v1.0.0 acme/tool/v2.0.0
+
+# aqua が内部で使う gh（cli/cli）は、設定の版と違っても消さない
+setup_cfg '  - name: cli/cli@v2.0.0'
+mkgc cli/cli/v1.0.0 cli/cli/v2.0.0 cli/cli/v2.0.1
+rungc
+keep cli/cli/v1.0.0 "aqua 内部の gh"
+keep cli/cli/v2.0.1 "aqua 内部の gh"
+echo "PASS: cli/cli（gh）の版は消さない"
 
 echo "ALL PASS"

@@ -87,7 +87,8 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 設定の版と同名の dir が無い（version_prefix つきのタグ）。その版の下から動いているプロセスがあれば
 （全ユーザ）消さず次回に回す。macOS の ps は symlink 経由の起動パスを出すため、
 `.../aquaproj-aqua/pkgs/github_release/...` を含むパスでも照合する。`aqua.yaml` に名前が出てこない
-パッケージ（依存や github_release 以外の種別）には触らない。
+パッケージ（依存や github_release 以外の種別）には触らない。`cli/cli`（gh）の版も全て残す（aqua は
+attestation の検証に自分で固定した版の gh を入れて使うため、消すと次の apply でまた取得し直す）。
 
 ユーザ側（`run_after_20-aqua-verify.sh.tmpl`、毎回実行）は、共有側（`config/aqua.yaml`）が在るときだけ
 ホームの `pkgs` / `bin` を symlink にする。実ディレクトリなら `<dir>.old.<時刻>` へ退避し、

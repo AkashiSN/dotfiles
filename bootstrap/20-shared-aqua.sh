@@ -100,6 +100,8 @@ export AQUA_POLICY_CONFIG="$CONFIG/aqua-policy.yaml"
 # <owner>/<repo> がそれ以外の形（引用符つき、version: 別行、/ を含む版、コメントのみの言及など）でも
 # 出てくる場合、または版が載っていなければ、そのパッケージの版は全て残す。
 # 設定の版で終わる名前や、設定の版と同名のディレクトリが無いパッケージ（version_prefix つきのタグ）も残す。
+# cli/cli（gh）は消さない。aqua は attestation の検証に自分で固定した版の gh を入れて使うため、
+# 設定の版と違っても参照されている。
 # どのユーザのプロセスでも、その版の下から動いていれば消さず次回に回す。macOS の ps は
 # ホームの symlink 経由で起動したパス（.../aquaproj-aqua/pkgs/...）を出すため、それでも照合する。
 gc_old_versions() {
@@ -115,6 +117,7 @@ gc_old_versions() {
 		o="${d%/*/*}"
 		o="${o##*/}"
 		key="$(printf '%s/%s' "$o" "$r" | tr '[:upper:]' '[:lower:]')"
+		[ "$key" != cli/cli ] || continue
 		lines="$(grep -iF -- "$key" "$CONFIG/aqua.yaml" || true)"
 		ok=1
 		vers=""
