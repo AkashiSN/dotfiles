@@ -22,6 +22,19 @@ shared_owner_group() {
 	esac
 }
 
+# gc_defer
+# 古い版などを使用中のため消せなかったときに、ステップ（bootstrap/NN-*.sh）が呼ぶ。
+# $SHARED_ROOT/dotfiles-shared/pending/<NN> を置き、run-all.sh --check はこれを食い違いとして数える。
+# そのため次の apply（どのユーザのものでもよい）で、ピンが変わっていなくてもステップを流し直し、
+# 使い終わったものを消す。run-all.sh はステップを流す前にこの印を外す。
+gc_defer() {
+	local nn dir
+	nn="$(basename "$0")"
+	nn="${nn%%-*}"
+	dir="${SHARED_ROOT:-/opt}/dotfiles-shared/pending"
+	mkdir -p "$dir" && : >"$dir/$nn"
+}
+
 # swap_symlink <target> <link>
 # <link> を <target> を指す symlink に原子的に置き換える。<link> が実ディレクトリなら
 # 何もせず stderr に理由を出して 1 を返す。

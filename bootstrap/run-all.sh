@@ -13,6 +13,9 @@
 #   - 引数なし: root で共有側を揃える（冪等）。揃えたら $SHARED_ROOT/dotfiles-shared/keys/NN に
 #     pins_key の結果を書く。--check はこのキーとソースから計算したキーを比べる。
 #   - 環境変数: DOTFILES_SRC / AQUA_BIN / GITHUB_TOKEN / SHARED_ROOT / DOTFILES_SHARED_FORCE。
+#   - 使用中で消せなかったものがあれば gc_defer（lib.sh）で $SHARED_ROOT/dotfiles-shared/pending/NN を置く。
+#     --check が 0 でも pending/NN があれば不一致として数え、次の apply でステップを流し直す。
+#     ステップを流す前に pending/NN を外す（また使用中なら、ステップが置き直す）。
 #
 # git はここでは実行しない。root が利用者のリポジトリへ git を向けると「dubious ownership」で
 # 拒否されるため、ダウングレード判定（shared_guard）は呼び出したユーザ側で済ませ、結果を
@@ -57,13 +60,22 @@ if [ "${#steps[@]}" -eq 0 ]; then
 	exit 0
 fi
 
+PENDING="$SHARED_ROOT/dotfiles-shared/pending"
+# step_pending <step のパス>: そのステップに消し残し（pending/NN）があれば 0。
+step_pending() {
+	local nn
+	nn="$(basename "$1")"
+	[ -e "$PENDING/${nn%%-*}" ]
+}
+
 # 不一致のステップを mismatched に集める。--check の 1 は食い違い、それ以外の非 0 は異常。
+# --check が 0 でも消し残しがあれば、掃除をやり直すため不一致として数える。
 mismatched=()
 for f in "${steps[@]}"; do
 	rc=0
 	bash "$f" --check >/dev/null || rc=$?
 	case "$rc" in
-	0) ;;
+	0) step_pending "$f" && mismatched+=("$f") ;;
 	1) mismatched+=("$f") ;;
 	*)
 		warn "$(basename "$f") の --check が異常終了しました (終了コード $rc)。不一致として扱います"
@@ -106,6 +118,7 @@ failed=0
 for f in ${mismatched[@]+"${mismatched[@]}"}; do
 	name="$(basename "$f")"
 	log "$name"
+	rm -f "$PENDING/${name%%-*}"
 	if ! bash "$f"; then
 		warn "$name が失敗しました。後続のステップは続けます"
 		failed=1

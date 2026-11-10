@@ -249,6 +249,7 @@ for d in "$ROOT"/*/; do
 	[ -n "$prev" ] && [ "$name" = "$prev" ] && continue
 	if set_busy "$d"; then
 		note "使用中のため残します: $d"
+		gc_defer
 		continue
 	fi
 	note "削除: $d"
@@ -302,6 +303,7 @@ for p in "$PYDIR"/*/; do
 	esac
 	if python_busy "$p"; then
 		note "使用中のため残します: $p"
+		gc_defer
 		continue
 	fi
 	if python_used_by_sets "$p"; then

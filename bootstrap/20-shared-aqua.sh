@@ -151,6 +151,7 @@ gc_old_versions() {
 		done
 		if running_from_any "$d" || running_matching "/aquaproj-aqua/pkgs/github_release/$host/$o/$r/${d##*/}/"; then
 			note "使用中のため残します: $d"
+			gc_defer
 			continue
 		fi
 		note "古い版を削除: $key@${d##*/}"

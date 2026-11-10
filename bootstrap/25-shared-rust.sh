@@ -205,6 +205,7 @@ fi
 log "使わなくなった toolchain を削除"
 if proxy_busy; then
 	note "共有のプロキシが動いているため、古い toolchain は次回に回します"
+	gc_defer
 else
 	for d in "$RUSTUP_ROOT"/toolchains/*/; do
 		d="${d%/}"
@@ -214,6 +215,7 @@ else
 		[ -n "$prev" ] && [ "$tc" = "$prev" ] && continue
 		if toolchain_busy "$tc"; then
 			note "使用中のため残します: $d"
+			gc_defer
 			continue
 		fi
 		note "削除: $d"

@@ -119,6 +119,7 @@ for d in "$ROOT"/*/; do
 	[ -n "$prev" ] && [ "$v" = "$prev" ] && continue
 	if version_busy "$v"; then
 		note "使用中のため残します: $d"
+		gc_defer
 		continue
 	fi
 	note "削除: $d"

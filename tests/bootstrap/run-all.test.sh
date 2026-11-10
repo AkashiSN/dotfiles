@@ -103,6 +103,37 @@ assert_contains "$out" "20-b.sh" "run-all --check: 異常のステップ名を�
 assert_contains "$out" "7" "run-all --check: 異常の終了コードを警告する"
 mkstep 20-b.sh
 
+# ---- 消し残し（pending/NN）: キーが一致していても流し直し、まだ使用中なら印を置き直す ----
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+rm -f "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
+mkdir -p "$SHARED_ROOT/dotfiles-shared/pending"
+: >"$SHARED_ROOT/dotfiles-shared/pending/20"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: キーが一致していても消し残しがあれば 1"
+# 20 は本物の gc_defer で「まだ使用中」を記録する
+cat >"$bd/20-b.sh" <<STEP
+#!/usr/bin/env bash
+. "$REPO/bootstrap/lib.sh"
+[ "\${1:-}" = "--check" ] && exit 0
+echo 20 >>"\$SHARED_ROOT/ran"
+[ -e "\$SHARED_ROOT/still-busy" ] && gc_defer
+exit 0
+STEP
+: >"$SHARED_ROOT/still-busy"
+DOTFILES_STATE_COMMIT=p1 bash "$RUN" >/dev/null 2>&1 || fail "run-all: 消し残しの流し直しが失敗扱いになった"
+assert_eq "20" "$(cat "$SHARED_ROOT/ran")" "run-all: 消し残しのあるステップだけを流し直す"
+[ -e "$SHARED_ROOT/dotfiles-shared/pending/20" ] || fail "run-all: まだ使用中なのに消し残しの印が消えた"
+assert_eq "p1" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 使用中で残しても失敗ではなく state を書く"
+rm -f "$SHARED_ROOT/still-busy" "$SHARED_ROOT/ran"
+bash "$RUN" >/dev/null 2>&1 || fail "run-all: 2 回目の流し直しが失敗"
+[ ! -e "$SHARED_ROOT/dotfiles-shared/pending/20" ] || fail "run-all: 使い終わったのに消し残しの印が残った"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "0" "$rc" "run-all --check: 消し終われば 0"
+mkstep 20-b.sh
+
 # 非 root で BOOTSTRAP_ALLOW_NONROOT 無しは拒否（--check は root 不要）
 if [ "$(id -u)" -ne 0 ]; then
 	rc=0

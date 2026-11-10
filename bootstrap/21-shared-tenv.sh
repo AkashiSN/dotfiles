@@ -142,6 +142,7 @@ for d in "$TENV_STORE"/Terraform/*/; do
 	case "$want" in *" $v "*) continue ;; esac
 	if version_busy "$v"; then
 		note "使用中のため残します: $d"
+		gc_defer
 		continue
 	fi
 	note "削除: $d"

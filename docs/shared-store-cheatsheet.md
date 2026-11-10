@@ -8,6 +8,7 @@
 | --- | --- |
 | `/opt/dotfiles-shared/state` | 共有側を最後に更新したコミット（`commit=` / `updated_by=` / `updated_at=` の 3 行） |
 | `/opt/dotfiles-shared/keys/<NN>` | ステップ `bootstrap/NN-*.sh` が揃えたときのピンのキー（`pins_key` の 12 桁） |
+| `/opt/dotfiles-shared/pending/<NN>` | ステップ `NN` が使用中のため消し残したものがある印（次の apply で流し直す） |
 | `bootstrap/NN-*.sh` | 共有側の 1 領域を揃えるステップ（番号順に実行） |
 | `bootstrap/run-all.sh` | ステップを束ねる入口 |
 
@@ -60,6 +61,7 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
 - 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `GITHUB_TOKEN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。
 - ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
+- 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが一致していてもこれを食い違いとして数えるので、次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で sudo を呼び、そのステップを流し直して使い終わったものを消す。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。使用中の間は、apply のたびに sudo を聞かれる（非対話で sudo を使えなければ警告だけ）。
 - `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
 
 ## aqua（`bootstrap/20-shared-aqua.sh`）

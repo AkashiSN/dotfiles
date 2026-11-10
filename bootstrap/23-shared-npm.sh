@@ -237,6 +237,7 @@ for d in "$ROOT"/*/; do
 	[ -n "$prev" ] && [ "$name" = "$prev" ] && continue
 	if set_busy "$d"; then
 		note "使用中のため残します: $d"
+		gc_defer
 		continue
 	fi
 	note "削除: $d"
