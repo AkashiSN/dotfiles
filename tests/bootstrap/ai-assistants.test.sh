@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # .chezmoitemplates/ai-cleanup.sh（ホームの公式インストーラの実体の掃除）のテスト。
 # 偽のホームと偽の判定関数だけを使い、実機のファイルや aqua には触れない。
+# shellcheck disable=SC2030,SC2031  # 子シェルでの PATH の変更は意図どおり
 set -eu
 # shellcheck source-path=SCRIPTDIR source=../lib.sh
 . "$(dirname "$0")/../lib.sh"
@@ -23,6 +24,7 @@ running_from_any() {
 	return 1
 }
 running_matching() { return 1; }
+running_exact() { return 1; }
 
 # 公式インストーラが置いた状態の偽ホームを作る。
 mkhome() {
@@ -115,6 +117,43 @@ PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
 [ -L "$h/.local/bin/claude" ] || fail "aqua を指すリンクを消した"
 echo "PASS: aqua を指すリンクは消さない"
 
+# ---- macOS の ps はリンクのパスだけを出す: 実体のディレクトリは消さず、リンクは外す ----
+# lib.sh の本物の running_* を使い、ps だけを PATH 上の偽物にする（/proc の無い macOS でのみ意味がある）。
+if [ ! -d /proc/self ]; then
+	h="$tmp/h7"
+	mkhome "$h"
+	mkdir -p "$tmp/psbin"
+	cat >"$tmp/psbin/ps" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "$h/.local/bin/claude" "$h/.local/bin/claude-bedrock" /usr/bin/other
+FAKE
+	chmod +x "$tmp/psbin/ps"
+	(
+		PATH="$tmp/psbin:$PATH"
+		# shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
+		. "$REPO/bootstrap/lib.sh"
+		PROVIDED="claude codex" ai_cleanup_home "$h" >/dev/null
+	)
+	[ ! -L "$h/.local/bin/claude" ] || fail "リンク経由で動作中でも PATH 上のリンクは外す"
+	[ -d "$h/.local/share/claude/versions/9.9.9" ] || fail "リンク経由で動いている claude の実体を消した"
+	[ ! -e "$h/.codex/packages" ] || fail "動いていない codex の実体が残った"
+	# 完全一致: claude-bedrock だけが動いていても claude の実体は止めない
+	h="$tmp/h8"
+	mkhome "$h"
+	cat >"$tmp/psbin/ps" <<FAKE
+#!/usr/bin/env bash
+printf '%s\n' "$h/.local/bin/claude-bedrock"
+FAKE
+	(
+		PATH="$tmp/psbin:$PATH"
+		# shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
+		. "$REPO/bootstrap/lib.sh"
+		PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
+	)
+	[ ! -e "$h/.local/share/claude" ] || fail "claude-bedrock をリンク claude と取り違えた"
+	echo "PASS: macOS 形式の ps（リンクのパスだけ）でも動作中を見て、実体を消さない"
+fi
+
 # ---- 既定の ai_provided: aqua pkgs の実体があるときだけ真 ----
 unset -f ai_provided
 # shellcheck source-path=SCRIPTDIR source=../../.chezmoitemplates/ai-cleanup.sh
@@ -150,10 +189,12 @@ chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscript
 bash -n "$script" || fail "描画したスクリプトの構文エラー"
 stubs="$tmp/stubs"
 mkdir -p "$stubs"
+# FAKE_FAIL に "<コマンド名>:<最初の引数>" を空白区切りで渡すと、その呼び出しだけ失敗する。
 for c in codegraph uv graphify kiro-cli curl npm fnm claude codex; do
 	cat >"$stubs/$c" <<'FAKE'
 #!/usr/bin/env bash
 echo "$(basename "$0") $*" >>"$CALLS"
+case " ${FAKE_FAIL:-} " in *" $(basename "$0"):${1:-} "*) exit 1 ;; esac
 FAKE
 	chmod +x "$stubs/$c"
 done
@@ -191,6 +232,24 @@ assert_not_contains "$c" "codegraph install" "2 回目: codegraph 登録を省�
 assert_not_contains "$c" "uv tool install" "2 回目: graphify を取り直さない"
 assert_contains "$c" "kiro-cli integrations uninstall" "2 回目も kiro の統合解除は流す（冪等で軽い）"
 echo "PASS: 通し実行とマーカーによる省略"
+
+# ---- 途中のコマンドが失敗して最後が成功しても、マーカーを進めない ----
+rm -rf "$tmp/runhome/.cache/dotfiles"
+FAKE_FAIL="curl:-fsSL codegraph:install uv:tool" run40 >/dev/null || fail "失敗するステップがあっても apply は止めない"
+for k in agmsg codegraph graphify; do
+	[ ! -e "$tmp/runhome/.cache/dotfiles/ai-$k.key" ] || fail "$k: 途中が失敗したのにマーカーを進めた"
+done
+echo "PASS: 途中の失敗（最後のコマンドは成功）ではマーカーを進めない"
+run40 >/dev/null
+for k in agmsg codegraph graphify; do
+	[ -e "$tmp/runhome/.cache/dotfiles/ai-$k.key" ] || fail "$k: 成功したのにマーカーを書かなかった"
+done
+echo "PASS: 成功すればマーカーを書く"
+# codegraph のピンが変わると再登録する
+mkdir -p "$tmp/runhome/.config/aquaproj-aqua"
+echo '  - name: colbymchenry/codegraph@v1.0.0' >"$tmp/runhome/.config/aquaproj-aqua/aqua.yaml"
+run40 >/dev/null
+assert_contains "$(cat "$CALLS")" "codegraph install --yes" "codegraph のピンが変わったら再登録する"
 
 # ---- Claude Code の managed settings: 自動更新を止める ----
 rendered="$(chezmoi --source "$REPO" --config "$cfg" execute-template <"$REPO/.chezmoiscripts/run_onchange_after_42-claude-managed-settings.sh.tmpl")"

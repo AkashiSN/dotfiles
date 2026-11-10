@@ -50,6 +50,16 @@ assert_eq "0" "$rc" "running_matching: 実行パスに部分文字列があれ�
 rc=0
 running_matching "/no-such-dir-$$/" || rc=$?
 assert_eq "1" "$rc" "running_matching: 無ければ 1"
+realrun="$(cd "$tmp/run" && pwd -P)"
+rc=0
+running_exact "$tmp/run/sleep" || running_exact "$realrun/sleep" || rc=$?
+assert_eq "0" "$rc" "running_exact: 実行パスが完全一致なら 0"
+rc=0
+running_exact "$tmp/run/slee" || rc=$?
+assert_eq "1" "$rc" "running_exact: 前方一致だけなら 1"
+rc=0
+running_exact "$tmp/run/sleep-bedrock" || rc=$?
+assert_eq "1" "$rc" "running_exact: 後ろに続く名前には一致しない"
 kill "$pid"
 wait "$pid" 2>/dev/null || true
 rc=0
@@ -58,6 +68,9 @@ assert_eq "1" "$rc" "running_from_any: kill 後は 1"
 rc=0
 running_matching "/run/sleep" || rc=$?
 assert_eq "1" "$rc" "running_matching: kill 後は 1"
+rc=0
+running_exact "$tmp/run/sleep" || running_exact "$realrun/sleep" || rc=$?
+assert_eq "1" "$rc" "running_exact: kill 後は 1"
 
 # --- shared_owner_group ---
 case "$(uname -s)" in

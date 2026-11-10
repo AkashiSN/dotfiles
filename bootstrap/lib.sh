@@ -93,6 +93,27 @@ running_matching() {
 	return 1
 }
 
+# running_exact <path>
+# 全ユーザのプロセスのうち、実行ファイルのパスが <path> と完全に一致するものが 1 つでもあれば 0、
+# 無ければ 1 を返す（末尾まで一致。/x/claude-bedrock は /x/claude に一致しない）。
+# macOS の ps は PATH 上のリンク（~/.local/bin/claude）で起動したプロセスを、そのリンクのパスのまま
+# 出し、実体のディレクトリは出さない。running_from_any / running_matching では見つからない
+# リンク経由の起動を、リンクのパスで照合するために使う。リンクを外した後も古いプロセスは同じパスを報告する。
+running_exact() {
+	local want="$1" exe comm
+	if [ -d /proc/self ]; then
+		for exe in /proc/[0-9]*/exe; do
+			comm="$(readlink "$exe" 2>/dev/null)" || continue
+			[ "$comm" = "$want" ] && return 0
+		done
+	else
+		while IFS= read -r comm; do
+			[ "$comm" = "$want" ] && return 0
+		done < <(ps -axo comm= 2>/dev/null)
+	fi
+	return 1
+}
+
 # _has_prefix <path> <prefix...>: <path> がいずれかの <prefix> で始まれば 0。
 _has_prefix() {
 	local path="$1" p

@@ -9,6 +9,9 @@
 # run_after: chezmoi apply のたびに実行する。時間のかかる取得・導入は ~/.cache/dotfiles/ai-*.key の
 # マーカーで、キー（版・再導入マーカー）が変わったときだけ流す。
 set -eu
+# once_step の中は set -e が効かないので、途中のコマンドの失敗を取りこぼさないよう pipefail を立て、
+# 各ステップは重要なコマンドを && でつなぐか || return 1 で終える。
+set -o pipefail
 
 DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
 # shellcheck source=/dev/null
@@ -31,8 +34,8 @@ export KIRO_NO_AUTO_UPDATE=1
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
 
 # once_step <名前> <キー> <コマンド...>
-# マーカー $CACHE_DIR/ai-<名前>.key がキーと同じなら流さない。流して成功したときだけマーカーを進める
-# （失敗したら次の apply でやり直す）。
+# マーカー $CACHE_DIR/ai-<名前>.key がキーと同じなら流さない。流して成功（終了コード 0）したときだけ
+# マーカーを進める（失敗したら次の apply でやり直す）。コマンドは前提が欠けるときも非 0 で終える。
 once_step() {
 	local name="$1" key="$2" marker
 	shift 2
@@ -89,13 +92,15 @@ CLINE_VERSION="latest"
 install_cline() {
 	# fnm env はシェルを自動検出するとき $SHELL を見るため、シェルを明示する。
 	if command -v fnm >/dev/null 2>&1; then
-		eval "$(fnm env --shell bash)"
+		eval "$(fnm env --shell bash)" || return 1
 	fi
 	# npm グローバルは fnm が管理する node の中に入るので、node の LTS メジャーが上がると
 	# 消える。そのときは CLINE_VERSION を書き換えて取り直す。
-	if command -v npm >/dev/null 2>&1; then
-		npm install -g "cline@$CLINE_VERSION"
+	if ! command -v npm >/dev/null 2>&1; then
+		warn "npm が無いため cline を入れられません（30-node-default の後に再試行します）"
+		return 1
 	fi
+	npm install -g "cline@$CLINE_VERSION"
 }
 once_step cline "$CLINE_VERSION" install_cline
 # プロバイダ認証は非対話にできないため自動化しない。導入後に端末で一度だけ実行する:
@@ -117,12 +122,20 @@ once_step cline "$CLINE_VERSION" install_cline
 # 10-path.zsh で PATH 前段に入れている。
 # 実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
 # 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
+# 取得が失敗したときに bash へ空の入力を渡して成功扱いにならないよう、先に一時ファイルへ落とす。
 install_agmsg() {
+	local tmp rc=0 args=(--cmd agmsg)
+	tmp="$(mktemp)" || return 1
 	if [ -d "$HOME/.agents/skills/agmsg" ]; then
-		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg --update
-	else
-		curl -fsSL https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh | bash -s -- --cmd agmsg
+		args+=(--update)
 	fi
+	if curl -fsSL -o "$tmp" https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh; then
+		bash "$tmp" "${args[@]}" || rc=$?
+	else
+		rc=1
+	fi
+	rm -f "$tmp"
+	return "$rc"
 }
 once_step agmsg "2026-06-19" install_agmsg
 
@@ -138,15 +151,18 @@ once_step agmsg "2026-06-19" install_agmsg
 # 再登録を強制したいときは次のマーカーを書き換える。claude / codex の有無が変わったときも流し直す。
 # codegraph-reinstall-marker: 2026-06-18
 register_codegraph() {
-	codegraph install --yes
-	codegraph telemetry off
+	if ! command -v codegraph >/dev/null 2>&1; then
+		warn "codegraph が見つからないため登録できません（aqua の install を待ちます）"
+		return 1
+	fi
+	codegraph install --yes && codegraph telemetry off
 }
-if command -v codegraph >/dev/null 2>&1; then
-	cg_key="2026-06-18"
-	command -v claude >/dev/null 2>&1 && cg_key="$cg_key claude"
-	command -v codex >/dev/null 2>&1 && cg_key="$cg_key codex"
-	once_step codegraph "$cg_key" register_codegraph
-fi
+# キーは再登録マーカー、aqua.yaml の codegraph のピン（版が上がったら流し直す）、claude / codex の有無。
+cg_pin="$(sed -n 's|.*name: colbymchenry/codegraph@\([^ ]*\).*|\1|p' "$AQUA_GLOBAL_CONFIG" 2>/dev/null || true)"
+cg_key="2026-06-18 $cg_pin"
+command -v claude >/dev/null 2>&1 && cg_key="$cg_key claude"
+command -v codex >/dev/null 2>&1 && cg_key="$cg_key codex"
+once_step codegraph "$cg_key" register_codegraph
 
 # --- Graphify (github.com/Graphify-Labs/graphify) ---
 # コードは tree-sitter でローカル解析し、加えてドキュメント/PDF/画像/動画/SQL スキーマも
@@ -166,14 +182,16 @@ GRAPHIFY_VERSION="latest"
 # terraform extra が tree-sitter-hcl を連れてくる。
 GRAPHIFY_EXTRAS="[sql,terraform]"
 install_graphify() {
+	if ! command -v uv >/dev/null 2>&1; then
+		warn "uv が無いため graphify を入れられません（aqua の install を待ちます）"
+		return 1
+	fi
 	if [ "$GRAPHIFY_VERSION" = "latest" ]; then
-		uv tool install --upgrade "graphifyy$GRAPHIFY_EXTRAS"
+		uv tool install --upgrade "graphifyy$GRAPHIFY_EXTRAS" || return 1
 	else
-		uv tool install "graphifyy$GRAPHIFY_EXTRAS==$GRAPHIFY_VERSION"
+		uv tool install "graphifyy$GRAPHIFY_EXTRAS==$GRAPHIFY_VERSION" || return 1
 	fi
 	graphify install
 }
-if command -v uv >/dev/null 2>&1; then
-	once_step graphify "$GRAPHIFY_VERSION $GRAPHIFY_EXTRAS" install_graphify
-fi
+once_step graphify "$GRAPHIFY_VERSION $GRAPHIFY_EXTRAS" install_graphify
 {{- end }}

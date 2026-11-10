@@ -20,10 +20,21 @@ ai_provided() {
 	esac
 }
 
-# _ai_busy <dir>: <dir> の下から動いているプロセスがあれば 0。
-# macOS の ps は symlink 経由で起動したパスをそのまま出すため running_matching でも照合する。
+# _ai_busy <dir> <link...>
+# 動いているプロセスがあれば 0。次のどれかで見る。
+#   - 実行ファイルが <dir> の下にある（running_from_any / running_matching）
+#   - 実行ファイルのパスが <link> のどれかと完全に一致する（running_exact）
+# macOS の ps は PATH 上のリンクで起動したプロセスをリンクのパス（~/.local/bin/claude など）で出し、
+# 実体の <dir> を出さない。リンクを外した後も古いプロセスは同じパスを報告するため、外した後も照合する。
 _ai_busy() {
-	running_from_any "$1" || running_matching "${1%/}/"
+	local dir="$1" l
+	shift
+	running_from_any "$dir" && return 0
+	running_matching "${dir%/}/" && return 0
+	for l in "$@"; do
+		running_exact "$l" && return 0
+	done
+	return 1
 }
 
 # _ai_unlink <path> <実体の場所の部分文字列>
@@ -65,14 +76,15 @@ _ai_rmdir() {
 
 # ai_cleanup_home <home>
 # <home> の公式インストーラの実体を、aqua が提供しているコマンドの分だけ消す。
-# 動いているプロセスがある間は PATH 上のリンクだけ外し、実体は次の apply で消す
+# 動いているプロセス（実体の下から、またはリンクのパスで起動したもの）がある間は PATH 上のリンクだけ外し、
+# 実体は次の apply で消す
 # （起動し直しや後から読み込むファイルが壊れないようにする）。
 ai_cleanup_home() {
 	local home="$1" f
 
 	if ai_provided claude; then
 		_ai_unlink "$home/.local/bin/claude" "/.local/share/claude/"
-		if _ai_busy "$home/.local/share/claude/versions"; then
+		if _ai_busy "$home/.local/share/claude/versions" "$home/.local/bin/claude"; then
 			note "古い claude が動いているため ~/.local/share/claude は次の chezmoi apply で消します"
 		else
 			_ai_rmdir "$home/.local/share/claude"
@@ -83,7 +95,7 @@ ai_cleanup_home() {
 
 	if ai_provided codex; then
 		_ai_unlink "$home/.local/bin/codex" "/.codex/packages/"
-		if _ai_busy "$home/.codex/packages"; then
+		if _ai_busy "$home/.codex/packages" "$home/.local/bin/codex" "$home/.agents/bin/codex"; then
 			note "古い codex が動いているため ~/.codex/packages は次の chezmoi apply で消します"
 		else
 			_ai_rmdir "$home/.codex/packages"
@@ -92,7 +104,7 @@ ai_cleanup_home() {
 
 	if ai_provided codegraph; then
 		_ai_unlink "$home/.local/bin/codegraph" "/.codegraph/"
-		if _ai_busy "$home/.codegraph/versions"; then
+		if _ai_busy "$home/.codegraph/versions" "$home/.local/bin/codegraph"; then
 			note "古い codegraph が動いているため ~/.codegraph/versions は次の chezmoi apply で消します"
 		else
 			_ai_rmdir "$home/.codegraph/current"
