@@ -42,6 +42,18 @@ fi
 
 step "Claude Code の managed settings を配置中"
 
+# DOTFILES_SHARED_SKIP=1 のときと、パスワードを聞けない（sudo -n が通らず端末も無い）ときは
+# sudo を呼ばずに案内だけ出す。
+if [ "${DOTFILES_SHARED_SKIP:-}" = 1 ]; then
+	notice "DOTFILES_SHARED_SKIP=1 のため、Claude Code の managed settings の配置を見送った"
+	exit 0
+fi
+if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+	notice "Claude Code の managed settings を配置できなかった（sudo を使えない）"
+	note "対話端末で chezmoi apply を再実行すると配置される"
+	exit 0
+fi
+
 # root 所有のシステムディレクトリなので sudo が要る。非対話 apply では通らないので、
 # 失敗しても apply 全体は止めず、手当ての方法だけ案内して抜ける。
 if ! sudo mkdir -p "$DIR"; then

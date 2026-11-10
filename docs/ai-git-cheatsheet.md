@@ -116,7 +116,8 @@ policy には署名の抑止のほかに `env.DISABLE_AUTOUPDATER = "1"` も入�
 配置スクリプトは `run_after`（apply のたびに実行）で、現物と内容が一致していれば `sudo` を呼ばずに
 抜けるので、`chezmoi apply` のたびにパスワードを聞かれることはない。現物が消された・書き換えられた
 ときも次の apply で配置し直す。非対話 apply で `sudo` が通らないときは案内を出して apply 全体は
-続行するため、あとから対話端末で `chezmoi apply` すれば入る。
+続行するため、あとから対話端末で `chezmoi apply` すれば入る。`DOTFILES_SHARED_SKIP=1` のときと、
+`sudo -n` が通らず端末も無いときは、`sudo` を呼ばずに案内だけ出す。
 
 ### 効いているかの確認
 
