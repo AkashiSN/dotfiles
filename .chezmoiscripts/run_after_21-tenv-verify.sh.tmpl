@@ -1,0 +1,29 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# 共有 tenv ストア (/opt/tenv) の terraform を、このユーザの TENV_ROOT (~/.tenv) へ symlink する。
+# - 共有側が揃っている間: 実体は root が置く（bootstrap/21-shared-tenv.sh。版は tenv-versions.txt）。
+#   版のディレクトリはユーザ所有のまま、その中の terraform だけを共有の実体への symlink にする
+#   （.chezmoitemplates/tenv-link.sh）。共有が覆う版でホームに実ファイルがあれば、動いていない限り
+#   symlink に替える。共有が覆わない版と provider のキャッシュ (~/.cache/terraform) は残す。
+# - 共有側が揃っていない間: 何もしない（tenv が従来どおり必要な版を自分で取る。ホームのものは消さない）。
+# run_after: chezmoi apply のたびに実行する（共有側に版が増えたときや、動いている間は替えずに次へ回すため）。
+set -eu
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/tenv-link.sh"
+{{ template "shell-log" }}
+
+SHARED_TENV=/opt/tenv
+SHARED_TENV_KEY=/opt/dotfiles-shared/keys/21
+
+# 共有の tenv が使えるのは、版の置き場が在り、揃え終えた印のキーも在るときだけ。
+if [ ! -f "$SHARED_TENV_KEY" ] || [ ! -d "$SHARED_TENV/Terraform" ]; then
+	exit 0
+fi
+
+step "共有 tenv ストアの terraform を ~/.tenv へ symlink"
+tenv_link_shared "$SHARED_TENV/Terraform" "${TENV_ROOT:-$HOME/.tenv}/Terraform"
+{{- end }}
