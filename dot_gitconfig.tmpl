@@ -61,9 +61,13 @@
 [url "https://"]
 	insteadOf = git://
 
+{{- /* GitHub の SSH 鍵を持つ個人の環境（personal）だけ。鍵の無いユーザの https の clone を壊さない */}}
+{{- if (dig "personal" true .) }}
+
 # https:// で書かれた clone/remote を SSH 経由に寄せる
 [url "git@github.com:"]
 	insteadOf = https://github.com/
+{{- end }}
 
 [init]
 	defaultBranch = main

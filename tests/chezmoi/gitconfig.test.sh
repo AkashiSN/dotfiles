@@ -32,3 +32,10 @@ if [ "$(uname -sm)" = "Darwin arm64" ]; then
 	assert_contains "$out_default" "directory = /opt/homebrew" "safe directory on darwin/arm64"
 	assert_contains "$out_default" "directory = /opt/homebrew/Library/Taps/*" "safe taps on darwin/arm64"
 fi
+
+# https の GitHub を SSH へ書き換えるのは personal（既定 true）のときだけ
+assert_contains "$out_default" 'insteadOf = https://github.com/' "default keeps https->ssh rewrite"
+assert_contains "$out_nodata" 'insteadOf = https://github.com/' "no data keeps https->ssh rewrite"
+out_np="$(chezmoi_render "$tmpl" personal=false)" || fail "render personal=false"
+assert_not_contains "$out_np" 'insteadOf = https://github.com/' "personal=false has no https->ssh rewrite"
+assert_contains "$out_np" 'insteadOf = git://' "personal=false keeps git:// -> https"

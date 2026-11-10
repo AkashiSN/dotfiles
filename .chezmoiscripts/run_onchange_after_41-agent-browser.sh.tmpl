@@ -15,7 +15,6 @@ step "agent-browser (ブラウザ自動化 CLI) を準備中"
 export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
 export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
 {{ template "aqua-shared-env" }}
-
 # aqua が本体を入れられなかった環境(未対応 OS/arch 等)では何もしない。
 command -v agent-browser >/dev/null 2>&1 || exit 0
 
@@ -41,7 +40,11 @@ if command -v fnm >/dev/null 2>&1; then
 	eval "$(fnm env --shell bash)"
 	fnm use default >/dev/null 2>&1 || true
 fi
+# 失敗（GitHub へ届かない、SSH 鍵が無く clone できないなど）しても apply は止めず、案内だけ出す。
 if command -v npx >/dev/null 2>&1; then
-	npx -y skills@latest add vercel-labs/agent-browser \
-		--skill agent-browser --agent claude-code --global --copy --yes
+	if ! npx -y skills@latest add vercel-labs/agent-browser \
+		--skill agent-browser --agent claude-code --global --copy --yes; then
+		notice "agent-browser のスキルを入れられませんでした（apply は続けます）"
+		note "手で入れる: npx -y skills@latest add vercel-labs/agent-browser --skill agent-browser --agent claude-code --global --copy --yes"
+	fi
 fi
