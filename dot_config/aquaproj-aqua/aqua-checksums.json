@@ -56,8 +56,18 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.321/claude-linux-arm64-musl.tar.gz",
+      "checksum": "ECCB11E7659E7398509068798074009EBAF1DFD9196651DF12F3F9888D1CA4D9",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/anthropics/claude-code/v2.1.321/claude-linux-arm64.tar.gz",
       "checksum": "3621F233638834B672F5FDD406B0D72383E3ACA425E3E981872DD8D51BE4D34F",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.321/claude-linux-x64-musl.tar.gz",
+      "checksum": "0E6CA2D89137DFDB00BF2BBD17DB3B7472085448C975F57C0DD1BE81308159F1",
       "algorithm": "sha256"
     },
     {
@@ -1063,6 +1073,16 @@
     {
       "id": "http/static.rust-lang.org/rustup/archive/1.29.0/x86_64-unknown-linux-gnu/rustup-init",
       "checksum": "4ACC9ACC76D5079515B46346A485974457B5A79893CFB01112423C89AEB5AA10",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-arm64-musl.tar.gz",
+      "checksum": "F3DDA772BA0C1F2CD6FEC46F6EC24687584767F2C3F9117A47EDF191E7786720",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-x64-musl.tar.gz",
+      "checksum": "C6C738FE564C3EB053172BFD4CA1166EEC8BC076F84231A2EA70165E316F5809",
       "algorithm": "sha256"
     },
     {
