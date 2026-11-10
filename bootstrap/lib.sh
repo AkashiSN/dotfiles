@@ -45,6 +45,25 @@ swap_symlink() {
 	esac
 }
 
+# _resolve_symlinks <path>
+# <path> が symlink なら、実体までたどった絶対パスを出す（相対リンクも解決し、ディレクトリは pwd -P で
+# 正規化する。最大 10 段）。symlink でなければそのまま出す。macOS の ps が出す venv のリンク
+# （project/.venv/bin/python）から、uv の Python の実体を引くために使う。
+_resolve_symlinks() {
+	local p="$1" i=0 t d
+	while [ -L "$p" ] && [ "$i" -lt 10 ]; do
+		t="$(readlink "$p")" || break
+		case "$t" in
+		/*) p="$t" ;;
+		*) p="$(dirname "$p")/$t" ;;
+		esac
+		d="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || break
+		p="$d/$(basename "$p")"
+		i=$((i + 1))
+	done
+	printf '%s\n' "$p"
+}
+
 # running_from_any <dir>
 # 全ユーザのプロセスのうち、実行ファイルが <dir>/ 以下にあるものが 1 つでもあれば 0、
 # 無ければ 1 を返す。<dir> は末尾スラッシュを除き、与えられた形と pwd -P の形の両方で照合する。
@@ -63,8 +82,12 @@ running_from_any() {
 			_has_prefix "$comm" "${prefixes[@]}" && return 0
 		done
 	else
+		# ps は PATH 上や venv のリンクのパスをそのまま出す。リンクなら実体のパスでも照合する。
 		while IFS= read -r comm; do
 			_has_prefix "$comm" "${prefixes[@]}" && return 0
+			if [ -L "$comm" ]; then
+				_has_prefix "$(_resolve_symlinks "$comm")" "${prefixes[@]}" && return 0
+			fi
 		done < <(ps -axo comm= 2>/dev/null)
 	fi
 	return 1
@@ -88,6 +111,11 @@ running_matching() {
 			case "$comm" in
 			*"$sub"*) return 0 ;;
 			esac
+			if [ -L "$comm" ]; then
+				case "$(_resolve_symlinks "$comm")" in
+				*"$sub"*) return 0 ;;
+				esac
+			fi
 		done < <(ps -axo comm= 2>/dev/null)
 	fi
 	return 1
@@ -109,8 +137,31 @@ running_exact() {
 	else
 		while IFS= read -r comm; do
 			[ "$comm" = "$want" ] && return 0
+			if [ -L "$comm" ] && [ "$(_resolve_symlinks "$comm")" = "$want" ]; then
+				return 0
+			fi
 		done < <(ps -axo comm= 2>/dev/null)
 	fi
+	return 1
+}
+
+# running_args_matching <substring>
+# 全ユーザのプロセスの引数（ps の args）の行に <substring> を含むものが 1 つでもあれば 0、無ければ 1 を返す。
+# Python のスクリプトは comm がインタプリタで、スクリプトのパスは引数に出る。引数の第 1 語が symlink
+# （venv の bin/python など）なら、実体のパスでも照合する。
+running_args_matching() {
+	local sub="$1" line first
+	while IFS= read -r line; do
+		case "$line" in
+		*"$sub"*) return 0 ;;
+		esac
+		first="${line%% *}"
+		if [ -L "$first" ]; then
+			case "$(_resolve_symlinks "$first")" in
+			*"$sub"*) return 0 ;;
+			esac
+		fi
+	done < <(ps -axww -o args= 2>/dev/null)
 	return 1
 }
 

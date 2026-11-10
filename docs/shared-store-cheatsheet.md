@@ -160,14 +160,16 @@ rm ~/.cache/dotfiles/node-user.key
 | パス | 内容 |
 | --- | --- |
 | `bootstrap/24-shared-uv.sh` | ステップ。一覧と版は `UV_TOOLS="$UV_TOOLS <pkg>[extra,...]==<ver>"` の行（Renovate が上げる）。Python の版は `dot_config/uv/dot_python-version` |
-| `/opt/uv/<key>/{python,tools,bin}` | 1 組。`python` は uv の Python、`tools` はツールの venv、`bin` は `python` / `python3` / `python3.N` と各ツールのコマンド。`.complete` |
+| `/opt/uv/python/` | uv の Python の置き場（`UV_PYTHON_INSTALL_DIR`）。`cpython-<版>-...` が版ごとに入る。組の外の固定の場所で、ツールの版を上げても動かない |
+| `/opt/uv/<key>/{tools,bin}` | 1 組。`tools` はツールの venv、`bin` は `python` / `python3` / `python3.N` と各ツールのコマンド。`.complete` |
 | `/opt/uv/current` | 使う組を指す symlink（`<key>` への相対リンク）。`swap_symlink` で原子的に付け替える |
-| `/opt/uv/{python,tools,bin}` | `current/{python,tools,bin}` への固定の symlink（付け替えても変わらない入口） |
+| `/opt/uv/{tools,bin}` | `current/{tools,bin}` への固定の symlink（付け替えても変わらない入口） |
 | `/opt/dotfiles-shared/keys/24` | key（Python の版と `UV_TOOLS` のハッシュ 12 桁）。ディレクトリ名と同じ |
 
-- **組の中へ直接入れる**: uv は venv のシェバンやコマンドの symlink に入れ先の絶対パスを書くので、入れてから動かさない。`<key>` の中へ `UV_PYTHON_INSTALL_DIR` / `UV_TOOL_DIR` / `UV_PYTHON_BIN_DIR` / `UV_TOOL_BIN_DIR` を向けて入れる。
+- **組の中へ直接入れる**: uv は venv のシェバンやコマンドの symlink に入れ先の絶対パスを書くので、入れてから動かさない。`<key>` の中へ `UV_TOOL_DIR` / `UV_PYTHON_BIN_DIR` / `UV_TOOL_BIN_DIR` を向けて入れる。
+- **Python は組の外**: 各ユーザのプロジェクトの venv（`uv venv` / `uv sync`）も共有の Python のパスを記録する。Python を組の中に置くとツールの版を上げるたびに動いて古い組の GC で壊れるので、`/opt/uv/python/` に固定し、`UV_PYTHON_INSTALL_DIR` を向ける。`dot_python-version` の版を上げると新しい版が増える。古い版は、動いておらず、残る組のどの venv / bin のリンクも使っていないときだけ消す。**消えた版で作ったプロジェクトの venv は壊れる**（`uv sync` / `uv venv` で作り直す）。
 - **導入**: root が共有 aqua の uv（`AQUA_BIN` と共有側の `AQUA_*`）で、ルートへ移り、一時の `UV_CACHE_DIR`・`UV_NO_CONFIG=1`・`UV_PYTHON_PREFERENCE=only-managed` で入れる。`UV_TOOLS` の各ツールのコマンドが `<key>/bin` に在り実行できると確かめてから完了にし、成功したときだけ `current` を付け替えてキーを書く。失敗したらその組を消し、`current` とキーはそのまま非 0 で終わる。共有 aqua が揃っていない（`keys/20` が無い）、または uv が無いときは明確なメッセージで失敗する。
-- **GC**: 1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/uv/<key>/` を含む、`/opt/uv/bin/<コマンド>` や組の `bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む。Python のスクリプトは macOS の `ps` で comm がインタプリタ、スクリプトのパスは引数に出る）は消さず、次回に回す。
+- **GC**: 1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/uv/<key>/` を含む、`/opt/uv/bin/<コマンド>` や組の `bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む。Python のスクリプトは macOS の `ps` で comm がインタプリタ、スクリプトのパスは引数に出る）は消さず、次回に回す。macOS の `ps` はプロジェクトの venv のリンク（`.venv/bin/python`）を出すので、`bootstrap/lib.sh` の `running_*` は comm / 引数の第 1 語が symlink なら実体まで解決して照合する。
 - **PATH**: `env.sh` が、`/opt/uv/bin` と `keys/24` の両方が在るときだけ `~/.local/bin` の後ろに足す。`codex-bedrock` は PATH 上の `python3`（3.11+）を探すので、この `python3` で動く。
 - **ユーザ側**（`run_after_35-uv-tools.sh.tmpl`、毎回実行）:
   - 揃っている間は、ホームの uv の掃除（`.chezmoitemplates/uv-cleanup.sh`）。共有へ移したツールの実体と `~/.local/bin` の symlink を消し、ユーザが自分で入れたツールは残す。残るツールが無ければホームの Python と `python3` などの symlink も消す。動いているもの（実行ファイルが `~/.local/share/uv` の下、macOS の `ps` が出すリンクのパス、引数にスクリプトのパス）があれば何も消さず次の apply に回す。
@@ -188,6 +190,7 @@ sudo rm -rf /opt/uv/<key>
 rm ~/.cache/dotfiles/uv-user.key
 ```
 
+初めて共有側が揃った apply のあとは、新しいシェルを開く（`env.sh` が PATH に `/opt/uv/bin` を足すのは新しいシェルから。開いたままのシェルは `hash -r` では足りず、`exec $SHELL -l` でもよい）。
 経緯: 以前は `run_onchange_after_35-uv-tools.sh.tmpl` が各ユーザのホームへ Python と ansible を、`run_after_40` が graphify を別に入れていた。共有ストア導入で、版の固定を `UV_TOOLS` にまとめ、root が 1 組だけ置く形へ移した。
 
 ## AI エージェントの CLI（`aqua.yaml` と `run_after_40-ai-assistants.sh.tmpl`）

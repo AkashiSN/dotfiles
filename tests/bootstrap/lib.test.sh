@@ -92,3 +92,40 @@ echo "PASS: pins_key: 内容が違えば違う値"
 k3="$(pins_key "$tmp/f2" "$tmp/f1")"
 [ "$k1" != "$k3" ] || fail "pins_key: 引数順が無視された"
 echo "PASS: pins_key: 引数順を区別"
+
+# --- macOS 形式の ps: comm / args が symlink（venv のリンク）でも実体で照合する ---
+# /proc の無い環境でだけ意味がある（/proc があれば readlink が実体を返す）。
+if [ ! -d /proc/self ]; then
+	(
+		tmp="$(cd "$tmp" && pwd -P)"
+		pyd="$tmp/uvpy/python/cpython-3.13.0/bin"
+		mkdir -p "$pyd" "$tmp/proj/.venv/bin" "$tmp/other"
+		: >"$pyd/python3.13"
+		chmod +x "$pyd/python3.13"
+		# venv: python -> python3 (相対) -> uv の Python（絶対）の 2 段
+		ln -s "$pyd/python3.13" "$tmp/proj/.venv/bin/python3"
+		ln -s python3 "$tmp/proj/.venv/bin/python"
+		: >"$tmp/other/plain"
+		mkdir -p "$tmp/psbin"
+		cat >"$tmp/psbin/ps" <<FAKE
+#!/usr/bin/env bash
+case "\$*" in
+*comm=*) printf '%s\n' "\$FAKE_PS_COMM" ;;
+*args=*) printf '%s\n' "\$FAKE_PS_ARGS" ;;
+esac
+FAKE
+		chmod +x "$tmp/psbin/ps"
+		PATH="$tmp/psbin:$PATH"
+		export FAKE_PS_COMM="$tmp/proj/.venv/bin/python" FAKE_PS_ARGS="$tmp/proj/.venv/bin/python -m app"
+		running_from_any "$tmp/uvpy/python" || fail "running_from_any: venv のリンク経由の Python を見ない"
+		running_matching "/uvpy/python/cpython-3.13.0/" || fail "running_matching: venv のリンクの実体を見ない"
+		running_exact "$pyd/python3.13" || fail "running_exact: リンクの実体のパスを見ない"
+		running_args_matching "/uvpy/python/" || fail "running_args_matching: 引数の第 1 語のリンクを見ない"
+		export FAKE_PS_COMM="$tmp/other/plain" FAKE_PS_ARGS="$tmp/other/plain x"
+		! running_from_any "$tmp/uvpy/python" || fail "running_from_any: 無関係なプロセスで真"
+		! running_matching "/uvpy/python/" || fail "running_matching: 無関係なプロセスで真"
+		! running_exact "$pyd/python3.13" || fail "running_exact: 無関係なプロセスで真"
+		! running_args_matching "/uvpy/python/" || fail "running_args_matching: 無関係なプロセスで真"
+	) || exit 1
+	echo "PASS: macOS 形式の ps: symlink のパスでも実体で照合する"
+fi

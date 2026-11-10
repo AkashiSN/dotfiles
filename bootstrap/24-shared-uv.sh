@@ -5,11 +5,16 @@
 # 環境変数: DOTFILES_SRC / SHARED_ROOT（既定 /opt）/ AQUA_BIN（呼び出しユーザの aqua の絶対パス）。
 #
 # 配置:
-#   $SHARED_ROOT/uv/<key>/{python,tools,bin}   1 組。python は既定の Python、tools は UV_TOOLS の venv、
-#                                              bin は python / python3 / python3.N と各ツールのコマンド。
+#   $SHARED_ROOT/uv/python/                    uv の Python の置き場（UV_PYTHON_INSTALL_DIR）。Python の版ごとの
+#                                              ディレクトリで、ツールの版が変わっても動かない。
+#   $SHARED_ROOT/uv/<key>/{tools,bin}          1 組。tools は UV_TOOLS の venv、bin は python / python3 /
+#                                              python3.N と各ツールのコマンド。
 #   $SHARED_ROOT/uv/current -> <key>           向け先だけを原子的に切り替える。
-#   $SHARED_ROOT/uv/{python,tools,bin} -> current/{python,tools,bin}   固定の symlink。
-# uv は venv のシェバンやコマンドの symlink に入れ先の絶対パスを書くので、<key> の中へ直接入れる。
+#   $SHARED_ROOT/uv/{tools,bin} -> current/{tools,bin}   固定の symlink。
+# uv は venv のシェバンやコマンドの symlink に入れ先の絶対パスを書くので、組は <key> の中へ直接入れる。
+# プロジェクトの venv も uv の Python のパスを記録するため、Python を組の外の固定の場所に置き、
+# ツールの版を上げても各自の venv が壊れないようにする。Python の版（dot_python-version）を上げたときだけ
+# 新しい Python が増え、古い Python は、動いておらず、残る組のどれも使っていないときに消す。
 #
 # 各ユーザは ~/.config/shell/env.sh が PATH に入れる $SHARED_ROOT/uv/bin から使う。uv は PATH 上の
 # python3.N も見つけるので、各ユーザの uv run / uv venv も、版が合えばここの Python を使う。
@@ -26,6 +31,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_ROOT="${SHARED_ROOT:-/opt}"
 DOTFILES_SRC="${DOTFILES_SRC:-$(dirname "$here")}"
 ROOT="$SHARED_ROOT/uv"
+PYDIR="$ROOT/python"
 KEYFILE="$SHARED_ROOT/dotfiles-shared/keys/24"
 AQUA_STORE="$SHARED_ROOT/aquaproj-aqua"
 
@@ -33,11 +39,11 @@ AQUA_STORE="$SHARED_ROOT/aquaproj-aqua"
 # extra は <pkg>[extra,...]==<version>。
 UV_TOOLS=""
 # Ansible。
-UV_TOOLS="$UV_TOOLS ansible==14.6.0"
+UV_TOOLS="$UV_TOOLS ansible==8.7.0"
 # graphify（PyPI 上のパッケージ名は graphifyy、コマンド名は graphify）。SQL / HCL のパーサーは
 # 必須依存ではなく extra なので明示する（terraform extra が tree-sitter-hcl を連れてくる）。
 # 各ユーザの claude への登録（graphify install）は run_after_40-ai-assistants が行う。
-UV_TOOLS="$UV_TOOLS graphifyy[sql,terraform]==0.9.105"
+UV_TOOLS="$UV_TOOLS graphifyy[sql,terraform]==0.9.70"
 
 py_version() { tr -d '[:space:]' <"$DOTFILES_SRC/dot_config/uv/dot_python-version"; }
 
@@ -91,8 +97,11 @@ DEST="$ROOT/$KEY"
 
 log "共有ディレクトリ ${ROOT} を準備 (${owner_group})"
 mkdir -p "$ROOT"
-set_owner "$ROOT"
-chmod 755 "$ROOT"
+# python は実ディレクトリ。固定の symlink だった場合は外す。
+[ ! -L "$PYDIR" ] || rm -f "$PYDIR"
+mkdir -p "$PYDIR"
+set_owner "$ROOT" "$PYDIR"
+chmod 755 "$ROOT" "$PYDIR"
 
 # <dir>/bin の下の名前を並べる。
 bin_names() {
@@ -117,11 +126,14 @@ install_set() {
 	local cache spec name cmds c rc=0
 	cache="$(mktemp -d)" || return 1
 	rm -rf "$DEST"
-	mkdir -p "$DEST/python" "$DEST/tools" "$DEST/bin" || return 1
+	mkdir -p "$DEST/tools" "$DEST/bin" || {
+		rm -rf "$cache"
+		return 1
+	}
 	# 設定ファイル（ユーザや root のもの）を読まず、システムの python も拾わない。
 	# uv のキャッシュは一時ディレクトリに置き、終わったら消す（root が誰かのキャッシュに書かない）。
 	export UV_CACHE_DIR="$cache" UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-managed
-	export UV_PYTHON_INSTALL_DIR="$DEST/python" UV_PYTHON_BIN_DIR="$DEST/bin"
+	export UV_PYTHON_INSTALL_DIR="$PYDIR" UV_PYTHON_BIN_DIR="$DEST/bin"
 	export UV_TOOL_DIR="$DEST/tools" UV_TOOL_BIN_DIR="$DEST/bin"
 
 	# --default で python / python3 も置く。--default は experimental なので preview を明示する。
@@ -185,7 +197,7 @@ prev="$(readlink "$ROOT/current" 2>/dev/null || true)"
 log "current を $KEY に向ける"
 swap_symlink "$KEY" "$ROOT/current"
 # 固定の入口。current の向け先が変わっても、これらは変わらない。
-for d in python tools bin; do
+for d in tools bin; do
 	swap_symlink "current/$d" "$ROOT/$d"
 done
 mkdir -p "$(dirname "$KEYFILE")"
@@ -196,7 +208,7 @@ src_key >"$KEYFILE"
 # macOS の ps は PATH 上のリンクで起動したプロセスをそのリンクのパスで出し、実体の組は出さない。
 # Python のスクリプトは comm がインタプリタで、スクリプトのパスは引数に出る。
 set_busy() {
-	local d="$1" name n args
+	local d="$1" name n
 	name="$(basename "$d")"
 	running_from_any "$d" && return 0
 	running_matching "/uv/$name/" && return 0
@@ -204,10 +216,8 @@ set_busy() {
 		running_exact "$ROOT/bin/$n" && return 0
 		running_exact "$d/bin/$n" && return 0
 	done
-	args="$(ps -axww -o args= 2>/dev/null || true)"
-	case "$args" in
-	*"/uv/$name/"* | *"$d/"*) return 0 ;;
-	esac
+	running_args_matching "/uv/$name/" && return 0
+	running_args_matching "$d/" && return 0
 	return 1
 }
 
@@ -221,6 +231,7 @@ if [ "$prev" = "$KEY" ]; then
 		d="${d%/}"
 		[ -L "$d" ] && continue
 		[ "$(basename "$d")" = "$KEY" ] && continue
+		[ "$d" = "$PYDIR" ] && continue
 		if [ -z "$best" ] || [ "$d" -nt "$best" ]; then
 			best="$d"
 		fi
@@ -232,6 +243,7 @@ log "使わなくなった組を削除"
 for d in "$ROOT"/*/; do
 	d="${d%/}"
 	[ -L "$d" ] && continue
+	[ "$d" = "$PYDIR" ] && continue
 	name="$(basename "$d")"
 	[ "$name" = "$KEY" ] && continue
 	[ -n "$prev" ] && [ "$name" = "$prev" ] && continue
@@ -241,6 +253,67 @@ for d in "$ROOT"/*/; do
 	fi
 	note "削除: $d"
 	rm -rf "$d"
+done
+
+# Python の版ごとのディレクトリ <p> を、残っている組の venv や bin のリンクが使っているか。
+# 新しい uv の venv は版ごとのリンク（cpython-3.13-<os>-<arch>-none）経由で記録するので、<p> を指すリンクの名前も見る。
+python_used_by_sets() {
+	local p="$1" names n l d lk
+	names="$(basename "$p")"
+	for l in "$PYDIR"/*; do
+		[ -L "$l" ] || continue
+		[ "$(basename "$(readlink "$l")")" = "$names" ] && names="$names $(basename "$l")"
+	done
+	for d in "$ROOT"/*/; do
+		d="${d%/}"
+		[ -L "$d" ] && continue
+		[ "$d" = "$PYDIR" ] && continue
+		for n in $names; do
+			grep -rqsF --include=pyvenv.cfg "/python/$n/" "$d/tools" 2>/dev/null && return 0
+			# 組の bin の python3 などのリンクの向け先。
+			for lk in "$d"/bin/*; do
+				[ -L "$lk" ] || continue
+				case "$(readlink "$lk")" in
+				*"/python/$n/"*) return 0 ;;
+				esac
+			done
+		done
+	done
+	return 1
+}
+
+# 動いているプロセスが Python <p> の下から動いている（venv のリンク経由も含む）、または引数に含むときは 0。
+python_busy() {
+	local p="$1"
+	running_from_any "$p" && return 0
+	running_matching "/uv/python/$(basename "$p")/" && return 0
+	running_args_matching "/python/$(basename "$p")/" && return 0
+	return 1
+}
+
+log "使わなくなった Python を削除"
+for p in "$PYDIR"/*/; do
+	p="${p%/}"
+	[ -L "$p" ] && continue
+	pname="$(basename "$p")"
+	# 宣言した版（cpython-<版>.* / cpython-<版>-*）は残す。
+	case "$pname" in
+	"cpython-$PY_VERSION".* | "cpython-$PY_VERSION"-*) continue ;;
+	esac
+	if python_busy "$p"; then
+		note "使用中のため残します: $p"
+		continue
+	fi
+	if python_used_by_sets "$p"; then
+		note "残した組が使っているため残します: $p"
+		continue
+	fi
+	note "削除: $p"
+	rm -rf "$p"
+done
+# 消えた Python を指す版ごとのリンクは外す。
+for l in "$PYDIR"/*; do
+	[ -L "$l" ] && [ ! -e "$l" ] && rm -f "$l"
 done
 
 log "完了: uv の Python と CLI を ${ROOT} に置きました"

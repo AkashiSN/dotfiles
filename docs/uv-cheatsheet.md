@@ -13,13 +13,19 @@ Python パッケージ / CLI ツール管理（**uv**、aqua 管理パッケー�
 一覧と版は同スクリプトの `UV_TOOLS="$UV_TOOLS <pkg>[extra,...]==<ver>"` の行で固定し（Renovate が上げる）、
 Python の版は `dot_config/uv/dot_python-version` の 1 か所。PATH は `~/.config/shell/env.sh` が、
 `/opt/uv/bin` と `/opt/dotfiles-shared/keys/24` が在るときだけ `~/.local/bin` の後ろに足す。
+**初めて共有側が揃った apply のあとは、新しいシェルを開く**（PATH は新しいシェルから変わる）。
+
+共有の Python は `/opt/uv/python/` に版ごとに置く（組の外の固定の場所）。ツールの版を上げても動かないので、
+プロジェクトの venv は壊れない。`dot_python-version` を上げると新しい版が増え、古い版は動いておらず
+残る組のどれも使っていないときに消える。**消えた版で作った venv は壊れる**ので、`uv sync` / `uv venv` で作り直す。
 
 `run_after_35-uv-tools.sh.tmpl`（毎回実行）の役目はユーザ側だけ。
 
 - **共有側が揃っている間**: 取得せず、ホームの uv の掃除だけ行う（`.chezmoitemplates/uv-cleanup.sh`）。
   共有へ移したツール（`UV_TOOLS` の名前）の実体と `~/.local/bin` の symlink を消し、ユーザが自分で
-  `uv tool install` したツールとその symlink は残す。残るツールが無ければホームの uv の Python と
-  `python3` などの symlink も消す。ホームの uv の Python やツールが動いている間（実行ファイルが
+  `uv tool install` したツールとその symlink は残す。残るツールが無ければ、ホームの uv の既定の版の Python
+  （`dot_python-version` の版。移したツールが使っていたもの）と、それを指す `python3` などの symlink も消す。
+  自分で入れた別の版の Python（例: 3.14）は残す。ホームの uv の Python やツールが動いている間（実行ファイルが
   `~/.local/share/uv` の下、macOS の `ps` が出すリンクのパス、引数にスクリプトのパス）は何も消さず次の apply へ回す。
 - **揃っていない間**（sudo を使えなかったなど）: 従来どおり `uv python install --default` と `UV_TOOLS` の各行を
   `uv tool install` でユーザ単位に入れる。`~/.cache/dotfiles/uv-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。

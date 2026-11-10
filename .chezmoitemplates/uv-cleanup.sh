@@ -42,7 +42,7 @@ _uv_remove_links_into() {
 # macOS の ps は PATH 上のリンク（~/.local/bin/ansible など）で起動したプロセスをそのリンクのパスで出し、
 # 実体のディレクトリは出さない。Python のスクリプトは comm がインタプリタで、スクリプトのパスは引数に出る。
 _uv_busy() {
-	local data="$1" lbin="$2" link args
+	local data="$1" lbin="$2" link
 	running_from_any "$data/python" && return 0
 	running_from_any "$data/tools" && return 0
 	running_matching "$data/python/" && return 0
@@ -55,20 +55,19 @@ _uv_busy() {
 			running_exact "$link" && return 0
 		fi
 	done
-	args="$(ps -axww -o args= 2>/dev/null || true)"
-	case "$args" in
-	*"$data/python/"* | *"$data/tools/"*) return 0 ;;
-	esac
+	running_args_matching "$data/python/" && return 0
+	running_args_matching "$data/tools/" && return 0
 	return 1
 }
 
-# uv_cleanup_home <uv_data> <local_bin> <tool...>
+# uv_cleanup_home <uv_data> <local_bin> <python_version> <tool...>
 # 共有へ移した <tool>（uv tool list の正規化名。ディレクトリ名と同じ）の実体と ~/.local/bin の symlink を消す。
-# 残ったツール（ユーザが自分で入れたもの）が無ければ、ホームの Python と python3 などの symlink も消す。
+# 残ったツール（ユーザが自分で入れたもの）が無ければ、既定の Python（<python_version>。移したツールが使っていた版）
+# と、それを指す python3 などの symlink も消す。ユーザが自分で入れた別の版の Python は残す。
 # ホームの uv の Python やツールが動いている間は何も消さず、次の apply へ回す。
 uv_cleanup_home() {
-	local data="$1" lbin="$2" tool
-	shift 2
+	local data="$1" lbin="$2" pyver="$3" tool p
+	shift 3
 	[ -d "$data/tools" ] || [ -d "$data/python" ] || return 0
 	if _uv_busy "$data" "$lbin"; then
 		note "ホームの uv の Python かツールが動いているため、共有へ移した分は次の chezmoi apply で消します"
@@ -86,7 +85,13 @@ uv_cleanup_home() {
 		note "ホームに uv のツールが残っているため、$data/python は消しません"
 		return 0
 	fi
-	_uv_remove_links_into "$lbin" "$data/python"
-	note "共有の Python を使うため削除: $data/python"
-	rm -rf "$data/python"
+	for p in "$data/python/cpython-$pyver".* "$data/python/cpython-$pyver"-*; do
+		[ -e "$p" ] || [ -L "$p" ] || continue
+		# 版ごとのリンク（cpython-<版>-<os>-<arch>-none）は実体が消えると宙に浮くので一緒に消す。
+		if [ ! -L "$p" ]; then
+			_uv_remove_links_into "$lbin" "$p"
+		fi
+		note "共有の Python を使うため削除: $p"
+		rm -rf "$p"
+	done
 }

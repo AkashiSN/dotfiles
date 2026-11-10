@@ -5,7 +5,7 @@
 #   dot_config/uv/dot_python-version、ツールの版は UV_TOOLS で固定）。PATH は ~/.config/shell/env.sh が通す。
 #   ここでは取得せず、ホームに残った uv の Python と、共有へ移したツールを消すだけを行う
 #   （.chezmoitemplates/uv-cleanup.sh）。ユーザが自分で入れたツールは残す。
-# - 共有側が揃っていない間（sudo を使えなかったなど）: 従来どおり uv の Python と同じ UV_TOOLS
+# - 共有側が揃っていない間（sudo を使えなかったなど）: uv の Python と同じ UV_TOOLS
 #   （bootstrap/24-shared-uv.sh の一覧）をユーザ単位で入れる。ホームのものは消さない。
 #   一覧か Python の版が変わったときだけ流す（~/.cache/dotfiles/uv-user.key。成功したときだけ進める）。
 # run_after: chezmoi apply のたびに実行する。
@@ -23,6 +23,9 @@ step "既定の Python と uv の CLI を確認中"
 SHARED_UV=/opt/uv
 SHARED_UV_KEY=/opt/dotfiles-shared/keys/24
 
+# Python の版の宣言は dot_config/uv/dot_python-version 1 か所だけにして、展開時に埋め込む。
+py_version={{ include "dot_config/uv/dot_python-version" | trim | quote }}
+
 # UV_TOOLS の行（1 行 1 パッケージ）を bootstrap/24-shared-uv.sh から読む。
 # shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
 specs="$(sed -n 's/^UV_TOOLS="\$UV_TOOLS \(.*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/24-shared-uv.sh" | tr '\n' ' ')"
@@ -38,7 +41,7 @@ if [ -d "$SHARED_UV/bin" ] && [ -f "$SHARED_UV_KEY" ]; then
 		moved="$moved $(printf '%s' "$name" | tr '[:upper:]._' '[:lower:]--')"
 	done
 	# shellcheck disable=SC2086
-	uv_cleanup_home "${XDG_DATA_HOME:-$HOME/.local/share}/uv" "$HOME/.local/bin" $moved
+	uv_cleanup_home "${XDG_DATA_HOME:-$HOME/.local/share}/uv" "$HOME/.local/bin" "$py_version" $moved
 	# 後で共有側が使えなくなったとき、ユーザ単位の導入をやり直せるようマーカーを消す。
 	rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/uv-user.key"
 	exit 0
@@ -60,8 +63,6 @@ if [ -z "$specs" ]; then
 	exit 0
 fi
 
-# Python の版の宣言は dot_config/uv/dot_python-version 1 か所だけにして、展開時に埋め込む。
-py_version={{ include "dot_config/uv/dot_python-version" | trim | quote }}
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
 marker="$cache_dir/uv-user.key"
 key="$(pins_key <(printf 'uv-user-1\n%s\n%s\n' "$py_version" "$specs"))"

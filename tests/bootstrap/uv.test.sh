@@ -27,11 +27,12 @@ cat >"$fakebin/uv" <<'FAKE'
 echo "uv $* | cwd=$PWD cache=${UV_CACHE_DIR:-} noconfig=${UV_NO_CONFIG:-} pydir=${UV_PYTHON_INSTALL_DIR:-} tooldir=${UV_TOOL_DIR:-}" >>"$FAKE_LOG"
 case "$1 ${2:-}" in
 "python install")
-	mkdir -p "$UV_PYTHON_INSTALL_DIR/cpython-3.13/bin" "$UV_PYTHON_BIN_DIR"
-	printf '#!/bin/sh\n' >"$UV_PYTHON_INSTALL_DIR/cpython-3.13/bin/python3"
-	chmod +x "$UV_PYTHON_INSTALL_DIR/cpython-3.13/bin/python3"
-	for n in python python3 python3.13; do
-		ln -sf "$UV_PYTHON_INSTALL_DIR/cpython-3.13/bin/python3" "$UV_PYTHON_BIN_DIR/$n"
+	py="$UV_PYTHON_INSTALL_DIR/cpython-$3.0-fake/bin"
+	mkdir -p "$py" "$UV_PYTHON_BIN_DIR"
+	printf '#!/bin/sh\n' >"$py/python3"
+	chmod +x "$py/python3"
+	for n in python python3 "python$3"; do
+		ln -sf "$py/python3" "$UV_PYTHON_BIN_DIR/$n"
 	done
 	[ -z "${UV_CACHE_DIR:-}" ] || : >"$UV_CACHE_DIR/cachefile"
 	;;
@@ -42,6 +43,7 @@ case "$1 ${2:-}" in
 	cmd="$name"
 	[ "$name" = graphifyy ] && cmd=graphify
 	mkdir -p "$UV_TOOL_DIR/$name/bin" "$UV_TOOL_BIN_DIR"
+	printf 'home = %s/cpython-%s.0-fake/bin\n' "$UV_PYTHON_INSTALL_DIR" "$4" >"$UV_TOOL_DIR/$name/pyvenv.cfg"
 	[ "${FAKE_UV_NOCMD:-}" = 1 ] && exit 0
 	printf '#!/bin/sh\n' >"$UV_TOOL_DIR/$name/bin/$cmd"
 	chmod +x "$UV_TOOL_DIR/$name/bin/$cmd"
@@ -100,9 +102,10 @@ cur() { readlink "$root/current"; }
 out="$(run)" || fail "通常の実行が失敗" "$out"
 k1="$(cat "$keyfile")"
 assert_eq "$k1" "$(cur)" "current が新しい key を指し、key は keys/24 と同じ"
-for d in python tools bin; do
+for d in tools bin; do
 	assert_eq "current/$d" "$(readlink "$root/$d")" "$root/$d は current/$d への symlink"
 done
+[ -d "$root/python" ] && [ ! -L "$root/python" ] || fail "$root/python が実ディレクトリでない"
 [ -x "$root/bin/python3" ] && [ -x "$root/bin/ansible" ] && [ -x "$root/bin/graphify" ] || fail "共有 bin に python3 / ansible / graphify が揃っていない"
 rc=0
 bash "$STEP" --check || rc=$?
@@ -132,7 +135,7 @@ assert_contains "$l" "uv tool install --python 3.13 ansible==" "ansible を版�
 assert_contains "$l" "graphifyy[sql,terraform]==" "graphifyy を extra と版指定で入れる"
 assert_contains "$l" "cwd=/" "ルートへ移ってから uv を流す"
 assert_contains "$l" "noconfig=1" "UV_NO_CONFIG=1"
-assert_contains "$l" "pydir=$root/$k1/python" "Python は key のディレクトリの中へ入れる"
+assert_contains "$l" "pydir=$root/python " "Python は key の外の固定の場所へ入れる"
 assert_contains "$l" "tooldir=$root/$k1/tools" "ツールは key のディレクトリの中へ入れる"
 cachedir="$(sed -n 's/.*cache=\([^ ]*\) noconfig.*/\1/p' "$FAKE_LOG" | head -1)"
 case "$cachedir" in "$root"/* | "$HOME"/* | "") fail "uv のキャッシュが共有側かホームを指す: $cachedir" ;; esac
@@ -157,6 +160,11 @@ assert_eq "$k3" "$(cur)" "current が最新の組を指す"
 [ ! -e "$root/$k1" ] || fail "2 つ前の組が残った"
 [ -x "$root/bin/graphify" ] || fail "swap 後に共有 bin が壊れた"
 echo "PASS: 1 つ前の組は残り、2 つ前は消える"
+# Python: 3.13 は組 k1 だけが使っていた(消えた)ので消え、3.14(1 つ前の組)と 3.15(現在)は残る
+[ ! -e "$root/python/cpython-3.13.0-fake" ] || fail "どの組も使わない古い Python が残った"
+[ -d "$root/python/cpython-3.14.0-fake" ] && [ -d "$root/python/cpython-3.15.0-fake" ] || fail "残した組が使う Python を消した"
+[ -x "$root/$k2/bin/python3" ] || fail "1 つ前の組の python3 が壊れた"
+echo "PASS: 古い Python は残る組が使っていなければ消し、使っていれば残す"
 
 # ---- 失敗: 組を消し、current と key は変えず、非 0 ----
 echo 3.16 >"$PYVER"
@@ -166,7 +174,7 @@ out="$(FAKE_UV_FAIL=1 run)" || rc=$?
 assert_eq "$k3" "$(cur)" "失敗しても current は変えない"
 assert_eq "$k3" "$(cat "$keyfile")" "失敗してもキーを進めない"
 n="$(find "$root" -mindepth 1 -maxdepth 1 ! -type l | wc -l | tr -d ' ')"
-assert_eq "2" "$n" "失敗した組のディレクトリを残さない（既存の 2 組だけ）"
+assert_eq "3" "$n" "失敗した組のディレクトリを残さない（python と既存の 2 組だけ）"
 failcache="$(sed -n 's/.*cache=\([^ ]*\) noconfig.*/\1/p' "$FAKE_LOG" | tail -1)"
 [ ! -e "$failcache" ] || fail "失敗時に uv の一時キャッシュを残した"
 # uv が成功してもコマンドが無ければ失敗扱い
@@ -176,7 +184,7 @@ out="$(FAKE_UV_NOCMD=1 run)" || rc=$?
 assert_eq "$k3" "$(cur)" "コマンドが無ければ current は変えない"
 assert_eq "$k3" "$(cat "$keyfile")" "コマンドが無ければキーを進めない"
 n="$(find "$root" -mindepth 1 -maxdepth 1 ! -type l | wc -l | tr -d ' ')"
-assert_eq "2" "$n" "コマンドが無い組は残さない"
+assert_eq "3" "$n" "コマンドが無い組は残さない"
 echo 3.15 >"$PYVER"
 
 # ---- 同じ key での入れ直し（keys/24 を消した再実行）----
@@ -222,8 +230,32 @@ if [ ! -d /proc/self ]; then
 	echo 4.4 >"$PYVER"
 	runps >/dev/null || fail "(c2) 実行が失敗"
 	[ ! -e "$root/stale" ] || fail "(c2) 止まったのに消えない"
+	# (d) プロジェクトの venv のリンク（comm）が、古い Python を指す
+	mkdir -p "$root/python/cpython-9.9.0-fake/bin" "$tmp/proj/.venv/bin"
+	: >"$root/python/cpython-9.9.0-fake/bin/python3"
+	ln -sf "$root/python/cpython-9.9.0-fake/bin/python3" "$tmp/proj/.venv/bin/python"
+	psout "$tmp/proj/.venv/bin/python" "$tmp/proj/.venv/bin/python -m app"
+	echo 4.5 >"$PYVER"
+	runps >/dev/null || fail "(d) 実行が失敗"
+	[ -d "$root/python/cpython-9.9.0-fake" ] || fail "(d) venv のリンク経由で動く古い Python を消した"
+	psout "/usr/bin/other"
+	echo 4.6 >"$PYVER"
+	runps >/dev/null || fail "(d2) 実行が失敗"
+	[ ! -e "$root/python/cpython-9.9.0-fake" ] || fail "(d2) 止まったのに古い Python が残った"
 	echo "PASS: macOS 形式の ps でも動作中の古い組を消さない"
 fi
+
+# ---- ツールの版を上げても Python の場所は動かない ----
+pyl="$(readlink "$root/bin/python3")"
+sed -i.bak 's|ansible==[0-9.]*|ansible==8.7.1|' "$STEP" && rm "$STEP.bak"
+run >/dev/null || fail "ツールの版を上げた実行が失敗"
+kb="$(cat "$keyfile")"
+assert_eq "$pyl" "$(readlink "$root/bin/python3")" "ツールの版を上げても python3 の向け先（Python の場所）は同じ"
+case "$pyl" in "$root/python/"*) ;; *) fail "python3 が $root/python の外を指す: $pyl" ;; esac
+[ -d "$root/python/cpython-$(cat "$PYVER").0-fake" ] || fail "ツールの版を上げて Python が消えた"
+grep -q "$root/python/" "$root/$kb/tools/ansible/pyvenv.cfg" || fail "ツールの venv が固定の Python を指さない"
+cp "$tmp/step.orig" "$STEP"
+echo "PASS: ツールの版を上げても Python の場所は変わらない"
 
 # ---- env.sh: 揃っているときだけ ~/.local/bin の後ろに足す ----
 cfg="$tmp/chezmoi.toml"
@@ -264,12 +296,15 @@ run35() {
 }
 mkuv() {
 	local d="$home/.local/share/uv" b="$home/.local/bin"
-	mkdir -p "$d/python/cpython-3.13/bin" "$d/tools/ansible/bin" "$d/tools/graphifyy/bin" "$d/tools/mytool/bin" "$b"
-	: >"$d/python/cpython-3.13/bin/python3"
+	mkdir -p "$d/python/cpython-3.13.5-x/bin" "$d/python/cpython-3.14.0-x/bin" "$d/tools/ansible/bin" "$d/tools/graphifyy/bin" "$d/tools/mytool/bin" "$b"
+	: >"$d/python/cpython-3.13.5-x/bin/python3"
+	: >"$d/python/cpython-3.14.0-x/bin/python3.14"
+	ln -sfn cpython-3.13.5-x "$d/python/cpython-3.13-x"
 	: >"$d/tools/ansible/bin/ansible"
 	: >"$d/tools/graphifyy/bin/graphify"
 	: >"$d/tools/mytool/bin/mytool"
-	ln -sf "$d/python/cpython-3.13/bin/python3" "$b/python3"
+	ln -sf "$d/python/cpython-3.13.5-x/bin/python3" "$b/python3"
+	ln -sf "$d/python/cpython-3.14.0-x/bin/python3.14" "$b/python3.14"
 	ln -sf "$d/tools/ansible/bin/ansible" "$b/ansible"
 	ln -sf "$d/tools/graphifyy/bin/graphify" "$b/graphify"
 	ln -sf "$d/tools/mytool/bin/mytool" "$b/mytool"
@@ -308,6 +343,17 @@ run35 >/dev/null || fail "(a) 失敗"
 printf '#!/usr/bin/env bash\nif [ "$1" = "-axww" ]; then printf "%%s\\n" "python3 %s/.local/share/uv/tools/ansible/bin/ansible-playbook"; else echo python3; fi\n' "$home" >"$stubs/ps"
 run35 >/dev/null || fail "(b) 失敗"
 [ -d "$home/.local/share/uv/tools/ansible" ] || fail "(b) 引数にパスを持つプロセスが動いているのに消した"
+# (b2) プロジェクトの venv のリンク（comm）が、ホームの uv の Python を指す（macOS 形式）
+if [ ! -d /proc/self ]; then
+	mkdir -p "$home/proj/.venv/bin"
+	ln -sf "$home/.local/share/uv/python/cpython-3.13.5-x/bin/python3" "$home/proj/.venv/bin/python"
+	# shellcheck disable=SC2016  # 偽 ps のソースなので展開させない
+	printf '#!/usr/bin/env bash\nif [ "$1" = "-axww" ]; then echo "%s/proj/.venv/bin/python -m app"; else echo "%s/proj/.venv/bin/python"; fi\n' "$home" "$home" >"$stubs/ps"
+	run35 >/dev/null || fail "(b2) 失敗"
+	[ -d "$home/.local/share/uv/tools/ansible" ] && [ -d "$home/.local/share/uv/python/cpython-3.13.5-x" ] || fail "(b2) venv のリンク経由で動く Python があるのに消した"
+	echo "PASS: venv のリンクで動く uv の Python は消さない"
+	rm -rf "$home/proj"
+fi
 # (c) 動いていない
 printf '#!/usr/bin/env bash\nexit 0\n' >"$stubs/ps"
 out="$(run35)" || fail "(c) 失敗" "$out"
@@ -317,15 +363,16 @@ d="$home/.local/share/uv"
 [ ! -e "$home/.local/bin/ansible" ] && [ ! -L "$home/.local/bin/ansible" ] && [ ! -L "$home/.local/bin/graphify" ] || fail "移したツールの symlink が残った"
 [ -L "$home/.local/bin/mytool" ] && [ -d "$d/tools/mytool" ] || fail "自分で入れたツールまで消した"
 [ -L "$home/.local/bin/other" ] || fail "無関係な symlink を消した"
-[ -d "$d/python" ] && [ -L "$home/.local/bin/python3" ] || fail "残ったツールがあるのに Python を消した"
+[ -d "$d/python/cpython-3.13.5-x" ] && [ -L "$home/.local/bin/python3" ] || fail "残ったツールがあるのに Python を消した"
 [ ! -e "$home/.cache/dotfiles/uv-user.key" ] || fail "共有側ありでマーカーが残った"
 echo "PASS: 移したツールだけ消し、ユーザのツールと使われている Python は残す"
 # 残りのツールが無くなれば Python と python3 のリンクを消す
 rm -rf "$d/tools/mytool" "$home/.local/bin/mytool"
 run35 >/dev/null || fail "(d) 失敗"
-[ ! -e "$d/python" ] && [ ! -L "$home/.local/bin/python3" ] || fail "ツールが無いのに Python が残った"
+[ ! -e "$d/python/cpython-3.13.5-x" ] && [ ! -L "$d/python/cpython-3.13-x" ] && [ ! -L "$home/.local/bin/python3" ] || fail "ツールが無いのに既定の Python が残った"
+[ -d "$d/python/cpython-3.14.0-x" ] && [ -L "$home/.local/bin/python3.14" ] || fail "既定の版でない Python（と symlink）まで消した"
 [ -L "$home/.local/bin/other" ] || fail "(d) 無関係な symlink を消した"
-echo "PASS: 残るツールが無ければホームの Python と python3 のリンクを消す"
+echo "PASS: 残るツールが無ければ既定の版の Python と python3 のリンクだけ消す（別の版は残す）"
 # 共有側のキーだけ無ければ揃っていない扱い
 rm "$tmp/shared/keys/24"
 rm -rf "$d"
