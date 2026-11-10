@@ -41,9 +41,31 @@ run30() {
 	HOME="$home" XDG_DATA_HOME="" XDG_CONFIG_HOME="" XDG_CACHE_HOME="" FNM_DIR="" \
 		PATH="$stubs:/usr/bin:/bin" bash "$script" 2>&1
 }
+# fnm の配置: node-versions/<版>/installation/bin/node と、aliases/<名前> -> node-versions/<版>/installation。
+# v24 は default / lts-latest / lts-krypton（fnm install --lts が付ける）が指す版、v20 はプロジェクト用（proj）。
 mkfnm() {
-	mkdir -p "$home/.local/share/fnm/node-versions/v24/bin" "$home/.local/share/fnm/aliases" "$home/.local/share/fnm/keep"
-	: >"$home/.local/share/fnm/node-versions/v24/bin/node"
+	local f="$home/.local/share/fnm" v
+	for v in v24 v20; do
+		mkdir -p "$f/node-versions/$v/installation/bin"
+		: >"$f/node-versions/$v/installation/bin/node"
+	done
+	mkdir -p "$f/aliases" "$f/keep"
+	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/default"
+	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/lts-latest"
+	ln -sfn "$f/node-versions/v24/installation" "$f/aliases/lts-krypton"
+	ln -sfn "$f/node-versions/v20/installation" "$f/aliases/proj"
+}
+# fnm の既定の版（v24 と、それを指す alias）だけが消え、他の版と alias が残っているか。
+assert_default_only_removed() {
+	local f="$home/.local/share/fnm" a
+	[ ! -e "$f/node-versions/v24" ] || fail "$1: 既定の版 v24 が残った"
+	for a in default lts-latest lts-krypton; do
+		[ ! -e "$f/aliases/$a" ] && [ ! -L "$f/aliases/$a" ] || fail "$1: alias $a が残った"
+	done
+	[ -f "$f/node-versions/v20/installation/bin/node" ] || fail "$1: プロジェクト用の v20 まで消した"
+	[ -L "$f/aliases/proj" ] || fail "$1: プロジェクト用の alias proj まで消した"
+	[ -d "$f/keep" ] || fail "$1: fnm の他のディレクトリまで消した"
+	echo "PASS: $1: 既定の版とその alias だけを消す"
 }
 mkfnm
 
@@ -88,17 +110,25 @@ mkdir -p "$home/.cache/dotfiles"
 echo stale >"$home/.cache/dotfiles/node-user.key"
 out="$(run30)" || fail "共有側ありで失敗" "$out"
 assert_eq "" "$(cat "$CALLS")" "共有側あり: fnm / npm を流さない"
-[ ! -e "$home/.local/share/fnm/node-versions" ] && [ ! -e "$home/.local/share/fnm/aliases" ] || fail "共有側ありなのに fnm の Node が残った"
-[ -d "$home/.local/share/fnm/keep" ] || fail "fnm の他のディレクトリまで消した"
+assert_default_only_removed "共有側あり"
 [ ! -e "$home/.cache/dotfiles/node-user.key" ] || fail "共有側ありでマーカーが残った"
-echo "PASS: 共有側あり: fnm の Node だけ消し、マーカーも消す"
+[ -e "$home/.cache/dotfiles/node-home.cleaned" ] || fail "掃除を終えたのに印を置かない"
+echo "PASS: 共有側あり: マーカーを消し、掃除済みの印を置く"
 
-# 共有側が片方だけ（キーが無い）なら揃っていない扱い
+# 掃除済みなら、ユーザが自分で付け直した default は消さない
+ln -sfn "$home/.local/share/fnm/node-versions/v20/installation" "$home/.local/share/fnm/aliases/default"
+run30 >/dev/null || fail "掃除済みの再実行で失敗"
+[ -L "$home/.local/share/fnm/aliases/default" ] && [ -d "$home/.local/share/fnm/node-versions/v20" ] || fail "掃除済みなのにユーザの default を消した"
+echo "PASS: 掃除済みなら、ユーザが付け直した default とその版を消さない"
+rm -f "$home/.local/share/fnm/aliases/default"
+
+# 共有側が片方だけ（キーが無い）なら揃っていない扱い。ユーザ単位の導入をしたら掃除済みの印を外す
 mkfnm
 rm "$tmp/shared/keys/23"
 run30 >/dev/null
 [ -d "$home/.local/share/fnm/node-versions/v24" ] || fail "キーが無いのに fnm の Node を消した"
-echo "PASS: キーが無ければ揃っていない扱い（消さない）"
+[ ! -e "$home/.cache/dotfiles/node-home.cleaned" ] || fail "ユーザ単位の導入をしたのに掃除済みの印が残った"
+echo "PASS: キーが無ければ揃っていない扱い（消さない）、掃除済みの印を外す"
 echo k >"$tmp/shared/keys/23"
 
 # ---- 動いている node があれば消さない（単体: 判定関数を差し替え）----
@@ -109,43 +139,62 @@ echo k >"$tmp/shared/keys/23"
 	. "$REPO/.chezmoitemplates/node-cleanup.sh"
 	note() { :; }
 	d="$tmp/u1/fnm"
-	mk() { mkdir -p "$d/node-versions/v1" "$d/aliases"; }
+	mk() {
+		mkdir -p "$d/node-versions/v1/installation" "$d/aliases"
+		ln -sfn "$d/node-versions/v1/installation" "$d/aliases/default"
+	}
 	# running_from_any
 	mk
 	running_from_any() { return 0; }
 	running_matching() { return 1; }
-	node_cleanup_home "$d"
-	[ -d "$d/node-versions" ] || fail "running_from_any を見ていない"
+	node_cleanup_home "$d" && fail "動いているのに 0 を返した"
+	[ -d "$d/node-versions/v1" ] || fail "running_from_any を見ていない"
 	# running_matching: fnm_multishells
 	running_from_any() { return 1; }
 	running_matching() {
 		case "$1" in */fnm_multishells/) return 0 ;; esac
 		return 1
 	}
-	node_cleanup_home "$d"
-	[ -d "$d/node-versions" ] || fail "fnm_multishells を見ていない"
-	# 動いていない
-	running_matching() { return 1; }
-	node_cleanup_home "$d"
-	[ ! -e "$d/node-versions" ] && [ ! -e "$d/aliases" ] || fail "動いていないのに消えない"
-	# fnm env が作り直す空のディレクトリだけなら、消さず何も言わない
-	mkdir -p "$d/node-versions" "$d/aliases"
+	node_cleanup_home "$d" && fail "動いているのに 0 を返した"
+	[ -d "$d/node-versions/v1" ] || fail "fnm_multishells を見ていない"
+	# running_matching: aliases 経由（PATH に aliases/default/bin を通した起動）
+	running_matching() {
+		case "$1" in "$d/aliases/") return 0 ;; esac
+		return 1
+	}
+	node_cleanup_home "$d" && fail "動いているのに 0 を返した"
+	[ -d "$d/node-versions/v1" ] || fail "fnm の aliases を見ていない"
+	# 別の版だけが動いていても、消す版は消す
+	running_matching() {
+		case "$1" in */node-versions/v9/) return 0 ;; esac
+		return 1
+	}
+	node_cleanup_home "$d" || fail "動いていないのに 1 を返した"
+	[ ! -e "$d/node-versions/v1" ] && [ ! -L "$d/aliases/default" ] || fail "動いていないのに消えない"
+	[ -d "$d/node-versions" ] && [ -d "$d/aliases" ] || fail "node-versions / aliases 自体を消した"
+	# default が無ければ（fnm env が作る空のディレクトリだけなら）、消さず何も言わない
 	note() { echo "$1"; }
-	out="$(node_cleanup_home "$d")"
-	[ -z "$out" ] && [ -d "$d/node-versions" ] || fail "空の node-versions / aliases を消そうとした" "$out"
+	out="$(node_cleanup_home "$d")" || fail "default が無いのに 1 を返した"
+	[ -z "$out" ] && [ -d "$d/node-versions" ] || fail "default が無いのに何かしようとした" "$out"
+	# default が壊れている（版が無い）なら何もしない
+	ln -sfn "$d/node-versions/v7/installation" "$d/aliases/default"
+	out="$(node_cleanup_home "$d")" || fail "壊れた default で 1 を返した"
+	[ -z "$out" ] && [ -L "$d/aliases/default" ] || fail "壊れた default に触れた" "$out"
 ) || exit 1
 echo "PASS: 動いている node があれば fnm の Node を残す"
-echo "PASS: 空の node-versions / aliases（fnm env が作る）には触れない"
+echo "PASS: default が無い・壊れているなら何もしない"
 
 # ---- macOS の ps は fnm_multishells のリンクのパスだけを出す ----
 if [ ! -d /proc/self ]; then
 	mkfnm
+	rm -f "$home/.cache/dotfiles/node-home.cleaned"
 	printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s/.local/state/fnm_multishells/123_456/bin/node" /usr/bin/other\n' "$home" >"$stubs/ps"
 	run30 >/dev/null || fail "ps 偽物で失敗"
 	[ -d "$home/.local/share/fnm/node-versions/v24" ] || fail "リンク経由で動く node の実体を消した"
 	printf '#!/usr/bin/env bash\nexit 0\n' >"$stubs/ps"
+	[ ! -e "$home/.cache/dotfiles/node-home.cleaned" ] || fail "残したのに掃除済みの印を置いた"
 	run30 >/dev/null
-	[ ! -e "$home/.local/share/fnm/node-versions" ] || fail "止まった次回に消えない"
+	assert_default_only_removed "止まった次回"
 	echo "PASS: macOS 形式の ps（リンクのパスだけ）でも動作中を見て、実体を消さない"
 fi
 

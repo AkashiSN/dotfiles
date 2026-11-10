@@ -136,7 +136,7 @@ difit / cline のように npm で配られる CLI を、共有 aqua の Node �
 - **GC**: 新しい組を入れたあと、1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/npm-global/<key>/` を含む、`current/bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む）は消さず、次回に回す。
 - **PATH**: `env.sh` が、`/opt/npm-global/current/bin` と `keys/23` の両方が在るときだけ `~/.local/bin` の後ろに足す。
 - **ユーザ側**（`run_after_30-node-default.sh.tmpl`、毎回実行）:
-  - 揃っている間は、ホームの fnm の `node-versions` と `aliases` を消す（fnm 本体と他のディレクトリは残す。プロジェクトで使う版は各自が `fnm install` で入れ直す）。動いている node（実行ファイルが `node-versions` の下、または macOS の `ps` が出す `fnm_multishells/` のリンクのパス）があれば次の apply に回す。どちらも空なら（`fnm env` がシェルごとに空のまま作り直す）何もしない。
+  - 揃っている間は、ホームの fnm の既定の Node だけを消す。対象は `aliases/default` と `aliases/lts-latest` が指す版（ユーザ単位の導入の `fnm install --lts` / `fnm alias default lts-latest` が作るもの）と、その版を指す alias（`default` / `lts-latest` / `lts-<名前>` など）。それ以外の版と alias、fnm 本体と他のディレクトリはプロジェクトの `.nvmrc` 用に残す。動いている node（実行ファイルが消す版の下、または macOS の `ps` が出す `fnm_multishells/` や `aliases/` のリンクのパス）があれば次の apply に回す。`default` / `lts-latest` が無い・版を指していないなら何もしない。掃除を終えたら `~/.cache/dotfiles/node-home.cleaned` を置き、以後は自分で `fnm default` を付け直しても消さない（ユーザ単位の導入をした回にこの印を外す）。
   - 揃っていない間（`current/bin` か `keys/23` が無い）は fnm の LTS と `NPM_GLOBALS`（`bootstrap/23-shared-npm.sh` の行）をユーザ単位で入れる。`~/.cache/dotfiles/node-user.key` のマーカーは成功したときだけ進める。fnm の Node は消さない。`~/.local/bin/difit` は共有側の実体が在ればそちらを使う。
 - **入れるもの**: `difit` と `cline` だけ。work の `@drawio/mcp` / `@mermaid-js/mermaid-cli` / `agent-browser` は、こちらでは使っていない（agent-browser は `aqua.yaml`）ので入れない（[work-sync.md](work-sync.md)）。
 

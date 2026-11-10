@@ -1,46 +1,77 @@
 # shellcheck shell=bash
-# ホームに残った fnm の Node（node-versions と default などの aliases）を掃除する。bash。
+# ホームに残った fnm の既定の Node（default / lts-latest の alias とその指す版）を掃除する。bash。
 # .chezmoiscripts の run_after_30 が source する（テンプレートの記法は含めず、tests/ からそのまま source できる）。
 # 前提: bootstrap/lib.sh を source 済み（note / running_from_any / running_matching）。
 #
-# fnm の本体と、fnm が使う他のディレクトリ（multishells など）には触れない。プロジェクトで使う版は
-# 各自が fnm install で入れ直す。
+# fnm はプロジェクトの .nvmrc 用に残す。消すのは、ユーザ単位の導入（fnm install --lts と
+# fnm alias default lts-latest）が作る default / lts-latest の alias、その指す版、その版を指す他の
+# alias だけ。それ以外の版と alias、fnm の本体、fnm が使う他のディレクトリ（multishells など）には触れない。
 
-# _node_dir_has_entries <dir>: <dir> に（隠しファイルを含め）何かあれば 0。
-_node_dir_has_entries() {
-	local f
-	for f in "$1"/* "$1"/.[!.]* "$1"/..?*; do
-		[ -e "$f" ] || [ -L "$f" ] || continue
-		return 0
-	done
-	return 1
+# _node_alias_version <fnm_dir> <alias のパス>
+# alias（node-versions/<版>/installation への symlink）が指す版の名前を出す。読めなければ 1。
+_node_alias_version() {
+	local t v
+	[ -L "$2" ] || return 1
+	t="$(readlink "$2")" || return 1
+	case "$t" in
+	*/node-versions/*) ;;
+	*) return 1 ;;
+	esac
+	v="${t##*/node-versions/}"
+	v="${v%%/*}"
+	case "$v" in
+	"" | . | ..) return 1 ;;
+	esac
+	[ -d "$1/node-versions/$v" ] || return 1
+	printf '%s\n' "$v"
 }
 
 # node_cleanup_home <fnm_dir>
-# <fnm_dir>/node-versions と <fnm_dir>/aliases を、動いている node が無いときだけ消す。
-# 動いているかは次のどれかで見る。
-#   - 実行ファイルが node-versions の下にある（running_from_any）
-#   - 実行ファイルのパスに node-versions や fnm_multishells が含まれる（running_matching）
-# macOS の ps は PATH 上のリンク（fnm_multishells/<id>/bin/node）で起動したプロセスをそのリンクの
-# パスで出し、実体の node-versions は出さない。fnm_multishells は fnm が各シェルに作るリンクの置き場。
+# default / lts-latest の alias が指す版を、動いている node が無いときだけ消す。その版を指す alias
+# （default / lts-latest を含む）も消す。消し終えた、または消すものが無ければ 0、動いているため
+# 残したら 1 を返す。動いているかは次のどれかで見る。
+#   - 実行ファイルが消す版の下にある（running_from_any / running_matching）
+#   - 実行ファイルのパスに fnm_multishells や fnm の aliases が含まれる（running_matching）
+# macOS の ps は PATH 上のリンク（fnm_multishells/<id>/bin/node や aliases/default/bin/node）で起動した
+# プロセスをそのリンクのパスで出し、実体の版は出さない。リンクからは版を判別できないため、どれかが
+# 動いていれば残す。
 node_cleanup_home() {
-	local fnm_dir="$1" busy=0
-	# fnm env は空の node-versions / aliases をシェルごとに作り直す。空なら消すものは無い。
-	_node_dir_has_entries "$fnm_dir/node-versions" || _node_dir_has_entries "$fnm_dir/aliases" || return 0
-	running_from_any "$fnm_dir/node-versions" && busy=1
-	if [ "$busy" -eq 0 ]; then
-		running_matching "$fnm_dir/node-versions/" && busy=1
-	fi
-	if [ "$busy" -eq 0 ]; then
-		running_matching "/fnm/node-versions/" && busy=1
-	fi
-	if [ "$busy" -eq 0 ]; then
-		running_matching "/fnm_multishells/" && busy=1
-	fi
+	local fnm_dir="$1" a v vers="" busy=0
+	local -a links=()
+	for a in default lts-latest; do
+		v="$(_node_alias_version "$fnm_dir" "$fnm_dir/aliases/$a")" || continue
+		case " $vers " in
+		*" $v "*) ;;
+		*) vers="${vers:+$vers }$v" ;;
+		esac
+	done
+	[ -n "$vers" ] || return 0
+
+	for v in $vers; do
+		running_from_any "$fnm_dir/node-versions/$v" && busy=1
+		running_matching "$fnm_dir/node-versions/$v/" && busy=1
+		running_matching "/fnm/node-versions/$v/" && busy=1
+	done
+	running_matching "/fnm_multishells/" && busy=1
+	running_matching "$fnm_dir/aliases/" && busy=1
+	running_matching "/fnm/aliases/" && busy=1
 	if [ "$busy" -eq 1 ]; then
-		note "fnm の node が動いているため、fnm の Node は次の chezmoi apply で消します"
-		return 0
+		note "fnm の node が動いているため、fnm の既定の Node ($vers) は次の chezmoi apply で消します"
+		return 1
 	fi
-	note "共有の Node を使うため削除: $fnm_dir/node-versions, $fnm_dir/aliases"
-	rm -rf "$fnm_dir/node-versions" "$fnm_dir/aliases"
+
+	# 消す版を指す alias を集める（default / lts-latest のほか、fnm install --lts が付けた名前も）。
+	for a in "$fnm_dir"/aliases/*; do
+		[ -L "$a" ] || continue
+		v="$(_node_alias_version "$fnm_dir" "$a")" || continue
+		case " $vers " in
+		*" $v "*) links+=("$a") ;;
+		esac
+	done
+	note "共有の Node を使うため、fnm の既定の Node を削除: $vers"
+	[ "${#links[@]}" -eq 0 ] || rm -f "${links[@]}"
+	for v in $vers; do
+		rm -rf "${fnm_dir:?}/node-versions/$v"
+	done
+	return 0
 }
