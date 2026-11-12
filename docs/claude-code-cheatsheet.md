@@ -203,14 +203,15 @@ popup から worktree の差分が見えない。そこで 2 段で `EnterWorktr
 | 段 | 置き場 | 中身 |
 | --- | --- | --- |
 | 指示 | `private_dot_claude/modify_CLAUDE.md` の「worktree を作ったらセッションごと移る」 | 作るなら `EnterWorktree`（`name`）。`git worktree add` で作ったものへは直後に `EnterWorktree`（`path`）で移る |
-| hook | `hooks/executable_worktree-enter-reminder.sh`（`PostToolUse`、matcher `Bash`） | `git [-C <dir>] worktree add` を含む Bash の後、作った worktree のパスを示して移動を促す（`additionalContext`）。パスが解けなければ `git worktree list` で確かめさせる。`jq` が無ければ無出力で終わる |
+| hook | `hooks/executable_worktree-enter-reminder.sh`（`PostToolUse`、matcher `Bash`） | `git [-C <dir>] worktree add` を含む Bash の後、作った worktree のパスを示して移動を促す（`additionalContext`）。示すのは、コマンドから解いたパスが `git worktree list` に載っている worktree（メインの作業ツリーを除く）と一致したときだけ。空白を含む引用符・バックスラッシュ・変数、手前の `cd` / `pushd` / `||` / 引用符があるときはパスを解かず、`git worktree list` で確かめるよう促すだけにする（文字列の中の記述や実行されなかった分岐で、別のディレクトリへ誘導しないため）。`jq` が無ければ無出力で終わる |
 
 hook の登録はユーザ層（`modify_settings.json.tmpl` の `MANAGED.hooks.PostToolUse`。`pr-refresh-check.sh` と同じエントリ）。
 policy 層にも書くと hooks は全ソースがマージされて二重に走るので、こちらだけに置く。
 
 ```sh
-# 動作確認: worktree のパスを示す additionalContext が返るか
-mkdir -p /tmp/wt-test/x
+# 動作確認: worktree のパスを示す additionalContext が返るか（登録済みの worktree が要る）
+git init -q /tmp/wt-test && git -C /tmp/wt-test commit -q --allow-empty -m init
+git -C /tmp/wt-test worktree add -q -b foo x
 printf '{"tool_input":{"command":"git worktree add -b foo x"},"cwd":"/tmp/wt-test"}' \
   | ~/.claude/hooks/worktree-enter-reminder.sh | jq -r .hookSpecificOutput.additionalContext
 ```

@@ -130,7 +130,7 @@ done | sort -rn
 | `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |
 | `executable_aws-auth-ensure` / `executable_claude-bedrock` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
-| `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | 同上（登録場所を指すコメント）。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
+| `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | **こちらが新しい（2026-11-12）。** 解いたパスが `git worktree list` に載る worktree と一致したときだけ示し、引用符・`cd`・`||` などで確実に解けない入力は一覧確認へ回す（work 側は、引用符付きのパスや `cd other && git worktree add wt`、`printf` の中の記述で、実在する別のディレクトリへの EnterWorktree を指示する）。work へ配る側。ほかに登録場所を指すコメントの差分がある。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
 | `executable_difit` | 実体の場所。work は root が置く `/opt/npm-global/current/bin/difit`、こちらは fnm の `aliases/default` の下（複数ユーザ化を入れるまで） |
 | `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` | work は共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するため `AQUA_GLOBAL_CONFIG` を export する。こちらは公式インストーラの実体なので要らない（複数ユーザ化を入れるまで） |
 | `executable_claude-bedrock` | **こちらが正しい（2026-11-09）。** work の Haiku の既定が `global.anthropic.claude-haiku-5-5[1m}`（`]` が `}`）になっている。work へ配る側 |
