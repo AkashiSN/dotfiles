@@ -201,12 +201,21 @@ flowchart LR
 ## カスタムコマンド（popup）
 
 `[[keys.command]]` で割り当てた外部 TUI。`type = "popup"` はタブ/ペイン構成を変えない
-セッションモーダル端末で、閉じれば元のレイアウトに戻る。**フォーカス中ペインの作業ディレクトリ**で
+セッションモーダル端末で、閉じれば元のレイアウトに戻る。**フォーカス中ペインの前面プロセスの作業ディレクトリ**で
 起動するので、エージェントを動かしているペインから押せばそのリポジトリのまま開く。
+Claude Code が `EnterWorktree` で worktree へ移っていれば、**元のリポジトリではなくその worktree** で開く。
+Claude がシェルの `git worktree add` で作っただけでは claude プロセスの cwd が元のリポジトリのままになるため、
+PostToolUse hook（`worktree-enter-reminder.sh`、[Claude Code チートシート](claude-code-cheatsheet.md) 参照）で
+作成直後に `EnterWorktree`（`path`）で移らせている。
+
+> どの popup も `~/.local/bin/herdr-here`（chezmoi ソース = `dot_local/bin/executable_herdr-here`）を挟んで起動している。
+> herdr の popup 自体はペインのシェルの cwd で開くため、claude プロセスだけが worktree へ移った状態には追随しない。
+> `herdr-here` は起動元ペイン（`$HERDR_ACTIVE_PANE_ID`）の `foreground_cwd`（`herdr pane get` で見える、前面プロセスの cwd）へ
+> `cd` してからツールを `exec` する。取得できないときやディレクトリが消えているときは、popup の cwd のまま起動する。
 
 | キー | 動作 |
 | --- | --- |
-| `<prefix> d` | 見たい差分を選んで `difit` に渡す（**ブラウザ**で開く。行にコメントを付けながら腰を据えてレビューするとき。選択 UI は `Tab` で 2 つ選ぶと範囲比較、`Ctrl-R` は選ばずにタブを開き直す） |
+| `<prefix> d` | 見たい差分を選んで `difit` に渡す（**ブラウザ**で開く。行にコメントを付けながら腰を据えてレビューするとき。選択 UI は先頭の `base` = ベースブランチとの差分なので `Enter` だけで PR 相当の差分、`Tab` で 2 つ選ぶと範囲比較、`Ctrl-R` は選ばずにタブを開き直す） |
 | `<prefix> shift+d` | gitui を popup で開く（**端末内**の差分確認・hunk 単位のステージング・コミット） |
 | `<prefix> f` | yazi を popup で開く（プレビュー付きファイラ。テキストファイルは `Enter` で `$EDITOR`(=nvim)） |
 | `<prefix> m` | md を選んで `mo` に渡す（**ブラウザ**で開く。mermaid・全文検索・保存即反映が要るとき。選択 UI は `Tab` で複数選択、`Ctrl-R` は選ばずにタブを開き直す、`Ctrl-G` は `.gitignore` 対象も出す） |
@@ -225,10 +234,12 @@ popup は Escape を含む全ての入力を中のアプリへ渡すため、her
 `.terraform/modules` や `node_modules` の README を数百件抱えるリポジトリがあるため。
 
 **difit 側（`<prefix> d`）の中身**: popup で動くのは `~/.local/bin/herdr-difit`（chezmoi ソース =
-`dot_local/bin/executable_herdr-difit`）で、未コミットの 3 通り（`.` = staged + working / `staged` /
-`working`）と `git log` を `fzf` に流し、選ばれたものを `difit` へ渡す橋渡し。プレビューは
+`dot_local/bin/executable_herdr-difit`）で、ベースブランチとの差分（`base`）・未コミットの 3 通り
+（`.` = staged + working / `staged` / `working`）と `git log` を `fzf` に流し、選ばれたものを `difit` へ渡す橋渡し。
+**先頭の `base` は分岐点〜作業ツリーの差分**（PR 相当 + 未コミット）で、開いて `Enter` だけで見られ、
+後から積まれたコミットにも追従する（詳細は [git 差分レビュー チートシート](git-diff-cheatsheet.md)）。プレビューは
 `git diff` / `git show`。**`Tab` で 2 つ選ぶとその 2 コミット間の差分**になる（一覧は新しい順なので、
-上に選んだ方が比較の起点 = `difit <新しい方> <古い方>`）。未コミットの 3 つは範囲比較に混ぜられない。
+上に選んだ方が比較の起点 = `difit <新しい方> <古い方>`）。`base` と未コミットの 3 つは範囲比較に混ぜられない。
 `Esc` で何もせず終了、**`Ctrl-R` は差分を選ばずに今動いている difit のタブを開き直す**
 （ポートフォワードが切れたときの張り直し。サーバは立て直さないので付けたコメントも残る）。
 
@@ -310,7 +321,7 @@ yazi 内で `.` を押せば一時的にトグルできる。
 
 **chezmoi で自動導入**している（手動で `herdr integration install` を叩く必要はない）:
 
-- `.chezmoiscripts/run_onchange_after_45-herdr-integration.sh.tmpl` が `chezmoi apply` 時に
+- `.chezmoiscripts/run_after_45-herdr-integration.sh.tmpl` が `chezmoi apply` のたびに
   `herdr integration install claude` / `... codex` を実行する。install が書くのは以下（**chezmoi 管理外**・
   herdr がバージョン管理する実行時ファイル）:
   - claude: `~/.claude/hooks/herdr-agent-state.sh`（フック本体・マシン固有パスなしのポータブル）
@@ -327,9 +338,8 @@ yazi 内で `.` を押せば一時的にトグルできる。
 | `herdr integration install <agent>` | フックを導入 / 最新版へ更新（claude/codex/pi/… 対応） |
 | `herdr integration uninstall <agent>` | フックを除去 |
 
-> herdr 本体を更新してフック版が上がったとき（`status --outdated-only` に出る）は、
-> `run_onchange_after_45-herdr-integration.sh.tmpl` 内の `herdr-integration-marker:` の日付を書き換えると
-> 既存マシンでも `chezmoi apply` で再導入されて最新版に揃う。
+> herdr 本体を更新してフック版が上がったとき（`status --outdated-only` に出る）も、
+> 次の `chezmoi apply` で再導入されて最新版に揃う。
 
 ---
 

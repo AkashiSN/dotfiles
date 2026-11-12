@@ -2,10 +2,21 @@
 # herdr-difit - 見たい差分を fzf で選び、difit (ブラウザ版 diff ビューア) へ渡す
 #
 # 実際に行うこと:
-#   1. 未コミットの 3 通り (. / staged / working) と、そのリポジトリのコミット履歴を一覧する
+#   1. ベースブランチとの差分 (base)、未コミットの 3 通り (. / staged / working)、そのリポジトリの
+#      コミット履歴を一覧する
 #   2. fzf で選ばせる (Tab で 2 つ選ぶとその 2 コミット間の差分、プレビューは git diff/show)
 #   3. difit をバックグラウンドで起動し、返ってきた URL を $BROWSER (= portfwd-open) へ渡す。
 #      手元 PC の portfwd が中継してローカルのブラウザが開く
+#
+# base (ベースブランチとの差分) を先頭に置く理由:
+#   レビューしたいのはたいてい「このブランチで足した分」= ベースブランチから分岐した地点と
+#   作業ツリーの差分で、PR の差分と同じものになる。コミットを選ぶ方式だと起点を毎回探す
+#   手間があり、選んだ時点のコミットに固定されて後から積まれたコミットが出ない。base は
+#   difit . <base> --merge-base で起動する。difit は . のとき作業ツリーを監視し、差分を
+#   作り直すたびに merge-base を解き直すので、新しいコミットや編集にもそのまま追従する。
+#   一覧の先頭 (= fzf の初期カーソル) なので、開いて Enter だけで見られる。
+#   ベースブランチは origin/HEAD (リモートの既定ブランチ) から決め、解けなければ
+#   origin/main → origin/master → main → master の順に探す。どれも無ければ base は出さない。
 #
 # difit を直に popup で動かさない理由:
 #   difit は前面に留まってサーバを持つ。herdr の popup はセッションモーダルなので、そのまま
@@ -35,15 +46,19 @@
 #
 # 未追跡ファイルについて:
 #   difit は既定で git の意味論に従うため、まだ `git add` していないファイルは . / working の
-#   差分に出てこない。エージェントが新規作成したファイルを読み落とすのが痛いので、この 2 つを
-#   選んだときだけ --include-untracked を付ける (コミットを選んだときは意味が無いので付けない)。
+#   差分に出てこない。エージェントが新規作成したファイルを読み落とすのが痛いので、作業ツリーを
+#   含む base / . / working を選んだときだけ --include-untracked を付ける (コミットを選んだときは
+#   意味が無いので付けない)。
 #
 # 使用方法:
 #   herdr-difit
-#   - herdr の popup (<prefix> d) から起動される。popup はフォーカス中ペインの作業ディレクトリ
-#     で開くので、エージェントを動かしているリポジトリのまま一覧が出る。
+#   - herdr の popup (<prefix> d) から起動される。herdr-here がフォーカス中ペインの前面
+#     プロセスの cwd へ移してから呼ぶので、エージェントを動かしているリポジトリ (Claude Code が
+#     worktree へ移っていればその worktree) のまま一覧が出る。
+#   - 先頭の base は、ベースブランチから分岐した地点と作業ツリー (未追跡ファイルを含む) の
+#     差分。開いて Enter だけでこれになる。
 #   - Tab で 2 つ選ぶと範囲比較になる。一覧は新しい順なので、上に選んだ方が比較の起点
-#     (difit <新しい方> <古い方>)。未コミットの 3 つは範囲比較に混ぜられない。
+#     (difit <新しい方> <古い方>)。base と未コミットの 3 つは範囲比較に混ぜられない。
 #   - 何も選ばずに Esc で抜けたときは何もしない (= popup がそのまま閉じる)。
 #
 # 入出力の約束:
@@ -129,9 +144,30 @@ difit 自体は起動しています: ${url}"
 	pause
 }
 
-# 未コミットの 3 通り。difit の予約語をそのまま 1 列目に置き、選択後は 1 列目だけを使う
-# (コミット行も %h が 1 列目なので、一覧全体で「1 列目 = difit へ渡す引数」に揃う)。
-specials=(
+# ベースブランチ。origin/HEAD (リモートの既定ブランチ) を優先し、無ければよくある名前を探す。
+# 見つからなければ空のままにして、一覧に base を出さない。
+base=''
+if ref=$(git rev-parse --abbrev-ref --verify --quiet origin/HEAD 2>/dev/null) && [ -n "$ref" ]; then
+	base=$ref
+else
+	for ref in origin/main origin/master main master; do
+		if git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null 2>&1; then
+			base=$ref
+			break
+		fi
+	done
+fi
+# fzf のプレビューは別の sh -c で走るので、環境変数で渡す
+export HERDR_DIFIT_BASE=$base
+
+# 一覧の 1 列目が選択後の識別子になる。base と未コミットの 3 通り (difit の予約語そのまま)、
+# コミット行は %h が 1 列目なので、一覧全体で「1 列目 = 何を見るか」に揃う。base はコミット
+# ハッシュ (16 進) と重ならない。
+specials=()
+if [ -n "$base" ]; then
+	specials+=("base     ${base} から分岐した地点〜作業ツリー (このブランチで足した分。未追跡も含む)")
+fi
+specials+=(
 	'.        未コミット全部 (staged + working)'
 	'staged   ステージ済みだけ'
 	'working  未ステージだけ'
@@ -141,12 +177,14 @@ specials=(
 # 切り出すため、色付きにすると 1 列目に ANSI エスケープが混ざって difit へ渡せなくなる。
 header='Tab: 2 つ選んで範囲比較  Ctrl-R: 選ばずに今の difit を開き直す'
 
+# shellcheck disable=SC2016  # プレビューの $HERDR_DIFIT_BASE は fzf が起動する sh で展開する
 if ! selection=$({
 	printf '%s\n' "${specials[@]}"
 	git log --format='%h  %ad  %s' --date=short 2>/dev/null || true
 } | fzf --multi --expect=ctrl-r --layout=reverse \
 	--header "$header" --prompt "difit/${repo}> " \
 	--preview 'case {1} in
+	  base) git diff --merge-base "$HERDR_DIFIT_BASE" --stat --patch --color=always ;;
 	  .) git diff HEAD --stat --patch --color=always ;;
 	  staged) git diff --cached --stat --patch --color=always ;;
 	  working) git diff --stat --patch --color=always ;;
@@ -188,8 +226,8 @@ case ${#targets[@]} in
 2)
 	for t in "${targets[@]}"; do
 		case $t in
-		. | staged | working)
-			die "未コミットの差分 (${t}) は範囲比較に混ぜられません。
+		base | . | staged | working)
+			die "ベースブランチとの差分・未コミットの差分 (${t}) は範囲比較に混ぜられません。
 2 つ選ぶときはコミットを 2 つ選んでください。"
 			;;
 		esac
@@ -200,9 +238,14 @@ case ${#targets[@]} in
 	;;
 esac
 
-# 未追跡ファイルは既定で差分に出ない。未コミットを見たいときだけ含める。
+# 未追跡ファイルは既定で差分に出ない。作業ツリーを見たいときだけ含める。
+# base は作業ツリー (.) をベースブランチとの merge-base と比べる形に読み替える。
 extra=()
 case ${targets[0]} in
+base)
+	targets=(. "$base")
+	extra+=(--merge-base --include-untracked)
+	;;
 . | working) extra+=(--include-untracked) ;;
 esac
 

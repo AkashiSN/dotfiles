@@ -177,9 +177,9 @@ TUI が立ったあとで `credential_process`（`aws-login`）がログイン U
 | 変数 | 既定値 |
 | --- | --- |
 | `CLAUDE_CODE_BEDROCK_REGION` | `us-east-1` |
-| `CLAUDE_CODE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-5[1m]` |
-| `CLAUDE_CODE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-5[1m]` |
-| `CLAUDE_CODE_BEDROCK_HAIKU_MODEL` | `global.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `CLAUDE_CODE_BEDROCK_OPUS_MODEL` | `global.anthropic.claude-opus-5-5[1m]` |
+| `CLAUDE_CODE_BEDROCK_SONNET_MODEL` | `global.anthropic.claude-sonnet-5-5[1m]` |
+| `CLAUDE_CODE_BEDROCK_HAIKU_MODEL` | `global.anthropic.claude-haiku-5-5[1m]` |
 
 > 内部で `CLAUDE_CODE_USE_BEDROCK=1` と上記モデルを `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` に
 > 渡して `claude` を起動する。Bedrock 連携の詳細は [AWS チートシート](aws-cheatsheet.md) の認証フロー（`aws-switch` / `aws-login`）も参照。

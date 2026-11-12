@@ -130,6 +130,10 @@ done | sort -rn
 | `executable_aws-switch` / `executable_aws-logout` | 関連ドキュメントの参照先（work は `aws-add-profile.md` と `.chezmoitemplates/aws-config-managed.ini`、こちらは `dot_aws/create_config.tmpl`）。work 側にだけ後続行の無いコメントが残っている |
 | `executable_aws-auth-ensure` / `executable_claude-bedrock` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
+| `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | **こちらが新しい（2026-11-12）。** 解いたパスが `git worktree list` に載る worktree と一致したときだけ示し、引用符・`cd`・`||` などで確実に解けない入力は一覧確認へ回す（work 側は、引用符付きのパスや `cd other && git worktree add wt`、`printf` の中の記述で、実在する別のディレクトリへの EnterWorktree を指示する）。work へ配る側。ほかに登録場所を指すコメントの差分がある。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
+| `executable_difit` | 実体の場所。work は root が置く `/opt/npm-global/current/bin/difit`、こちらは fnm の `aliases/default` の下（複数ユーザ化を入れるまで） |
+| `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` | work は共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するため `AQUA_GLOBAL_CONFIG` を export する。こちらは公式インストーラの実体なので要らない（複数ユーザ化を入れるまで） |
+| `executable_claude-bedrock` | **こちらが正しい（2026-11-09）。** work の Haiku の既定が `global.anthropic.claude-haiku-5-5[1m}`（`]` が `}`）になっている。work へ配る側 |
 
 ## 経緯
 
@@ -168,3 +172,22 @@ done | sort -rn
 
 work の `docs/claude-settings.md` に足された「popup へ来るのはログインセッションが切れたときだけ」は、
 こちらでは `docs/herdr-cheatsheet.md` の popup の節に置いた。
+
+2026-11-09 に、2026-09-17 以降の work 側（b23ba02..6c03a76）を取り込んだ。
+
+| 取り込んだもの | 中身 |
+| --- | --- |
+| `herdr-here`（aaec3cc） | popup をフォーカス中ペインの前面プロセスの cwd で開く（Claude Code が worktree へ移っていればその worktree）。`config.toml` の popup 5 つを経由させた |
+| `herdr-difit` の `base`（aaec3cc） | 一覧の先頭にベースブランチとの差分（`--merge-base --include-untracked`） |
+| worktree へ移らせる hook と指示（a193a18） | `worktree-enter-reminder.sh`。登録はユーザ層、指示は `modify_CLAUDE.md` |
+| `claude` 関数の `rehash` | 覚えている実体が消えていたら PATH を引き直す |
+| `.gitignore_global` の `.superpowers/` | — |
+| `claude-bedrock` の既定モデル | 5-5 系へ。work の Haiku の誤記（`[1m}`）は直して取り込んだ |
+| herdr integration の `run_after_`（8937733） | apply のたびにフックを入れ直し、herdr 本体の更新に追従 |
+| `git-commit` / `gh-pr-create` スキル（7cf1373） | そのまま |
+| Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` の custom manager。CodeArtifact・自前 workflow・`/opt` 向けの manager（Kiro / Rust / agmsg / uv tool）は取り込まない |
+
+取り込まなかったもの: `/opt` へ寄せる複数ユーザ化（共有 aqua ストア、`/opt/npm-global` / `/opt/uv` /
+`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`）は、Mac での設計を
+別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
+sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。

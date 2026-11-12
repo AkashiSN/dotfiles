@@ -1,0 +1,42 @@
+#!/bin/bash
+# herdr-here <command> [args...] - 起動元ペインの前面プロセスの cwd へ移ってからコマンドを実行する
+#
+# 実際に行うこと:
+#   1. popup を開いたときにフォーカスしていたペイン ($HERDR_ACTIVE_PANE_ID) を herdr に問い合わせ、
+#      その foreground_cwd (前面プロセスの cwd) を得る
+#   2. そこへ cd して <command> を exec する
+#
+# foreground_cwd を使う理由:
+#   herdr の popup はペインの cwd (= ペインを開いたシェルの cwd) で起動する。Claude Code が
+#   EnterWorktree で worktree へ移ってもシェルは元のリポジトリに居たままなので、そのままでは
+#   popup が元のリポジトリで開く。claude プロセス自身は worktree へ chdir しており、herdr は
+#   それを foreground_cwd として返すので、こちらを起点にする。
+#
+# 使用方法:
+#   herdr-here yazi
+#   - herdr の [[keys.command]] (type = "popup") から、各ツールの前に挟んで呼ばれる。
+#   - 問い合わせに失敗したとき・ディレクトリが既に無いとき ($HERDR_ACTIVE_PANE_CWD も同様に
+#     確かめる) は cd せず、popup の cwd のまま <command> を実行する。ツールが開かなくなる
+#     ことはない。
+#
+# 関連: herdr-api / docs/herdr-cheatsheet.md
+set -euo pipefail
+
+[ "$#" -gt 0 ] || {
+	printf '使い方: herdr-here <command> [args...]\n' >&2
+	exit 2
+}
+
+dir=''
+if [ -n "${HERDR_ACTIVE_PANE_ID:-}" ]; then
+	# popup の /bin/sh に ~/.local/bin がある保証は無いので $HOME 絶対パスで呼ぶ
+	dir=$("$HOME/.local/bin/herdr-api" pane.get "{\"pane_id\":\"$HERDR_ACTIVE_PANE_ID\"}" 2>/dev/null |
+		python3 -c 'import json,sys; print(json.load(sys.stdin)["pane"].get("foreground_cwd") or "")' 2>/dev/null) ||
+		dir=''
+fi
+[ -n "$dir" ] && [ -d "$dir" ] || dir=${HERDR_ACTIVE_PANE_CWD:-}
+if [ -n "$dir" ] && [ -d "$dir" ]; then
+	cd "$dir"
+fi
+
+exec "$@"

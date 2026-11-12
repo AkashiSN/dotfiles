@@ -8,6 +8,8 @@
 | `settings.json` の `enabledPlugins` / `extraKnownMarketplaces` / `hooks` / `statusLine` | `private_dot_claude/modify_settings.json.tmpl`（`MANAGED`） |
 | hook 本体 | `private_dot_claude/hooks/executable_*.sh`（`~/.claude/hooks/` へ展開） |
 | `/compact-prep` スキル | `private_dot_claude/skills/compact-prep/SKILL.md`（`~/.claude/skills/compact-prep/` へ展開） |
+| `/git-commit` / `/gh-pr-create` スキル | `private_dot_claude/skills/{git-commit,gh-pr-create}/SKILL.md`（下の「配っているスキル」） |
+| worktree へ移らせる指示 | `private_dot_claude/modify_CLAUDE.md`（`~/.claude/CLAUDE.md`）+ `hooks/executable_worktree-enter-reminder.sh`（下の「worktree を作ったらセッションごと移る」） |
 
 > `~/.claude/settings.json` は Claude Code 自身が書き戻すため、chezmoi 側は
 > `modify_settings.json.tmpl` で **`MANAGED` に書いたキーだけ**を所有する。ここにある設定を
@@ -188,3 +190,47 @@ Claude Code 側の登録状況は `/hooks` と `/status` で確認できる。
 
 - `~/.claude/skills/` には `graphify install` が置く `graphify/` も同居するが、chezmoi は
   管理外のものを消さない（[knowledge-graph-cheatsheet.md](knowledge-graph-cheatsheet.md#graphify)）。
+
+---
+
+## worktree を作ったらセッションごと移る
+
+herdr の popup（`<prefix> d` の difit など）は `herdr-here` 経由で **claude プロセスの cwd** を起点に開く
+（[herdr チートシート](herdr-cheatsheet.md) の「カスタムコマンド（popup）」）。Claude がシェルの
+`git worktree add` で worktree を作り、`cd` や `git -C` で外から作業すると cwd が元のリポジトリのままになり、
+popup から worktree の差分が見えない。そこで 2 段で `EnterWorktree` へ誘導している。
+
+| 段 | 置き場 | 中身 |
+| --- | --- | --- |
+| 指示 | `private_dot_claude/modify_CLAUDE.md` の「worktree を作ったらセッションごと移る」 | 作るなら `EnterWorktree`（`name`）。`git worktree add` で作ったものへは直後に `EnterWorktree`（`path`）で移る |
+| hook | `hooks/executable_worktree-enter-reminder.sh`（`PostToolUse`、matcher `Bash`） | `git [-C <dir>] worktree add` を含む Bash の後、作った worktree のパスを示して移動を促す（`additionalContext`）。示すのは、コマンドから解いたパスが `git worktree list` に載っている worktree（メインの作業ツリーを除く）と一致したときだけ。空白を含む引用符・バックスラッシュ・変数、手前の `cd` / `pushd` / `||` / 引用符があるときはパスを解かず、`git worktree list` で確かめるよう促すだけにする（文字列の中の記述や実行されなかった分岐で、別のディレクトリへ誘導しないため）。`jq` が無ければ無出力で終わる |
+
+hook の登録はユーザ層（`modify_settings.json.tmpl` の `MANAGED.hooks.PostToolUse`。`pr-refresh-check.sh` と同じエントリ）。
+policy 層にも書くと hooks は全ソースがマージされて二重に走るので、こちらだけに置く。
+
+```sh
+# 動作確認: worktree のパスを示す additionalContext が返るか（登録済みの worktree が要る）
+git init -q /tmp/wt-test && git -C /tmp/wt-test commit -q --allow-empty -m init
+git -C /tmp/wt-test worktree add -q -b foo x
+printf '{"tool_input":{"command":"git worktree add -b foo x"},"cwd":"/tmp/wt-test"}' \
+  | ~/.claude/hooks/worktree-enter-reminder.sh | jq -r .hookSpecificOutput.additionalContext
+```
+
+---
+
+## 配っているスキル
+
+| スキル | 中身 |
+| --- | --- |
+| `compact-prep` | 圧縮前に作業状態を state file へ退避する（`/compact-prep`）。上の「コンテキスト圧縮（compact）対策」 |
+| `codex-review` | agmsg 経由で codex にレビューを依頼し、受け取って片付ける。[agmsg チートシート](agmsg-cheatsheet.md) |
+| `git-commit` | 変更からコミットメッセージを作ってコミットし、確認のうえ push する（`/git-commit`）。デフォルトブランチ上ならブランチを切る |
+| `gh-pr-create` | draft の PR を作る。同じブランチの OPEN な PR があれば説明を更新する（`/gh-pr-create [base]`）。base の省略時はリポジトリの規約、なければデフォルトブランチ |
+
+`git-commit` / `gh-pr-create` はどのリポジトリでも使えるよう、書き方を固定していない。対象リポジトリの
+`CLAUDE.md` / `CONTRIBUTING.md` / PR テンプレート / 既存のコミットに従う。**リポジトリ固有の決まり
+（scope の付け方、統合ブランチ、用語）はそのリポジトリの `CLAUDE.md` に書く。** 同じ名前のスキルや
+コマンドをリポジトリの `.claude/` に置いても、個人スキルが優先されて効かない。
+
+シェルから非対話で回す `git aicommit` / `gh pr aicreate`（[ai-git-cheatsheet.md](ai-git-cheatsheet.md)）とは別物で、
+こちらは Claude Code のセッションの中で使う。

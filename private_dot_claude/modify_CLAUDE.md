@@ -83,6 +83,20 @@ git worktree list        # 既に別の作業ツリーが動いていないか
 例外: 既に worktree の中にいるとき、未コミット変更がこのセッション自身のものだけの
 とき、ユーザが「ここで作業して」と明示したときは、そのまま進めてよい。
 
+### worktree を作ったらセッションごと移る
+
+worktree で作業するときは、**セッション自身の cwd をその worktree へ移す**。herdr の
+`<prefix> d`(difit)などはセッション(claude プロセス)の cwd を起点に開くので、元の
+リポジトリに居たまま `cd` や `git -C` で外から操作すると、ユーザが差分を見られない。
+
+- 作るなら `EnterWorktree`(`name`)を使う。作成と移動が同時に済む。
+- `git worktree add` で作った(既にある)worktree へは、**直後に `EnterWorktree` を
+  `path` 指定で呼んで移る**。ユーザが「worktree で」と言っていなくても、この指示が
+  その指示にあたる。
+- 移った後はその worktree の中で作業し、元のリポジトリへ `cd` で戻らない。
+
+同じディレクトリでブランチを切るだけ(`git switch -c`)なら cwd は変わらないので何もしなくてよい。
+
 # graphify
 - **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
