@@ -185,7 +185,7 @@ rm ~/.cache/dotfiles/node-user.key
 - **GC**: 1 つ前の組は残し、それ以前を消す。動いているプロセスがあるもの（実行ファイルが組の下、パスに `/uv/<key>/` を含む、`/opt/uv/bin/<コマンド>` や組の `bin/<コマンド>` のリンクのパスと完全一致、`ps` の引数に組のパスを含む。Python のスクリプトは macOS の `ps` で comm がインタプリタ、スクリプトのパスは引数に出る）は消さず、次回に回す。macOS の `ps` はプロジェクトの venv のリンク（`.venv/bin/python`）を出すので、`bootstrap/lib.sh` の `running_*` は comm / 引数の第 1 語が symlink なら実体まで解決して照合する。
 - **PATH**: `env.sh` が、`/opt/uv/bin` と `keys/24` の両方が在るときだけ `~/.local/bin` の後ろに足す。`codex-bedrock` は PATH 上の `python3`（3.11+）を探すので、この `python3` で動く。
 - **ユーザ側**（`run_after_35-uv-tools.sh.tmpl`、毎回実行）:
-  - 揃っている間は、ホームの uv の掃除（`.chezmoitemplates/uv-cleanup.sh`）。共有へ移したツールの実体と `~/.local/bin` の symlink を消し、ユーザが自分で入れたツールは残す。残るツールが無ければホームの Python と `python3` などの symlink も消す。動いているもの（実行ファイルが `~/.local/share/uv` の下、macOS の `ps` が出すリンクのパス、引数にスクリプトのパス）があれば何も消さず次の apply に回す。
+  - 揃っている間は、ホームの uv の掃除（`.chezmoitemplates/uv-cleanup.sh`）。共有へ移したツールの実体と `~/.local/bin` の symlink を消し、ユーザが自分で入れたツールは残す。残るツールが無ければホームの Python と `python3` などの symlink も消す（既定の版のほか、`~/.local/bin` の `python` / `python3` が指す前の既定の版と、どのリンクからも指されていない版。ユーザが `python3.14` などで出した版は残す）。動いているもの（実行ファイルが `~/.local/share/uv` の下、macOS の `ps` が出すリンクのパス、引数にスクリプトのパス）があれば何も消さず次の apply に回す。
   - 揃っていない間（`bin` か `keys/24` が無い）は `uv python install --default` と `UV_TOOLS` をユーザ単位で入れる。`~/.cache/dotfiles/uv-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。
 - **graphify の登録**: `graphify install`（ユーザ単位）は `run_after_40` が行う。実体は上の `UV_TOOLS`。
 

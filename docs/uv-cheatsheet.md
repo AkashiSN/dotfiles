@@ -25,7 +25,10 @@ Python の版は `dot_config/uv/dot_python-version` の 1 か所。PATH は `~/.
   共有へ移したツール（`UV_TOOLS` の名前）の実体と `~/.local/bin` の symlink を消し、ユーザが自分で
   `uv tool install` したツールとその symlink は残す。残るツールが無ければ、ホームの uv の既定の版の Python
   （`dot_python-version` の版。移したツールが使っていたもの）と、それを指す `python3` などの symlink も消す。
-  自分で入れた別の版の Python（例: 3.14）は残す。ホームの uv の Python やツールが動いている間（実行ファイルが
+  ほかの版は、`~/.local/bin` の `python` / `python3` が指す版（`dot_python-version` を上げる前の既定の版。
+  共有の `python3` より PATH の前に来て隠すので、リンクごと消す）と、`~/.local/bin` のどのリンクからも
+  指されていない版（移したツールの依存などで入ったもの。プロジェクトが求めれば uv が取り直す）を消す。
+  自分で `~/.local/bin` へ出した版（例: `python3.14` が指す 3.14）は残す。ホームの uv の Python やツールが動いている間（実行ファイルが
   `~/.local/share/uv` の下、macOS の `ps` が出すリンクのパス、引数にスクリプトのパス）は何も消さず次の apply へ回す。
 - **揃っていない間**（sudo を使えなかったなど）: 従来どおり `uv python install --default` と `UV_TOOLS` の各行を
   `uv tool install` でユーザ単位に入れる。`~/.cache/dotfiles/uv-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。
