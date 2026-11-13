@@ -33,9 +33,6 @@ LLM を呼ばずローカル解析だけで動く（31 言語）。
 - 本体は **aqua** が入れる（`aqua.yaml` の `colbymchenry/codegraph`。共有ストア、揃っていない間は
   ホームの aqua）。自前ランタイム同梱のバイナリなので Node は不要。起動時の更新確認と自己更新は
   `env.sh` の `CODEGRAPH_NO_UPDATE_CHECK=1` で止めてあり、版は `aqua.yaml` のピン（Renovate）で上げる。
-  公式 `install.sh` が `~/.local/bin/codegraph`・`~/.codegraph/versions` に置いた旧い実体は、
-  aqua が提供しているときに `run_after_40-ai-assistants.sh.tmpl` が消す（`~/.codegraph/telemetry.json`
-  などの設定は残す）。
 - `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` は、claude / codex を入れた**後**に登録だけを流す。
   毎回の apply では流さず、`~/.cache/dotfiles/ai-codegraph.key`（再登録マーカーと claude / codex の有無）が
   変わったときだけ流す。

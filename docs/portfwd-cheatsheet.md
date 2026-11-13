@@ -112,7 +112,8 @@ plist または daemon 本体を変更したら `chezmoi apply` すれば
 登録スクリプトが daemon 本体のハッシュも含むのは、launchd が生きているプロセスを
 再起動しないため、本体だけを更新したときも入れ替える必要があるから。
 
-ラベルは利用者に依存しない `local.dotfiles.portfwd`。旧ラベル `com.snishi.portfwd` の plist が残っていれば、登録スクリプトが bootout して削除する。
+ラベルは利用者に依存しない `local.dotfiles.portfwd`。
+経緯: 以前のラベルは `com.snishi.portfwd` で、移行中は登録スクリプトがその plist を bootout して消していた。全マシンの移行が済んだので、2026-11-13 にこの処理を外した。
 
 ## Windows セットアップ
 

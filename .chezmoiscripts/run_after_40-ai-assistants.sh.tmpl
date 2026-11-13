@@ -3,7 +3,6 @@
 # AI コーディングエージェントの CLI と周辺ツールを、このユーザで使える状態にする。
 # - Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は aqua が入れる（共有ストア、
 #   揃っていない間はホームの aqua。aqua.yaml の AI エージェントのグループ）。ここでは取得せず、
-#   ホームに残った公式インストーラの実体の掃除（.chezmoitemplates/ai-cleanup.sh）と、
 #   ユーザ単位の登録（MCP・スキル・agmsg など）だけを行う。
 # - macOS の Kiro CLI は aqua が提供しないため、公式インストーラ（/Applications の .app）のまま。
 # run_after: chezmoi apply のたびに実行する。時間のかかる取得・導入は ~/.cache/dotfiles/ai-*.key の
@@ -16,8 +15,6 @@ set -o pipefail
 DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
 # shellcheck source=/dev/null
 . "$DOTFILES_SRC/bootstrap/lib.sh"
-# shellcheck source=/dev/null
-. "$DOTFILES_SRC/.chezmoitemplates/ai-cleanup.sh"
 {{ template "shell-log" }}
 step "AI アシスタント CLI(claude/codex/kiro/agmsg/codegraph/graphify)を整え中"
 
@@ -50,14 +47,6 @@ once_step() {
 		warn "$name に失敗しました。次の apply で再試行します"
 	fi
 }
-
-# --- Claude Code / OpenAI Codex / CodeGraph / Kiro CLI（Linux）---
-# 実体は aqua が入れる。公式インストーラが ~/.local/bin などに置いた実体は、aqua が提供している
-# コマンドの分だけ消す（動いている間はリンクだけ外し、実体は次の apply で消す）。
-ai_cleanup_home "$HOME"
-for c in claude codex codegraph; do
-	ai_provided "$c" || note "aqua に $c がありません（共有ストアの更新か、ホームの aqua の install を待ちます）"
-done
 
 # --- Kiro CLI（macOS）---
 # Amazon Q Developer CLI のクローズドソース後継。aqua の定義は Linux のみ（registry.yaml）なので、

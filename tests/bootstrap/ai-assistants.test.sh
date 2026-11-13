@@ -1,189 +1,15 @@
 #!/usr/bin/env bash
-# .chezmoitemplates/ai-cleanup.sh（ホームの公式インストーラの実体の掃除）のテスト。
-# 偽のホームと偽の判定関数だけを使い、実機のファイルや aqua には触れない。
+# run_after_40-ai-assistants.sh.tmpl（AI エージェントの CLI の登録）のテスト。
+# 偽のホームと偽のコマンドだけを使い、実機のファイルや aqua には触れない。
 # shellcheck disable=SC2030,SC2031  # 子シェルでの PATH の変更は意図どおり
 set -eu
 # shellcheck source-path=SCRIPTDIR source=../lib.sh
 . "$(dirname "$0")/../lib.sh"
 # shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
 . "$REPO/bootstrap/lib.sh"
-# shellcheck source-path=SCRIPTDIR source=../../.chezmoitemplates/ai-cleanup.sh
-. "$REPO/.chezmoitemplates/ai-cleanup.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-
-# 判定関数を差し替える。PROVIDED は aqua が提供するコマンド（空白区切り）、BUSY は動作中とみなす
-# ディレクトリ部分文字列（空白区切り）。
-ai_provided() {
-	case " ${PROVIDED:-} " in *" $1 "*) return 0 ;; esac
-	return 1
-}
-running_from_any() {
-	case " ${BUSY:-} " in *" ${1%/} "*) return 0 ;; esac
-	return 1
-}
-running_matching() { return 1; }
-running_exact() { return 1; }
-
-# 公式インストーラが置いた状態の偽ホームを作る。
-mkhome() {
-	local h="$1"
-	mkdir -p "$h/.local/bin" "$h/.local/share/claude/versions/9.9.9" "$h/.local/state/claude" "$h/.cache/claude" \
-		"$h/.codex/packages/standalone/releases/1" "$h/.codex/sessions" \
-		"$h/.codegraph/versions/v1/bin" "$h/.claude"
-	: >"$h/.local/share/claude/versions/9.9.9/claude"
-	ln -s "$h/.local/share/claude/versions/9.9.9" "$h/.local/bin/claude"
-	ln -s "$h/.codex/packages/standalone/releases/1" "$h/.codex/packages/standalone/current"
-	ln -s "$h/.codex/packages/standalone/current/bin/codex" "$h/.local/bin/codex"
-	ln -s "$h/.codex/packages/standalone/current/bin/codex-code-mode-host" "$h/.local/bin/codex-code-mode-host"
-	ln -s "$h/somewhere-else/tool" "$h/.local/bin/other-tool"
-	: >"$h/.codex/config.toml"
-	: >"$h/.codex/sessions/keep"
-	: >"$h/.codegraph/telemetry.json"
-	ln -s "$h/.codegraph/versions/v1/bin/codegraph" "$h/.local/bin/codegraph"
-	ln -s "$h/.codegraph/versions/v1" "$h/.codegraph/current"
-	: >"$h/.local/bin/kiro-cli"
-	: >"$h/.local/bin/kiro-cli-chat"
-	: >"$h/.local/bin/kiro-cli-term"
-	: >"$h/.claude/settings.json"
-}
-
-# ---- aqua が何も提供しない: 何も消さない ----
-h="$tmp/h1"
-mkhome "$h"
-before="$(cd "$h" && find . | sort)"
-PROVIDED="" ai_cleanup_home "$h" >/dev/null
-assert_eq "$before" "$(cd "$h" && find . | sort)" "提供なし: 何も消さない"
-
-# ---- 全て提供: 実体と ~/.local/bin のリンクを消し、設定・認証は残す ----
-h="$tmp/h2"
-mkhome "$h"
-PROVIDED="claude codex codegraph kiro-cli" ai_cleanup_home "$h" >/dev/null
-for p in .local/bin/claude .local/share/claude .local/state/claude .cache/claude \
-	.local/bin/codex .local/bin/codex-code-mode-host .codex/packages .local/bin/codegraph .codegraph/versions .codegraph/current \
-	.local/bin/kiro-cli .local/bin/kiro-cli-chat .local/bin/kiro-cli-term; do
-	{ [ ! -e "$h/$p" ] && [ ! -L "$h/$p" ]; } || fail "提供あり: $p が残った"
-done
-echo "PASS: 提供あり: 公式インストーラの実体を消す"
-[ -L "$h/.local/bin/other-tool" ] || fail "提供あり: インストーラと関係ないリンクまで外した"
-echo "PASS: 補助コマンドのリンクも外し、関係ないリンクは残す"
-for p in .claude/settings.json .codex/config.toml .codex/sessions/keep .codegraph/telemetry.json; do
-	[ -e "$h/$p" ] || fail "提供あり: 設定・認証の $p まで消した"
-done
-echo "PASS: 設定・認証・履歴は残す"
-
-# ---- 一部だけ提供: 提供されたものだけ消す ----
-h="$tmp/h3"
-mkhome "$h"
-PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
-[ ! -L "$h/.local/bin/claude" ] || fail "claude のリンクが残った"
-[ -L "$h/.local/bin/codex" ] && [ -L "$h/.local/bin/codex-code-mode-host" ] && [ -d "$h/.codex/packages" ] || fail "提供されない codex を消した"
-[ -L "$h/.local/bin/codegraph" ] && [ -e "$h/.local/bin/kiro-cli" ] || fail "提供されない codegraph / kiro を消した"
-echo "PASS: 提供されたものだけ消す"
-
-# ---- 動作中: リンクだけ外して実体は残す。止まったら次回に消える ----
-h="$tmp/h4"
-mkhome "$h"
-out="$(PROVIDED="claude codex codegraph" BUSY="$h/.local/share/claude/versions $h/.codex/packages $h/.codegraph/versions" ai_cleanup_home "$h" 2>&1)"
-for p in .local/bin/claude .local/bin/codex .local/bin/codex-code-mode-host .local/bin/codegraph; do
-	{ [ ! -e "$h/$p" ] && [ ! -L "$h/$p" ]; } || fail "動作中: $p のリンクを外していない"
-done
-[ -d "$h/.local/share/claude/versions/9.9.9" ] && [ -d "$h/.codex/packages/standalone/releases/1" ] &&
-	[ -d "$h/.codegraph/versions/v1" ] || fail "動作中なのに実体を消した"
-assert_contains "$out" "次の chezmoi apply" "動作中: 案内を出す"
-PROVIDED="claude codex codegraph" ai_cleanup_home "$h" >/dev/null
-[ ! -e "$h/.local/share/claude" ] && [ ! -e "$h/.codex/packages" ] && [ ! -e "$h/.codegraph/versions" ] ||
-	fail "止まった次回に実体が消えない"
-echo "PASS: 動作中は実体を残し、次回に消す"
-
-# ---- symlink 経由のプロセス（running_matching）でも動作中とみなす ----
-# shellcheck disable=SC2329  # ai_cleanup_home が呼ぶ
-running_matching() {
-	case "$1" in "$h/.local/share/claude/versions/") return 0 ;; esac
-	return 1
-}
-h="$tmp/h5"
-mkhome "$h"
-PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
-[ -d "$h/.local/share/claude/versions/9.9.9" ] || fail "running_matching を見ていない"
-echo "PASS: running_matching でも動作中とみなす"
-running_matching() { return 1; }
-
-# ---- aqua の実体を指す symlink は触らない ----
-h="$tmp/h6"
-mkhome "$h"
-rm "$h/.local/bin/claude"
-mkdir -p "$tmp/x/aquaproj-aqua/pkgs"
-: >"$tmp/x/aquaproj-aqua/pkgs/claude"
-ln -s "$tmp/x/aquaproj-aqua/pkgs/claude" "$h/.local/bin/claude"
-PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
-[ -L "$h/.local/bin/claude" ] || fail "aqua を指すリンクを消した"
-echo "PASS: aqua を指すリンクは消さない"
-
-# ---- macOS の ps はリンクのパスだけを出す: 実体のディレクトリは消さず、リンクは外す ----
-# lib.sh の本物の running_* を使い、ps だけを PATH 上の偽物にする（/proc の無い macOS でのみ意味がある）。
-if [ ! -d /proc/self ]; then
-	h="$tmp/h7"
-	mkhome "$h"
-	mkdir -p "$tmp/psbin"
-	cat >"$tmp/psbin/ps" <<FAKE
-#!/usr/bin/env bash
-printf '%s\n' "$h/.local/bin/claude" "$h/.local/bin/claude-bedrock" /usr/bin/other
-FAKE
-	chmod +x "$tmp/psbin/ps"
-	(
-		PATH="$tmp/psbin:$PATH"
-		# shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
-		. "$REPO/bootstrap/lib.sh"
-		PROVIDED="claude codex" ai_cleanup_home "$h" >/dev/null
-	)
-	[ ! -L "$h/.local/bin/claude" ] || fail "リンク経由で動作中でも PATH 上のリンクは外す"
-	[ -d "$h/.local/share/claude/versions/9.9.9" ] || fail "リンク経由で動いている claude の実体を消した"
-	[ ! -e "$h/.codex/packages" ] || fail "動いていない codex の実体が残った"
-	# 完全一致: claude-bedrock だけが動いていても claude の実体は止めない
-	h="$tmp/h8"
-	mkhome "$h"
-	cat >"$tmp/psbin/ps" <<FAKE
-#!/usr/bin/env bash
-printf '%s\n' "$h/.local/bin/claude-bedrock"
-FAKE
-	(
-		PATH="$tmp/psbin:$PATH"
-		# shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
-		. "$REPO/bootstrap/lib.sh"
-		PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
-	)
-	[ ! -e "$h/.local/share/claude" ] || fail "claude-bedrock をリンク claude と取り違えた"
-	echo "PASS: macOS 形式の ps（リンクのパスだけ）でも動作中を見て、実体を消さない"
-fi
-
-# ---- 既定の ai_provided: aqua pkgs の実体があるときだけ真 ----
-unset -f ai_provided
-# shellcheck source-path=SCRIPTDIR source=../../.chezmoitemplates/ai-cleanup.sh
-. "$REPO/.chezmoitemplates/ai-cleanup.sh"
-mkdir -p "$tmp/bin" "$tmp/pkgs/aquaproj-aqua/pkgs"
-: >"$tmp/pkgs/aquaproj-aqua/pkgs/real"
-chmod +x "$tmp/pkgs/aquaproj-aqua/pkgs/real"
-cat >"$tmp/bin/aqua" <<FAKE
-#!/usr/bin/env bash
-[ "\$1" = which ] || exit 2
-case "\$2" in
-real) echo "$tmp/pkgs/aquaproj-aqua/pkgs/real" ;;
-missing) echo "$tmp/pkgs/aquaproj-aqua/pkgs/missing" ;;
-path) echo "$tmp/bin/aqua" ;;
-*) exit 1 ;;
-esac
-FAKE
-chmod +x "$tmp/bin/aqua"
-(
-	PATH="$tmp/bin:$PATH"
-	ai_provided real || fail "実体があるのに偽"
-	! ai_provided missing || fail "実体が無いのに真"
-	! ai_provided path || fail "aqua 管理外の PATH 上のものを真とした"
-	! ai_provided unknown || fail "aqua が知らないものを真とした"
-) || exit 1
-echo "PASS: 既定の ai_provided は aqua pkgs の実体の有無で決める"
 
 # ---- run_after_40 の通し実行（偽コマンドだけを PATH に置く。実機のコマンドには触れない）----
 cfg="$tmp/chezmoi.toml"
@@ -230,11 +56,8 @@ run40() {
 }
 CALLS="$tmp/calls"
 mkdir -p "$tmp/runhome"
-mkhome "$tmp/runhome"
-before="$(cd "$tmp/runhome" && find . | sort)"
 out="$(run40)" || fail "run_after_40 が失敗" "$out"
 c="$(cat "$CALLS")"
-assert_eq "$before" "$(cd "$tmp/runhome" && find . | sort | grep -v '^./.cache/dotfiles')" "aqua が提供しなければホームの実体を消さない"
 assert_contains "$c" "codegraph install --yes" "登録: codegraph install --yes"
 assert_contains "$c" "codegraph telemetry off" "登録: codegraph telemetry off"
 assert_contains "$c" "graphify install" "登録: graphify install"
