@@ -4,21 +4,30 @@
 # run_onchange: 下の plist / daemon 本体のハッシュが変わると既存マシンでも再実行される
 # （全操作が冪等）。daemon 本体を含めるのは、launchd が生きているプロセスを再起動しない
 # ため、本体だけを更新したときも bootout → bootstrap で入れ替える必要があるから。
-# plist hash: {{ include "Library/LaunchAgents/com.snishi.portfwd.plist.tmpl" | sha256sum }}
+# plist hash: {{ include "Library/LaunchAgents/local.dotfiles.portfwd.plist.tmpl" | sha256sum }}
 # daemon hash: {{ include "dot_local/bin/executable_portfwd" | sha256sum }}
 set -eu
 
 {{ template "shell-log" }}
 step "portfwd daemon を launchd に登録中"
 
-PLIST="$HOME/Library/LaunchAgents/com.snishi.portfwd.plist"
+LABEL="local.dotfiles.portfwd"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+OLD_LABEL="com.snishi.portfwd"
+OLD_PLIST="$HOME/Library/LaunchAgents/$OLD_LABEL.plist"
 DOMAIN="gui/$(id -u)"
+
+# 旧ラベルの plist が残っていれば、登録を外してファイルも消す（無ければ何もしない）。
+if [ -e "$OLD_PLIST" ]; then
+	launchctl bootout "$DOMAIN/$OLD_LABEL" 2>/dev/null || true
+	rm -f "$OLD_PLIST"
+fi
 
 # 既存を一旦 bootout してから bootstrap し直す（plist 変更を確実に反映する冪等操作）。
 # 未登録なら bootout は失敗するので握りつぶす。
 launchctl bootout "$DOMAIN" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
-launchctl enable "$DOMAIN/com.snishi.portfwd"
+launchctl enable "$DOMAIN/$LABEL"
 
 echo "portfwd: launchd 登録完了 ($DOMAIN)"
 {{- end }}

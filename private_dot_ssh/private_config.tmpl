@@ -6,6 +6,8 @@
 */ -}}
 {{- $work := dict -}}
 {{- if hasKey . "work" }}{{ $work = .work }}{{ end -}}
+{{- /* personal: 個人のホストと鍵（AkashiSN）を使うか。data が無ければ true */ -}}
+{{- $personal := dig "personal" true . -}}
 
 Host *
     # 無言のネットワーク断（NAT タイムアウト・Wi-Fi 切替・スリープ）を 90 秒ほどで検知して
@@ -23,6 +25,8 @@ Host *
 {{- else }}
     IdentityAgent       ~/.1password/agent.sock
 {{- end }}
+
+{{- if $personal }}
 
 # Suita
 Host gw-suita
@@ -81,6 +85,7 @@ Host truenas
     HostName        172.16.100.10
     User            admin
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+{{- end }}
 
 {{- if $work }}
 
@@ -108,7 +113,11 @@ Host cloudsa
 # Service
 Host gitlab.com
     HostName        gitlab.com
+{{- if $personal }}
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+{{- end }}
+
+{{- if $personal }}
 
 # github.com はアカウントごとに鍵を使い分ける。
 # デフォルト（github.com）と github.com-AkashiSN は AkashiSN の鍵。
@@ -116,6 +125,12 @@ Host gitlab.com
 Host github.com github.com-AkashiSN
     HostName        github.com
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+{{- else }}
+
+# 鍵は指定せず、ssh-agent / 既定の鍵に任せる。
+Host github.com
+    HostName        github.com
+{{- end }}
 
 {{- if $work }}
 
@@ -126,7 +141,9 @@ Host github.com-{{ $work.user }}
 
 Host gist.github.com
     HostName        github.com
+{{- if $personal }}
     IdentityFile    ~/.ssh/1password_AkashiSN.pub
+{{- end }}
 
 {{- if $work }}
 
@@ -148,6 +165,8 @@ Match tagged portfwd
     ControlPersist   10m
 {{- end }}
 
+{{- if $personal }}
+
 # Match
 {{- if eq .chezmoi.os "windows" }}
 Match host 172.16.0.* !Exec "ping -n 1 -w 1000 172.16.0.1"
@@ -161,4 +180,5 @@ Match host 172.16.0.* !Exec "ping -c1 -t1 172.16.0.1"
 
 Match host 172.16.100.* !Exec "ping -c1 -t1 172.16.100.1"
     ProxyJump gw-tokyo
+{{- end }}
 {{- end }}

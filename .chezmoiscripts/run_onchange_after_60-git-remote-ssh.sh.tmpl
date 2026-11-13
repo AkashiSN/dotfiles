@@ -1,9 +1,11 @@
 #!/bin/sh
 # chezmoi ソースリポジトリの origin を HTTPS から SSH へ切り替える。
 # run_onchange: 内容を書き換えると既存マシンでも再実行される（全操作が冪等）。
+# personal=false のユーザは GitHub の SSH 鍵を持たない前提なので、HTTPS のまま残す。
 set -eu
 
 {{ template "shell-log" }}
+{{ if (dig "personal" true .) -}}
 step "chezmoi リポジトリの origin を SSH へ切替中"
 
 REPO="{{ .chezmoi.sourceDir }}"
@@ -21,3 +23,4 @@ https://github.com/*)
 	echo "origin: $url -> $ssh_url"
 	;;
 esac
+{{ end -}}

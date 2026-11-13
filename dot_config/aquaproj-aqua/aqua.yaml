@@ -15,9 +15,10 @@ packages:
   # --- 言語ランタイム / バージョンマネージャ ---
   - name: golang/go@go1.27.2
   - name: denoland/deno@v2.9.7
+  - name: nodejs/node@v26.13.0 # npm の CLI (difit / cline) の実行用。共有 aqua に 1 つだけ置く
   - name: Schniz/fnm@v1.39.0 # node version manager
   - name: astral-sh/uv@0.13.1 # python
-  - name: rust-lang/rustup@1.29.0 # rust toolchain installer (cargo は rustup default stable で導入)
+  - name: rust-lang/rustup@1.29.0 # rust toolchain installer (toolchain の版は bootstrap/25-shared-rust.sh の RUST_VERSION)
   - name: tofuutils/tenv@v4.15.1 # terraform / opentofu
   # --- git / リポジトリ ---
   - name: cli/cli@v2.102.0 # gh
@@ -64,6 +65,18 @@ packages:
   - name: cloudflare/cloudflared@2026.10.1
   - name: jqlang/jq@jq-1.8.2
   - name: mikefarah/yq@v4.54.1
+  # --- AI エージェントの CLI と周辺ツール ---
+  # 本体の自己更新は使わない。版は Renovate が上げる。更新確認・自動更新は次で止める:
+  #   Claude Code: managed settings（run_after_42）の env.DISABLE_AUTOUPDATER
+  #   Codex: bootstrap/codex/managed_config.toml の check_for_update_on_startup
+  #   CodeGraph / Kiro CLI: ~/.config/shell/env.sh の CODEGRAPH_NO_UPDATE_CHECK / KIRO_NO_AUTO_UPDATE
+  # 各ユーザ側の設定（MCP 登録など）は run_after_40-ai-assistants が行う。
+  - name: anthropics/claude-code@v2.1.321 # Claude Code
+  - name: openai/codex@rust-v0.167.0 # OpenAI Codex CLI
+  - name: colbymchenry/codegraph@v1.6.2 # コードの知識グラフを MCP でエージェントに渡す
+  # Kiro CLI は Linux のみ（定義は local registry の registry.yaml）。macOS は /Applications の公式インストーラ。
+  - name: kiro.dev/kiro-cli@3.1.0
+    registry: local
   # --- AI エージェント補助 ---
   # AI エージェント向けブラウザ自動化 CLI (Rust 製・CDP 直結。Node/Playwright 不要)。
   # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。

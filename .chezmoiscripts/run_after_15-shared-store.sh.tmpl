@@ -1,0 +1,15 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# 共有ストア (/opt) が DOTFILES_SRC のピンと食い違うときだけ、sudo で bootstrap/run-all.sh を流す。
+# run_after（毎回実行）。一致していれば sudo を呼ばず即終了する。sudo を使えない、ダウングレードに
+# なる、更新に失敗するときは警告だけ出して apply を続ける。
+set -eu
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/guard.sh"
+{{ template "shared-store-trigger.sh" }}
+shared_store_trigger
+{{- end }}

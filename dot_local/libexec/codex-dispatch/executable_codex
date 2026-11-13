@@ -22,6 +22,21 @@
 # 関連: codex-wrapper / codex-bedrock / codex-spawn / docs/zsh-cheatsheet.md
 set -euo pipefail
 
+# claude / codex は aqua 管理の実体（共有ストア。揃っていない間はホームの aqua）なので、aqua が版を
+# 解決できるよう設定を渡す（シェルを経由しない起動元では未設定）。判定は
+# .chezmoitemplates/aqua-shared-env と同じ: 共有ストアが揃い、ホームの pkgs が共有側への symlink のとき
+# だけ共有側の設定を使い、それ以外はホームの設定。設定済みならそのまま使う。
+if [ -z "${AQUA_GLOBAL_CONFIG:-}" ]; then
+	export AQUA_ROOT_DIR="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}"
+	export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+	export AQUA_POLICY_CONFIG="${AQUA_POLICY_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua-policy.yaml}"
+	if [ -f /opt/aquaproj-aqua/config/aqua.yaml ] && [ -f /opt/dotfiles-shared/keys/20 ] && [ -L "$AQUA_ROOT_DIR/pkgs" ]; then
+		export AQUA_GLOBAL_CONFIG=/opt/aquaproj-aqua/config/aqua.yaml
+		export AQUA_POLICY_CONFIG=/opt/aquaproj-aqua/config/aqua-policy.yaml
+		export AQUA_DISABLE_LAZY_INSTALL=true
+	fi
+fi
+
 die() {
 	printf 'codex(dispatch): %s\n' "$*" >&2
 	exit 1

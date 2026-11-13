@@ -1,3 +1,7 @@
+{{- /* chezmoi データ未設定（chezmoi init 前）でも既定値で展開する */ -}}
+{{- $name := dig "git" "name" "AkashiSN" . -}}
+{{- $email := dig "git" "email" "btorntireinvynriy@gmail.com" . -}}
+{{- $signingkey := dig "git" "signingkey" "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip" . -}}
 [core]
 	autocrlf = input
 	editor = nvim
@@ -11,10 +15,18 @@
 [color]
 	ui = true
 
-{{- if eq .chezmoi.os "darwin" }}
+{{- if and $signingkey (eq .chezmoi.os "darwin") }}
 
 [commit]
 	gpgsign = true
+{{- end }}
+
+{{- if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64") }}
+
+# 共有の Homebrew（別ユーザ所有）の git を dubious ownership で拒まないようにする
+[safe]
+	directory = /opt/homebrew
+	directory = /opt/homebrew/Library/Taps/*
 {{- end }}
 
 [ghq]
@@ -30,14 +42,16 @@
 	rebase = false
 
 [user]
-	name = AkashiSN
-	email = btorntireinvynriy@gmail.com
-	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnhzqXkGkWLreU4JcDWCAH+8P47Sj5a2iMPCEZa4sip
+	name = {{ $name }}
+	email = {{ $email }}
+{{- if $signingkey }}
+	signingkey = {{ $signingkey }}
+{{- end }}
 
 [gpg]
 	format = ssh
 
-{{- if eq .chezmoi.os "darwin" }}
+{{- if and $signingkey (eq .chezmoi.os "darwin") }}
 
 [gpg "ssh"]
 	program = "op-ssh-sign"
@@ -47,9 +61,13 @@
 [url "https://"]
 	insteadOf = git://
 
+{{- /* GitHub の SSH 鍵を持つ個人の環境（personal）だけ。鍵の無いユーザの https の clone を壊さない */}}
+{{- if (dig "personal" true .) }}
+
 # https:// で書かれた clone/remote を SSH 経由に寄せる
 [url "git@github.com:"]
 	insteadOf = https://github.com/
+{{- end }}
 
 [init]
 	defaultBranch = main

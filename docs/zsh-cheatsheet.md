@@ -8,8 +8,9 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 - エディタ: `nvim`（`EDITOR` / `VISUAL`。`dot_config/shell/env.sh.tmpl` で設定。zsh・bash 共通、非インタラクティブ実行にも適用）
 - ロケール: `LANG=ja_JP.UTF-8`（`dot_config/shell/env.sh.tmpl` で設定。全シェル/スクリプトに適用）
 - Python: `~/.local/bin` を `dot_config/shell/env.sh.tmpl` で `/usr/bin` より前に置くので、`python` / `python3` は uv が `--default` で入れた版（`dot_config/uv/dot_python-version` の 3.13）になる。`env.sh` に置くのは非対話シェル（ssh の一発実行・スクリプト・他ツールからの起動）や bash でも同じ処理系を引かせるため。詳細は [uv-cheatsheet.md](uv-cheatsheet.md)
+- npm の CLI（difit / cline）: 共有側が揃っている（`/opt/npm-global/current/bin` と `/opt/dotfiles-shared/keys/23` が在る）ときだけ、`env.sh` が `/opt/npm-global/current/bin` を `~/.local/bin` の**後ろ**に足す。判定は実行時の `[ -d ]` / `[ -f ]` だけ。詳細は [shared-store-cheatsheet.md](shared-store-cheatsheet.md#npm-の-clibootstrap23-shared-npmsh)
 - macOS のパッケージ: Apple Silicon は **Homebrew**、Intel Mac は **MacPorts**（[macOS のパッケージ管理](#macos-のパッケージ管理)）
-- Rust: toolchain は **rustup**（aqua 管理）で導入。`cargo`/`rustc` は `$CARGO_HOME/bin`（=`~/.local/share/cargo/bin`）を PATH に追加。実体は run_onchange の `32-rust-default` が `rustup-init` で provisioning
+- Rust: 共有側が揃っている（`/opt/rustup/toolchains` と `/opt/cargo/bin/cargo` と `/opt/dotfiles-shared/keys/25` が在る）ときは、`env.sh` が `RUSTUP_HOME=/opt/rustup`（読み取り専用）にして、`/opt/cargo/bin` を `$CARGO_HOME/bin` の**後ろ**に足す。`CARGO_HOME`（=`~/.local/share/cargo`）はユーザごとのままなので `cargo install` は各自のホームに入る。判定は実行時の `[ -d ]` / `[ -x ]` / `[ -f ]` だけ。揃っていない間は `rustup`（aqua 管理）で各ユーザの `RUSTUP_HOME`（=`~/.local/share/rustup`）に入れる。実体は `run_after_32-rust-default` が用意する（下の「Rust の共有 toolchain」）
 - Terraform: `TF_PLUGIN_CACHE_DIR`（=`~/.cache/terraform/plugin-cache`）を `dot_config/shell/env.sh.tmpl` で設定し、provider をプロジェクト間で共有。詳細は [terraform-cheatsheet.md](terraform-cheatsheet.md)
 - 構成: 環境変数と alias は zsh・bash 共通の `~/.config/shell/{env,aliases}.sh`（[シェルの役割分担](#シェルの役割分担)）。`dot_zshrc` はローダーで、対話専用の実体は `~/.config/zsh/rc.d/*.zsh`（`00-options` / `10-path` / `20-completion` / `25-ssh-agent` / `30-plugins` / `40-tools` / `50-functions` / `60-aliases` / `70-keybindings`）を番号順に zcompile + source
 
@@ -37,7 +38,7 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `ls` | `ls -G`（色付き） |
 | `ll` | `ls -lG` |
 | `la` | `ls -laG` |
-| `brew` | Homebrew を素の PATH で実行（Apple Silicon。Intel は MacPorts なので使わない） |
+| `brew` | Homebrew を素の PATH で実行（Apple Silicon。Intel は MacPorts なので使わない）。zsh では関数が `umask 002` を付けて呼ぶ |
 
 ### Linux
 
@@ -97,6 +98,14 @@ zsh 設定（`dot_zshrc` / `dot_zshenv.tmpl` / `dot_config/shell/`）のエイ�
 | `codex-wrapper [args]` | `codex-appserver-evict` → `exec codex args`（OpenAI サブスク） | `codex-bedrock args` |
 | `codex-spawn <name> [opts]` | 配信モードを monitor にして `spawn.sh codex` へ委譲 | 認証確認 → `codex-bedrock --print-home` で一時 home と信頼設定 → evict → `spawn.sh codex` へ委譲 |
 | PATH ラッパー `codex` | 本体を exec | `codex-bedrock --print-home` の一時 home を `CODEX_HOME` に載せて本体を exec（`CODEX_HOME` 設定済みなら判定せず本体を exec） |
+
+`claude-bedrock` / `codex-bedrock` / `codex-wrapper` / PATH ラッパー `codex` の 4 本は、claude / codex が aqua 管理の実体
+（共有ストア `/opt/aquaproj-aqua`、揃っていない間はホームの aqua）のため、冒頭で aqua の設定を渡す。
+`AQUA_GLOBAL_CONFIG` が未設定のとき（VS Code 拡張ホストなどシェルを経由しない起動元）だけ、`env.sh` と同じ判定
+（共有ストアが揃い、ホームの pkgs が共有側への symlink なら共有側の設定、それ以外はホームの設定）で
+`AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` / `AQUA_ROOT_DIR`（共有側のときは `AQUA_DISABLE_LAZY_INSTALL=true` も）を export する。
+`env.sh` は `CODEGRAPH_NO_UPDATE_CHECK=1` と `KIRO_NO_AUTO_UPDATE=1` も export し、aqua が入れた CodeGraph / Kiro CLI の更新確認・自動更新を止める。
+設定済みなら触らない。4 本のブロックは同一で、`tests/bootstrap/ai-assistants.test.sh` が一致を確かめる。
 
 どれもシェル関数ではなくスクリプトなのは、シェルを経由しない起動（VS Code 拡張の spawn / agmsg の
 `spawn.sh` / 非対話 bash）に関数が届かないため。zsh の `claude` / `codex` 関数は wrapper へ渡す
@@ -271,7 +280,7 @@ model = "gpt-5.6-sol"   # ← 以降はテーブル部扱いになり、落と�
 値がそのまま出ているかまで確かめてから書き出す。
 
 `tomllib` は Python 3.11 以降の標準ライブラリ。macOS 同梱の `python3` は 3.9 なので、
-`run_onchange_after_35-uv-tools.sh.tmpl` が `uv python install` で 3.11+ を 1 つ確保する
+共有の uv（`/opt/uv/bin`。揃っていない間は `run_after_35-uv-tools.sh.tmpl` がユーザ単位に入れる `~/.local/bin`）の `python3` が 3.11+ を確保する
 （[uv チートシート](uv-cheatsheet.md#uv-管理の-python)）。合成に third-party パッケージは使わない
 （オフラインで動かなくなるのを避けるため）。実 config で実測 15ms 程度。
 
@@ -475,6 +484,26 @@ placement レコード（`despawn --force` が読む）は herdr driver が書�
 
 ---
 
+## aqua（CLI の管理）
+
+CLI は aqua（`dot_config/aquaproj-aqua/aqua.yaml`）で宣言的に管理する。darwin / linux では実体を
+マシンで 1 つの共有ストア `/opt/aquaproj-aqua`（`pkgs` / `bin` / `config`）に置き、版は全ユーザで同じになる。
+仕組み・sudo・掃除・戻し方は [shared-store-cheatsheet.md](shared-store-cheatsheet.md)。
+
+| 項目 | 内容 |
+| --- | --- |
+| install する人 | apply が食い違いを見つけたときの root だけ（`bootstrap/20-shared-aqua.sh`）。ユーザは install しない |
+| `AQUA_ROOT_DIR` | ホーム（`~/.local/share/aquaproj-aqua`）のまま。`pkgs` / `bin` は `run_after_20-aqua-verify` が `/opt/aquaproj-aqua/{pkgs,bin}` への symlink にする |
+| `AQUA_GLOBAL_CONFIG` / `AQUA_POLICY_CONFIG` | 共有側があれば `/opt/aquaproj-aqua/config/{aqua.yaml,aqua-policy.yaml}`。`AQUA_DISABLE_LAZY_INSTALL=true` も付く |
+| 共有側が使えない（sudo を通していない）とき | 従来どおり `~/.config/aquaproj-aqua/` の設定を使い、`run_after_20-aqua-verify` がホームへ `aqua policy allow` と `aqua install -a` を行う（設定が変わったときだけ。`~/.cache/dotfiles/aqua-user.key` に設定のハッシュを置く） |
+| 判定の条件 | `/opt/aquaproj-aqua/config/aqua.yaml` と `/opt/dotfiles-shared/keys/20`（揃え終えた印）が在り、かつホームの `pkgs` が symlink（`.chezmoitemplates/aqua-shared-env`。env.sh と provisioning スクリプトが共通で使う） |
+| gh の認証 | 共有側の更新は呼び出したユーザの `gh auth token` で検証する。未認証なら apply が `gh auth login` を案内する（待たない） |
+
+sudo を通さなかったマシンでは、ホームの aqua はこれまでどおりユーザ単位で入る。後から sudo が通って共有側が揃うと、
+ホームの `pkgs` / `bin` は共有側への symlink に切り替わる（元の実体は `.old.<時刻>` に退避され、動いていなければ消える）。
+
+---
+
 ## macOS のパッケージ管理
 
 aqua に無いシステムツール（GNU userland / zsh / tmux / git / ffmpeg など）と GUI アプリ・フォントは、
@@ -490,6 +519,9 @@ Mac のアーキテクチャで入れ方を分けている。実体は `.chezmoi
 | adb / fastboot | cask `android-platform-tools` | port `android-platform-tools` |
 
 Ghostty はどちらのアーキテクチャでも手動で入れる運用で、スクリプトでは扱わない。
+
+Apple Silicon の Homebrew は、複数ユーザで使えるようグループ `brew` で共有する（`/opt/homebrew` に g+w と
+setgid を付ける）。仕組み・再ログインが要ること・戻し方は [multi-user-cheatsheet](multi-user-cheatsheet.md#homebrewapple-silicon-の共有)。
 
 MacPorts は初回に GitHub の最新リリースから macOS のバージョンに合う pkg（`MacPorts-<ver>-15-Sequoia.pkg`
 など）を選んで入れる。pkg もポートのビルドも Xcode Command Line Tools を前提にしているので、未導入なら
@@ -524,13 +556,25 @@ MacPorts には cask に当たる仕組みが無いので、フォントはス�
 
 入っている版は `~/.local/state/macos-fonts/<名前>` に書いた版で判定する。
 
+### Rust の共有 toolchain
+
+toolchain は root が `/opt/rustup` に 1 つだけ置く（`bootstrap/25-shared-rust.sh`。版は `RUST_VERSION` で固定、Renovate が上げる）。プロキシ（`cargo` / `rustc` / `rustup` など）は `/opt/cargo/bin`。構成と操作は [shared-store-cheatsheet.md](shared-store-cheatsheet.md#rust-の-toolchainbootstrap25-shared-rustsh)。
+
+- **既定の toolchain の解決**: root が書く `/opt/rustup/settings.toml` の `default_toolchain` から解決する。ユーザ側で `RUSTUP_TOOLCHAIN` を設定する必要は無い（`rustup default` / `rustc --version` は固定の版を指す）。
+- **制限**: `RUSTUP_HOME` が読み取り専用なので、プロジェクトの `rust-toolchain.toml` が共有側に無い toolchain（別の版・`nightly`・追加の `targets`/`components`）を求めても、`rustup` はその場で入れられず `could not create temp file ... /opt/rustup/tmp/...: Permission denied` で失敗する。固定の版と同じ `channel` なら動く。
+- **回避策**: そのプロジェクトだけ、書ける場所を `RUSTUP_HOME` にする。`.envrc` に `export RUSTUP_HOME="$HOME/.local/share/rustup-project"` と書く（direnv）。この `RUSTUP_HOME` では `rustup` が必要な toolchain を自動で入れる。全ユーザに必要なら `bootstrap/25-shared-rust.sh` の `RUST_VERSION` / `RUST_COMPONENTS`（追加の `targets` は `rustup target add` を足す）を直して共有側に入れる。
+- **ホームの掃除**: 共有側が揃うと `run_after_32` が `~/.local/share/rustup` と、`~/.local/share/cargo/bin` のうち `rustup` と同じファイル（ハードリンク）のプロキシだけを消す。`cargo install` したもの（`cargo-foo` など）は残る。動いている rustc / cargo / rust-analyzer があれば、何も消さず次の apply に回す。初めて揃った apply のあとは新しいシェルを開く（`env.sh` が `RUSTUP_HOME` と PATH を変えるのは新しいシェルから）。
+- **揃っていない間**（sudo を使えなかったなど）は、共有側と同じ版を各ユーザの `RUSTUP_HOME` に入れる。`~/.cache/dotfiles/rust-user.key` のマーカーは成功したときだけ進める。ホームのものは消さない。
+
+経緯: 以前は `run_onchange_after_32-rust-default.sh.tmpl` が各ユーザのホームに `stable` を入れていた（`aqua.yaml` が変わったときだけ再実行）。共有ストア導入で、版を `RUST_VERSION` に固定して root が 1 つだけ置く形へ移し、毎回実行（`run_after`）のホーム側の掃除に置き換えた。
+
 ### Intel でソースからビルドするもの（sheldon）
 
 sheldon は Intel Mac 向けのバイナリを配布しておらず（0.8.0 以降は `aarch64-apple-darwin` のみ）、
 aqua registry も `darwin/arm64` しか対象にしないので、`aqua install` では入らない。そこで Intel Mac だけ
 `run_onchange_after_33-sheldon-intel-mac.sh.tmpl` が `cargo install --locked sheldon` でビルドし、
 `$CARGO_HOME/bin`（PATH で aqua の bin より前）に置く。版は `aqua.yaml` の `rossmacarthur/sheldon@` の
-ピンから読むので、Renovate が aqua.yaml を上げると同じ版でビルドし直す。cargo は `32-rust-default` が用意する。
+ピンから読むので、Renovate が aqua.yaml を上げると同じ版でビルドし直す。cargo は `32-rust-default`（共有側は `bootstrap/25-shared-rust.sh`）が用意する。共有の Rust が揃っていれば、このスクリプトも `RUSTUP_HOME=/opt/rustup` と `/opt/cargo/bin` を使う。
 
 sheldon が無いと `30-plugins` で compinit / bashcompinit が走らず、シェル起動時に
 `40-tools.zsh: command not found: complete` や `kubectl.zsh: command not found: compdef` が出る。

@@ -1,0 +1,202 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# AI コーディングエージェントの CLI と周辺ツールを、このユーザで使える状態にする。
+# - Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は aqua が入れる（共有ストア、
+#   揃っていない間はホームの aqua。aqua.yaml の AI エージェントのグループ）。ここでは取得せず、
+#   ホームに残った公式インストーラの実体の掃除（.chezmoitemplates/ai-cleanup.sh）と、
+#   ユーザ単位の登録（MCP・スキル・agmsg など）だけを行う。
+# - macOS の Kiro CLI は aqua が提供しないため、公式インストーラ（/Applications の .app）のまま。
+# run_after: chezmoi apply のたびに実行する。時間のかかる取得・導入は ~/.cache/dotfiles/ai-*.key の
+# マーカーで、キー（版・再導入マーカー）が変わったときだけ流す。
+set -eu
+# once_step の中は set -e が効かないので、途中のコマンドの失敗を取りこぼさないよう pipefail を立て、
+# 各ステップは重要なコマンドを && でつなぐか || return 1 で終える。
+set -o pipefail
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/.chezmoitemplates/ai-cleanup.sh"
+{{ template "shell-log" }}
+step "AI アシスタント CLI(claude/codex/kiro/agmsg/codegraph/graphify)を整え中"
+
+# aqua 管理のツールを解決できるよう、aqua の bin と設定を通す。共有ストアが揃っていれば
+# aqua-shared-env が共有側の設定へ向ける。
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua/bin:$HOME/.local/bin:$PATH"
+export AQUA_ROOT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+export AQUA_GLOBAL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua/aqua.yaml"
+{{ template "aqua-shared-env" }}
+# 起動時の更新確認・自動更新を止める（env.sh と同じ値。ここは env.sh を読まない）。
+export CODEGRAPH_NO_UPDATE_CHECK=1
+export KIRO_NO_AUTO_UPDATE=1
+
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+
+# once_step <名前> <キー> <コマンド...>
+# マーカー $CACHE_DIR/ai-<名前>.key がキーと同じなら流さない。流して成功（終了コード 0）したときだけ
+# マーカーを進める（失敗したら次の apply でやり直す）。コマンドは前提が欠けるときも非 0 で終える。
+once_step() {
+	local name="$1" key="$2" marker
+	shift 2
+	marker="$CACHE_DIR/ai-$name.key"
+	if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+		return 0
+	fi
+	if "$@"; then
+		mkdir -p "$CACHE_DIR"
+		printf '%s\n' "$key" >"$marker"
+	else
+		warn "$name に失敗しました。次の apply で再試行します"
+	fi
+}
+
+# --- Claude Code / OpenAI Codex / CodeGraph / Kiro CLI（Linux）---
+# 実体は aqua が入れる。公式インストーラが ~/.local/bin などに置いた実体は、aqua が提供している
+# コマンドの分だけ消す（動いている間はリンクだけ外し、実体は次の apply で消す）。
+ai_cleanup_home "$HOME"
+for c in claude codex codegraph; do
+	ai_provided "$c" || note "aqua に $c がありません（共有ストアの更新か、ホームの aqua の install を待ちます）"
+done
+
+# --- Kiro CLI（macOS）---
+# Amazon Q Developer CLI のクローズドソース後継。aqua の定義は Linux のみ（registry.yaml）なので、
+# macOS は /Applications に "Kiro CLI.app" を置く公式インストーラのまま。
+# latest しか配布されずバージョンをピンできないためチャネル指定のみ(既定 stable)。
+# インストーラは既存を見つけると置換確認プロンプト(/dev/tty)を出し非対話で失敗するため、
+# 未導入のときだけ実行する(install-once)。更新/再インストールは端末で手動実行する:
+#   curl -fsSL https://cli.kiro.dev/install | bash -s -- --force
+{{- if eq .chezmoi.os "darwin" }}
+KIRO_CHANNEL="stable"
+if ! command -v kiro-cli >/dev/null 2>&1 && [ ! -d "/Applications/Kiro CLI.app" ]; then
+	curl -fsSL https://cli.kiro.dev/install | bash -s -- --channel "$KIRO_CHANNEL"
+fi
+{{- end }}
+# シェル統合(rc ファイルへの pre/post ブロック注入)は使わない。この統合は
+# kiro-cli-term(figterm) という pty プロキシでシェルを包み直すもので、TUI の大量出力で
+# 内側 pty から読むのをやめることがある。そうなると内側 pty の出力キューが詰まって
+# 書き手の ssh が止まり、ControlMaster が mux socket への write() でブロックして
+# そのホスト宛の ssh が丸ごと固まる(docs/herdr-cheatsheet.md)。uninstall は
+# local-state の shell-integrations.enabled=false も立てるので、rc へ再注入されても
+# pre ブロックは何もしない。冪等なので毎回実行してよい。
+if command -v kiro-cli >/dev/null 2>&1; then
+	kiro-cli integrations uninstall -s dotfiles || true
+fi
+
+# --- Cline CLI ---
+# 実体は npm の CLI として共有側が置く（bootstrap/23-shared-npm.sh の NPM_GLOBALS）。共有側が揃っていない間は
+# run_after_30-node-default がユーザ単位で入れる。ここでは取得しない。
+# プロバイダ認証は非対話にできないため自動化しない。導入後に端末で一度だけ実行する:
+#   cline auth                                     # 対話ウィザード
+#   cline auth --provider anthropic --apikey sk-... --modelid <model>
+# 更新は NPM_GLOBALS の版を上げる（本体の `cline update` は共有側の実体を書き換えられない）。
+
+# --- agmsg (github.com/fujibee/agmsg) ---
+# claude と codex が同一プロジェクト内でメッセージをやり取りし相互レビューできるようにするツール。
+# claude/codex の設定(~/.agents/skills, ~/.claude/commands, ~/.codex/config.toml)を
+# 書き換えるため、両者を入れた後に導入する。
+# - 共有側が揃っている間: 配布物は root が /opt/agmsg/current に置く（bootstrap/22-shared-agmsg.sh。版と
+#   commit はそこで固定）。ここでは取得せず、その install.sh を流して ~/.agents/skills/agmsg へ入れる
+#   （導入済みなら --update）。マーカーのキーに版と commit を含めるので、共有側の版が上がると流し直す。
+# - 共有側が揃っていない間: setup.sh は temp に main を clone → install.sh "$@" 実行 → temp 破棄する
+#   ブートストラップで、引数を install.sh に転送する(claude/codex と同じ curl ワンライナー)。
+#   再インストール/更新を強制したいときは次のマーカーを書き換える(内容変更で再実行)。
+# agmsg-reinstall-marker: 2026-06-19
+# メッセージ DB 用の sqlite3 は before_10(パッケージ前提)で導入済み。
+# Codex monitor モード(beta): install.sh が ~/.codex/config.toml の writable_roots に
+# db/teams/run を追記する。run は monitor のブリッジ用で、シムは ~/.agents/bin/codex に置かれ、
+# 10-path.zsh で PATH 前段に入れている。
+# 実際の有効化はプロジェクトごとに手動(/agmsg mode monitor)。
+# 詳細: docs/agmsg-cheatsheet.md の「Codex monitor モード」節。
+SHARED_AGMSG=/opt/agmsg
+SHARED_AGMSG_KEY=/opt/dotfiles-shared/keys/22
+# 共有の agmsg が使えるのは、current の install.sh が実行でき、揃え終えた印のキーも在るときだけ。
+agmsg_shared_ready() {
+	[ -f "$SHARED_AGMSG_KEY" ] && [ -x "$SHARED_AGMSG/current/install.sh" ] && [ -f "$SHARED_AGMSG/current/VERSION" ]
+}
+# 失敗したら非 0 で終える（once_step がマーカーを進めない）。
+install_agmsg_shared() {
+	local args=(--cmd agmsg)
+	if [ -d "$HOME/.agents/skills/agmsg" ]; then
+		args+=(--update)
+	fi
+	bash "$SHARED_AGMSG/current/install.sh" "${args[@]}" || return 1
+}
+# 取得が失敗したときに bash へ空の入力を渡して成功扱いにならないよう、先に一時ファイルへ落とす。
+install_agmsg() {
+	local tmp rc=0 args=(--cmd agmsg)
+	tmp="$(mktemp)" || return 1
+	if [ -d "$HOME/.agents/skills/agmsg" ]; then
+		args+=(--update)
+	fi
+	if curl -fsSL -o "$tmp" https://raw.githubusercontent.com/fujibee/agmsg/main/setup.sh; then
+		bash "$tmp" "${args[@]}" || rc=$?
+	else
+		rc=1
+	fi
+	rm -f "$tmp"
+	return "$rc"
+}
+if agmsg_shared_ready; then
+	agmsg_key="shared-1 $(tr -d '[:space:]' <"$SHARED_AGMSG/current/VERSION") $(cat "$SHARED_AGMSG/current/.agmsg-commit" 2>/dev/null || true)"
+	once_step agmsg "$agmsg_key" install_agmsg_shared
+else
+	warn "共有の agmsg ($SHARED_AGMSG) がまだ揃っていません。ユーザ単位で入れます"
+	once_step agmsg "2026-06-19" install_agmsg
+fi
+
+# --- CodeGraph (github.com/colbymchenry/codegraph) ---
+# コードベースの事前インデックス(知識グラフ)を MCP 経由でエージェントに渡し、
+# ツール呼び出し回数とコストを削減するセマンティックコード解析ツール。
+# 実体は aqua が入れる(aqua.yaml の colbymchenry/codegraph)。起動時の更新確認は
+# CODEGRAPH_NO_UPDATE_CHECK で止めている。
+# `codegraph install --yes` が claude/codex を自動検出して MCP 設定・権限・
+# 指示ファイルへの追記を非対話(グローバル)で実施するため、両者を入れた後に流す。
+# 登録するコマンドは PATH 上の `codegraph` なので、実体の場所が変わっても書き換えは要らない。
+# プロジェクト単位のインデックスは各リポジトリで `codegraph init` を別途実行する。
+# 再登録を強制したいときは次のマーカーを書き換える。claude / codex の有無が変わったときも流し直す。
+# codegraph-reinstall-marker: 2026-06-18
+register_codegraph() {
+	if ! command -v codegraph >/dev/null 2>&1; then
+		warn "codegraph が見つからないため登録できません（aqua の install を待ちます）"
+		return 1
+	fi
+	codegraph install --yes && codegraph telemetry off
+}
+# キーは再登録マーカー、aqua.yaml の codegraph のピン（版が上がったら流し直す）、claude / codex の有無。
+cg_pin="$(sed -n 's|.*name: colbymchenry/codegraph@\([^ ]*\).*|\1|p' "$AQUA_GLOBAL_CONFIG" 2>/dev/null || true)"
+cg_key="2026-06-18 $cg_pin"
+command -v claude >/dev/null 2>&1 && cg_key="$cg_key claude"
+command -v codex >/dev/null 2>&1 && cg_key="$cg_key codex"
+once_step codegraph "$cg_key" register_codegraph
+
+# --- Graphify (github.com/Graphify-Labs/graphify) ---
+# コードは tree-sitter でローカル解析し、加えてドキュメント/PDF/画像/動画/SQL スキーマも
+# 取り込む知識グラフ生成ツール。CodeGraph が呼び出し関係の精密な追跡を担うのに対し、
+# graphify はプロジェクト全体の概念マップを作るので併用する(docs/knowledge-graph-cheatsheet.md)。
+# PyPI 上のパッケージ名は graphifyy、コマンド名は graphify。
+# 実体は uv tool で入る: 共有側が揃っていれば root が /opt/uv に置き（bootstrap/24-shared-uv.sh の UV_TOOLS。
+# extra の sql / terraform と版もそこで固定）、揃っていなければ run_after_35 がユーザ単位で入れる。
+# ここでは取得せず、ユーザ単位の登録だけを行う。
+# `graphify install`(グローバル)は ~/.claude/skills/graphify/SKILL.md を置き、
+# ~/.claude/CLAUDE.md に登録行を追記する(プロンプトなし)。登録行は
+# private_dot_claude/modify_CLAUDE.md の USER_BLOCK に宣言済みのため no-change になる。
+# PreToolUse フックを書き込むのは `graphify install --project` の方で、
+# grep/Read への割り込みは codegraph prompt-hook と二重になるため入れていない。
+# グラフ本体と git フックはリポジトリごとに手動で入れる(`/graphify .` / `graphify hook install`)。
+# 共有の uv の bin は env.sh と同じ条件で PATH に足す（ここは env.sh を読まない）。
+if [ -d /opt/uv/bin ] && [ -f /opt/dotfiles-shared/keys/24 ]; then
+	export PATH="/opt/uv/bin:$PATH"
+fi
+register_graphify() {
+	if ! command -v graphify >/dev/null 2>&1; then
+		warn "graphify が見つかりません（共有の uv か、run_after_35 のユーザ単位の導入を待ちます）"
+		return 1
+	fi
+	graphify install
+}
+# キーは再登録マーカーと、UV_TOOLS の graphifyy のピン（版が上がったら登録し直す）。
+# shellcheck disable=SC2016  # sed の正規表現の $ は展開させない
+gf_pin="$(sed -n 's/^UV_TOOLS="\$UV_TOOLS \(graphifyy[^ "]*\)"$/\1/p' "$DOTFILES_SRC/bootstrap/24-shared-uv.sh" 2>/dev/null || true)"
+once_step graphify "register-1 $gf_pin" register_graphify
+{{- end }}

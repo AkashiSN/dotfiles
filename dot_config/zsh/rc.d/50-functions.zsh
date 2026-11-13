@@ -81,6 +81,12 @@ function agmsg-bridge-reap () {
   return 0
 }
 
+# 対話シェルの `brew` は umask 002 で実行する。共有の Homebrew（グループ書き込み可）に
+# 作るファイルを、他のユーザも更新できるようにする。サブシェルなので umask は戻る。
+# PATH の絞り込みは aliases.sh の alias が担当し、この関数はその先で呼ばれる。
+# 詳細: ~/.local/share/chezmoi/docs/multi-user-cheatsheet.md
+function brew { ( umask 002; command brew "$@" ) }
+
 # 対話シェルの `claude` を claude-wrapper へ渡す。Bedrock かどうかはそこがマーカー
 # (~/.config/zsh/no-claude-bedrock) で決める: 無ければ claude-bedrock、有れば素のバイナリ
 # (claude.ai 認証)。一度だけマーカーごと迂回したいときは `command claude`(関数ごと素通し

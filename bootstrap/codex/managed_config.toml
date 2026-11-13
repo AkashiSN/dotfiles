@@ -1,0 +1,7 @@
+# Codex の管理者設定。bootstrap/31-codex-policy.sh が /etc/codex/managed_config.toml へ置き、
+# 各ユーザの ~/.codex/config.toml より優先される。
+# 全ユーザ共通で中央管理したいものだけを書く（モデルや承認方針などユーザが決めるものは書かない）。
+
+# 本体は共有 aqua ストアにあり（aqua.yaml の openai/codex）、版は Renovate が上げる。
+# 起動時の更新確認と更新の案内は出さない。
+check_for_update_on_startup = false

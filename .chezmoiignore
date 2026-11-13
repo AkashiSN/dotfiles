@@ -58,8 +58,19 @@ Documents
 .chezmoiscripts/*.sh
 {{- end }}
 
+{{- if not (dig "personal" true .) }}
+# 個人の鍵・署名者・公開鍵は personal=false のユーザへは展開しない
+.ssh/1password_AkashiSN.pub
+.ssh/1password_su-nishi.pub
+.ssh/allowed_signers
+.ssh/authorized_keys
+.ssh/gpg.pub
+{{- end }}
+
 {{- if env "SSH_CONNECTION" }}
 .ssh/*.pub
 .ssh/allowed_signers
 .ssh/config
 {{- end }}
+tests
+bootstrap

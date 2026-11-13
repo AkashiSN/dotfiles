@@ -5,25 +5,27 @@
 # 下位からは上書きできない。コミットと PR への署名およびセッション URL の付与は、
 # 忘れても破れないようにここで落とす。
 #
-# run_onchange: 下の POLICY を書き換えると既存マシンでも再実行される（全操作が冪等）。
+# run_after: apply のたびに実行する。配置済みの内容が POLICY と同じなら sudo を呼ばずに抜けるので、
+# POLICY を書き換えたときや、ファイルが消された・書き換えられたときだけ配置し直す（全操作が冪等）。
 set -eu
 
 {{ template "shell-log" }}
-
 # --- policy 本体（ここを編集する） -------------------------------------------
 # スキーマは settings.json と同じ。commit / pr は署名の文面そのものを渡す文字列で、
 # 空文字（""）が「その署名を出さない」の指定。false は型が合わず、attribution
 # ブロックごと丸ごと捨てられて sessionUrl の抑止まで効かなくなる。
-POLICY=$(cat <<'JSON'
-{
+# env.DISABLE_AUTOUPDATER は本体の自動更新を止める。claude の実体は aqua が入れ、版は
+# aqua.yaml のピンで決まるため、本体が自分で版を上げない。
+POLICY='{
   "attribution": {
     "commit": "",
     "pr": "",
     "sessionUrl": false
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
   }
-}
-JSON
-)
+}'
 # -----------------------------------------------------------------------------
 
 {{ if eq .chezmoi.os "darwin" -}}
@@ -40,6 +42,18 @@ fi
 
 step "Claude Code の managed settings を配置中"
 
+# DOTFILES_SHARED_SKIP=1 のときと、パスワードを聞けない（sudo -n が通らず端末も無い）ときは
+# sudo を呼ばずに案内だけ出す。
+if [ "${DOTFILES_SHARED_SKIP:-}" = 1 ]; then
+	notice "DOTFILES_SHARED_SKIP=1 のため、Claude Code の managed settings の配置を見送った"
+	exit 0
+fi
+if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+	notice "Claude Code の managed settings を配置できなかった（sudo を使えない）"
+	note "対話端末で chezmoi apply を再実行すると配置される"
+	exit 0
+fi
+
 # root 所有のシステムディレクトリなので sudo が要る。非対話 apply では通らないので、
 # 失敗しても apply 全体は止めず、手当ての方法だけ案内して抜ける。
 if ! sudo mkdir -p "$DIR"; then
@@ -48,8 +62,11 @@ if ! sudo mkdir -p "$DIR"; then
 	exit 0
 fi
 
-printf '%s\n' "$POLICY" | sudo tee "$DEST" >/dev/null
-sudo chmod 644 "$DEST"
+if ! printf '%s\n' "$POLICY" | sudo tee "$DEST" >/dev/null || ! sudo chmod 644 "$DEST"; then
+	notice "Claude Code の managed settings を書き込めなかった（sudo が通らない）"
+	note "対話端末で chezmoi apply を再実行すると配置される"
+	exit 0
+fi
 
 echo "claude: managed settings 配置完了 ($DEST)"
 note "確認: claude の /status の Setting sources 行に Enterprise managed settings (file) が出る"

@@ -345,22 +345,36 @@ yazi 内で `.` を押せば一時的にトグルできる。
 
 ## ペインで動かすエージェント CLI の導入
 
-`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` で入れる。
-claude / codex / kiro は公式のネイティブインストーラ（curl ワンライナー）で `~/.local/bin`
-などに置かれ、以後は本体が自己更新する。
+`.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` のたびに整える。
+claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる（共有ストア `/opt/aquaproj-aqua`、
+揃っていない間はホームの aqua。`dot_config/aquaproj-aqua/aqua.yaml` の「AI エージェントの CLI と周辺ツール」）。
+このスクリプトは取得せず、ホームに残った公式インストーラの実体（`~/.local/bin/claude` と
+`~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions`、`~/.local/bin/kiro-cli*`）を、
+**aqua が提供しているコマンドの分だけ**消す（`.chezmoitemplates/ai-cleanup.sh`。`~/.local/bin` のリンクは、aqua が提供していれば動作中でも外す
+（動いているプロセスは開いた実体を持ち続け、新しい起動は aqua へ向かう）。**実体のディレクトリを消すのは動作中でないときだけ**で、
+動作中とは、実行ファイルがその実体の下にある、または実行ファイルのパスがリンク（`~/.local/bin/claude`、`~/.local/bin/codex`、
+`~/.agents/bin/codex`、`~/.local/bin/codegraph`）と完全に一致するプロセスがあること。macOS の `ps` はリンクで起動したプロセスを
+リンクのパスで出すため後者も見る。動作中なら実体は次の apply に回す。設定・認証・履歴は消さない）。自己更新は止めてある（Claude Code は managed settings の
+`env.DISABLE_AUTOUPDATER`、Codex は `/etc/codex/managed_config.toml`、CodeGraph / Kiro は `env.sh` の
+`CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`）。版を上げるときは `aqua.yaml` のピンを変える（Renovate）。
+**macOS の Kiro CLI だけ**は aqua の定義が Linux のみのため、公式インストーラ（`/Applications/Kiro CLI.app`）のまま。
+なお、方針を入れる前から動いている Claude Code は自動更新が効いて `~/.local/bin/claude` を作り直すことがある。次の apply が再び片付ける。
+時間のかかる取得（agmsg、graphify）は `~/.cache/dotfiles/ai-*.key` のマーカーで、
+版・再導入マーカーが変わったときだけ流す。
+
+経緯: 以前は `run_onchange_after_40-ai-assistants.sh.tmpl` が claude / codex / kiro / codegraph を公式
+インストーラで各ユーザの `~/.local/bin` などへ入れ、本体が自己更新していた。共有ストア導入で aqua へ移した。
 
 **Cline だけは配布が npm のみ**なので導入経路が違う。
 
 | 項目 | 内容 |
 | --- | --- |
-| 導入 | `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`。版を固定したいときはスクリプト内の変数に版を書く） |
-| Node | 実行時は不要（プラットフォーム別バイナリを optional dependencies で解決する）。**導入のときだけ** npm が要るので、`30-node-default` が fnm で用意した node を使う |
+| 導入 | 共有ストアの npm の CLI として root が置く（`bootstrap/23-shared-npm.sh` の `NPM_GLOBALS` の `cline@<版>`。実体は `/opt/npm-global/current/bin/cline`）。共有側が揃っていない間は `run_after_30-node-default.sh.tmpl` が fnm の node でユーザ単位に入れる |
+| Node | 共有側のラッパーが、共有 aqua の `nodejs/node` で cline を起動する（Node は実行時にも使う）。プラットフォーム別バイナリは optional dependencies で解決する。導入のときも共有 aqua の npm を使う |
 | 認証 | 自動化しない。導入後に端末で一度 `cline auth`（対話ウィザード）か `cline auth --provider <name> --apikey <key> --modelid <model>` |
-| 更新 | `chezmoi apply`（`CLINE_VERSION` が `latest` なら毎回追従）または本体の `cline update` |
+| 更新 | `NPM_GLOBALS` の版を上げる（Renovate が PR を出す）。共有側の実体は一般ユーザが書き換えられないため、本体の `cline update` は使わない |
 
-> **node の LTS メジャーが上がると消える。** npm グローバルは fnm が管理する node の中に入るため、
-> `fnm install --lts` が新しいメジャーを入れると `cline` が PATH から失われる。
-> スクリプト内の `CLINE_VERSION` を書き換えて `chezmoi apply` すれば入れ直される。
+経緯: 以前は `run_after_40-ai-assistants.sh.tmpl` が `npm install -g "cline@$CLINE_VERSION"`（既定 `latest`）で各ユーザの fnm の node に入れていた。fnm の node の LTS メジャーが上がると PATH から失われる弱点もあった。共有ストア導入で `NPM_GLOBALS` の固定版へ移した。
 
 IME 候補ウィンドウの追従（`cjk_ime_agents`）には `cline` を含めてある（上の「設定挙動」）。
 エージェント状態 integration のフック（`herdr integration install`）は claude / codex のみ入れている。
@@ -518,7 +532,7 @@ ssh -O check develop-server                        # Master running (pid=...) �
 ```
 
 **恒久対策**として Kiro CLI のシェル統合を無効化してある
-（`.chezmoiscripts/run_onchange_after_40-ai-assistants.sh.tmpl`）:
+（`.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl`）:
 
 ```bash
 kiro-cli integrations uninstall -s dotfiles        # rc の pre/post ブロックを削除（冪等）

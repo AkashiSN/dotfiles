@@ -31,10 +31,15 @@
   - `agent-browser install` … Chrome for Testing（約 180MB）を `~/.agent-browser/browsers/`
     へ取得する。導入済みなら再取得しない。**Linux だけ `--with-deps`** を付ける
     （Chrome の共有ライブラリが最小構成に無いため。内部で sudo つきのパッケージマネージャを呼ぶ）。
+    Linux arm64 は Chrome for Testing が無いので取得しない（`sudo apt install chromium-browser` などで入れ、
+    `agent-browser --executable-path /usr/bin/chromium` で指す）。
   - `npx skills add vercel-labs/agent-browser` … スキルを `~/.claude/skills/agent-browser/`
     へ入れる。`skills` CLI は Node を要求するので、fnm の default を `eval "$(fnm env)"` で
     PATH に載せてから呼ぶ（Node 準備は `30-node-default`、Claude Code 本体は `40-ai-assistants`
     なので、このスクリプトは **41** に置いて後ろに並べる）。
+  - 失敗しても（GitHub へ届かない、SSH 鍵が無く clone できないなど）apply は止めず、
+    手で入れるコマンドを案内して終える。`run_onchange` なので、`aqua.yaml` が変わるまで
+    自動では再実行されない。
   - `--copy` を明示している。既定はエージェントのディレクトリへシンボリックリンクを張る
     挙動があるため、リンク先ストアの有無に依存しないよう実体をコピーさせる。
 - **再実行の条件**：スクリプト冒頭に `aqua.yaml` のハッシュを埋めてある。CLI のバージョンを

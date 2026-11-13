@@ -4,6 +4,8 @@
 
 対象ファイル: `dot_terraformrc.tmpl` / `dot_config/shell/env.sh.tmpl` /
 `.chezmoiscripts/run_onchange_after_36-terraform-plugin-cache.sh.tmpl` /
+`.chezmoiscripts/run_after_21-tenv-verify.sh.tmpl` / `.chezmoitemplates/tenv-link.sh` /
+`bootstrap/21-shared-tenv.sh` / `bootstrap/tenv-versions.txt` /
 `dot_local/bin/executable_tf-cache-prune` / `dot_config/zsh/rc.d/40-tools.zsh` /
 `dot_config/aquaproj-aqua/aqua.yaml`
 
@@ -93,6 +95,21 @@ registry.terraform.io/hashicorp/aws
 | `tenv` | Terraform / OpenTofu のバージョン管理（aqua 管理パッケージ） |
 | `TENV_AUTO_INSTALL=true` | 必要なバージョンを自動インストール（`40-tools.zsh`） |
 | `TENV_VALIDATION=sha` | ダウンロードを SHA で検証（`40-tools.zsh`） |
+
+### 共有 tenv ストア
+
+terraform の実体は aqua ではなく tenv が取得する（aqua が配るのは tenv 本体だけ）。共有しないと各ユーザが初回に
+`releases.hashicorp.com` から個別に取得して待たされる。terraform は Tab 補完でも起動されるので、補完のたびに待つこともある。
+そこで、よく使う版は root が共有に置く（[shared-store-cheatsheet.md](shared-store-cheatsheet.md#terraform-の版bootstrap21-shared-tenvsh)）。
+
+- 版の一覧は `bootstrap/tenv-versions.txt`（1 行 1 版）。ここに無い版をプロジェクトが要求したときは、従来どおり tenv が
+  ユーザ単位で取得する（`~/.tenv`）。プロジェクトの `required_version` を増やしたら、この一覧に足す。
+- ユーザ側は `run_after_21-tenv-verify.sh.tmpl`（毎回実行）。共有側が揃っている（`/opt/dotfiles-shared/keys/21` と `/opt/tenv/Terraform` が在る）間、
+  `~/.tenv/Terraform/<版>/terraform` を共有の実体への symlink にする。版のディレクトリはユーザ所有のままなので、tenv が書く
+  `last-use.txt` はホーム側に落ち、読み取り専用の共有側への書込警告は出ない。
+- ホームに同じ版の実ファイルがあれば、動いていない限り symlink に替える（動いていれば次の apply）。共有に無い版と
+  provider のキャッシュ（`~/.cache/terraform/plugin-cache`）は触らない。共有から消えた版の symlink は外す。
+- 共有側が揃っていない間は何もしない（従来どおり。ホームのものは消さない）。
 
 ## lint（tflint）
 

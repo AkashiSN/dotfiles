@@ -1,0 +1,7 @@
+# 共有 tenv ストア ($SHARED_ROOT/tenv, 通常 /opt/tenv) へ root が入れる Terraform の版。
+# bootstrap/21-shared-tenv.sh が読む。1 行 1 版、# 以降はコメント。
+#
+# ここに無い版をプロジェクトが要求すると、各ユーザが TENV_AUTO_INSTALL で個別に
+# ダウンロードする（共有の恩恵が無く、初回に待たされる）。使っているプロジェクトの
+# required_version と揃えること。
+1.15.8

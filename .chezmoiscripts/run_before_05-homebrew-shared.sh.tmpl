@@ -1,0 +1,70 @@
+{{- if and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64") -}}
+#!/bin/sh
+# Apple Silicon の Homebrew（/opt/homebrew）を、グループ $BREW_GROUP でユーザ間共有にする。
+# 所有者は変えず、グループと権限だけを調える。すでに共有済みなら何もしない（sudo も呼ばない）。
+# run_before（毎回実行）。共有済みなら sudo も呼ばず即終了するので軽い。skip した回も次の apply で再試行する。
+# run_onchange_before_10 より先に走る。
+set -eu
+
+{{ template "shell-log" }}
+{{ template "homebrew-shared.sh" -}}
+
+PREFIX=/opt/homebrew
+
+# 共有済みなら何もしない。
+if homebrew_shared_ok "$PREFIX"; then
+	exit 0
+fi
+
+# Homebrew が未導入なら before_10 が入れる。
+if [ ! -d "$PREFIX" ]; then
+	exit 0
+fi
+
+# 共有の設定もグループへの登録も済んでいて、再ログインを待っているだけなら sudo は要らない。
+if homebrew_fs_shared "$PREFIX" && homebrew_member_registered; then
+	notice "グループ ${BREW_GROUP} への追加は、再ログイン後に有効になります"
+	note "再ログインしてから chezmoi apply をもう一度実行してください"
+	exit 0
+fi
+
+# DOTFILES_SHARED_SKIP=1 なら sudo を呼ばない。
+if [ "${DOTFILES_SHARED_SKIP:-}" = 1 ]; then
+	notice "DOTFILES_SHARED_SKIP=1 のため、Homebrew の共有設定を飛ばしました"
+	exit 0
+fi
+
+# sudo のパスワードを聞けない環境（TTY なし・資格情報キャッシュなし）では進めない。
+if ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+	notice "Homebrew の共有設定を飛ばしました（sudo を使えません）"
+	note "端末から chezmoi apply を実行すると設定されます"
+	exit 0
+fi
+
+# sudo を断られた・失敗したときは共有を見送り、apply は止めない。次の apply で再試行する。
+give_up() {
+	notice "sudo を使えないため Homebrew の共有を見送りました（$1）"
+	note "次の chezmoi apply で再試行します"
+	exit 0
+}
+
+step "Homebrew をグループ ${BREW_GROUP} で共有する設定中"
+
+# 最初にまとめて認証する。パスワードを断られたら、ここで止める。
+sudo -v || give_up "認証"
+
+if ! dseditgroup -o read "$BREW_GROUP" >/dev/null 2>&1; then
+	sudo dseditgroup -o create "$BREW_GROUP" || give_up "グループ作成"
+fi
+sudo dseditgroup -o edit -a "$(id -un)" -t user "$BREW_GROUP" || give_up "グループへの追加"
+
+sudo chgrp -R "$BREW_GROUP" "$PREFIX" || give_up "chgrp"
+sudo chmod -R g+w "$PREFIX" || give_up "chmod g+w"
+sudo find "$PREFIX" -type d -exec chmod g+s {} + || give_up "setgid"
+
+# グループへ追加しただけでは、すでに動いているプロセスの所属は変わらない。
+if ! homebrew_member_now; then
+	notice "グループ ${BREW_GROUP} への追加は、再ログイン後に有効になります"
+	note "再ログインしてから chezmoi apply をもう一度実行してください"
+fi
+{{- end }}

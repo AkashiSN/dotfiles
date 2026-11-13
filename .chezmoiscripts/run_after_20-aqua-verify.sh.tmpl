@@ -1,0 +1,115 @@
+{{- if or (eq .chezmoi.os "darwin") (eq .chezmoi.os "linux") -}}
+#!/usr/bin/env bash
+# ホームの aqua の pkgs / bin を、共有ストア (/opt/aquaproj-aqua) への symlink にそろえる。
+# run_after（毎回実行）。aqua の実体は共有側に 1 つだけ置き、install は run_after_15 の
+# 共有ストア更新（bootstrap/20-shared-aqua.sh）だけが行う。ここでは install しない。
+# 共有側がまだ使えない（sudo を使えなかった）間は、ホームの設定でホームの aqua へユーザ単位で install する。
+set -eu
+
+DOTFILES_SRC={{ .chezmoi.sourceDir | quote }}
+# shellcheck source=/dev/null
+. "$DOTFILES_SRC/bootstrap/lib.sh"
+
+# aqua は 10-install-packages が置く場所からも引く（初回の apply では PATH にまだ無い）。
+# PATH に既にあるものを優先するため後ろに足す。
+export PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+
+SHARED=/opt/aquaproj-aqua
+SHARED_KEY=/opt/dotfiles-shared/keys/20
+USER_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua"
+USER_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/aquaproj-aqua"
+
+# 共有側が使えるのは、config が置かれ、揃え終えた印のキーも在るときだけ。
+if [ ! -f "$SHARED/config/aqua.yaml" ] || [ ! -f "$SHARED_KEY" ]; then
+	warn "共有 aqua ストア ($SHARED) がまだ揃っていません。ホームの aqua をユーザ単位で install します"
+	note "端末から chezmoi apply を実行して sudo を通すと、共有ストアが作られます"
+	# 設定が変わったときだけ install し直す（毎回の apply を重くしない）。
+	cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles"
+	marker="$cache_dir/aqua-user.key"
+	key="$(pins_key "$USER_CFG/aqua.yaml" "$USER_CFG/registry.yaml" "$USER_CFG/aqua-policy.yaml" "$USER_CFG/aqua-checksums.json")"
+	if [ "$(cat "$marker" 2>/dev/null || true)" = "$key" ]; then
+		note "ホームの aqua は設定の変更が無いため install を省きます"
+		exit 0
+	fi
+	if ! command -v aqua >/dev/null 2>&1; then
+		warn "aqua が見つかりません。ホームの aqua は install しません"
+		exit 0
+	fi
+	export AQUA_ROOT_DIR="$USER_ROOT"
+	export AQUA_GLOBAL_CONFIG="$USER_CFG/aqua.yaml"
+	export AQUA_POLICY_CONFIG="$USER_CFG/aqua-policy.yaml"
+	# attestation の検証が呼ぶ gh を引けるよう shim の置き場を PATH に通す。
+	export PATH="$USER_ROOT/bin:$PATH"
+	aqua policy allow "$AQUA_POLICY_CONFIG" || true
+	# 未認証だと検証つきの install は通らない。bootstrap タグの gh だけ検証なしで先に入れる。
+	# gh auth login は対話式のため待たず、案内だけ出す。
+	if ! gh auth status >/dev/null 2>&1; then
+		AQUA_DISABLE_GITHUB_ARTIFACT_ATTESTATION=true aqua install -a -t bootstrap || true
+		note "gh が未認証です。端末で gh auth login を実行すると、残りのツールを検証つきで入れられます"
+	fi
+	if aqua install -a; then
+		mkdir -p "$cache_dir"
+		printf '%s\n' "$key" >"$marker"
+	else
+		warn "ホームの aqua の install に失敗しました。次の apply で再試行します"
+	fi
+	exit 0
+fi
+
+log "ホームの aqua の pkgs / bin を共有ストアへ向ける"
+if ! mkdir -p "$USER_ROOT"; then
+	warn "$USER_ROOT を作成できません。共有 aqua は使えません"
+	exit 0
+fi
+
+ts="$(date +%Y%m%d%H%M%S)"
+for name in pkgs bin; do
+	link="$USER_ROOT/$name"
+	# 実ディレクトリは消さずに脇へ退避する（動いているプロセスの実行ファイルがあるため）。
+	if [ -d "$link" ] && [ ! -L "$link" ]; then
+		note "退避: $link -> $link.old.$ts"
+		if ! mv "$link" "$link.old.$ts"; then
+			warn "$link を退避できませんでした。そのままにします"
+			continue
+		fi
+	fi
+	swap_symlink "$SHARED/$name" "$link" || warn "$link を共有ストアへ向けられませんでした"
+done
+
+# 退避した古いディレクトリは、どのユーザのプロセスもその下から動いていなければ消す。
+# 動いていれば残し、次回の apply で消す。macOS の ps は起動時のパスを出す（退避後も退避前の
+# 名前のまま）ため、退避前の名前（今は共有側への symlink）でも照合する。そのため macOS では
+# aqua のツール（herdr など）が動いている限り残るので、大きさと手で消すコマンドを案内する。
+for old in "$USER_ROOT"/pkgs.old.* "$USER_ROOT"/bin.old.*; do
+	[ -d "$old" ] || continue
+	busy=0
+	running_from_any "$old" && busy=1
+	if [ "$busy" -eq 0 ] && [ "$(uname -s)" = Darwin ]; then
+		running_from_any "${old%.old.*}" && busy=1
+	fi
+	if [ "$busy" -eq 1 ]; then
+		note "使用中のため残します（$(du -sh "$old" 2>/dev/null | cut -f1)）。動いているものが無ければ手で消せます: rm -rf '$old'"
+	else
+		note "削除: $old"
+		rm -rf "$old"
+	fi
+done
+
+# 共有のツールを実際に引けるか確かめる。proxy は AQUA_GLOBAL_CONFIG が無いとバージョンを解決できない。
+export AQUA_ROOT_DIR="$USER_ROOT"
+export AQUA_GLOBAL_CONFIG="$SHARED/config/aqua.yaml"
+export AQUA_POLICY_CONFIG="$SHARED/config/aqua-policy.yaml"
+export AQUA_DISABLE_LAZY_INSTALL=true
+export PATH="$USER_ROOT/bin:$PATH"
+if [ -x "$USER_ROOT/bin/jq" ] && "$USER_ROOT/bin/jq" --version >/dev/null 2>&1; then
+	note "共有 aqua ストアを参照できます"
+else
+	warn "共有 aqua ストアのツール (jq) を引けませんでした。共有側の更新が済むまで待ってください"
+fi
+
+# 共有側の更新は呼び出したユーザの gh の token を使う（attestation の検証）。未認証なら案内だけ出す。
+# 対話入力は待たない。
+if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
+	note "gh が未認証です。端末で gh auth login を実行してください（共有 aqua の更新の検証に使います）"
+fi
+{{- end }}

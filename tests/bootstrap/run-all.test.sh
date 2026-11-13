@@ -1,0 +1,389 @@
+#!/usr/bin/env bash
+# bootstrap/run-all.sh と shared_store_trigger のテスト。
+# sudo は偽の関数に差し替え、/opt は触らない（SHARED_ROOT を一時ディレクトリへ向ける）。
+set -eu
+# shellcheck source-path=SCRIPTDIR source=../lib.sh
+. "$(dirname "$0")/../lib.sh"
+# shellcheck source-path=SCRIPTDIR source=../../bootstrap/lib.sh
+. "$REPO/bootstrap/lib.sh"
+# shellcheck source-path=SCRIPTDIR source=../../bootstrap/guard.sh
+. "$REPO/bootstrap/guard.sh"
+# shellcheck source-path=SCRIPTDIR source=../../.chezmoitemplates/shared-store-trigger.sh
+. "$REPO/.chezmoitemplates/shared-store-trigger.sh"
+
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.invalid
+export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.invalid
+unset DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT DOTFILES_STATE_SEEN
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+g() { git -c commit.gpgsign=false "$@"; }
+
+# ---- run-all.sh（偽のステップ）----
+export SHARED_ROOT="$tmp/opt"
+export BOOTSTRAP_ALLOW_NONROOT=1
+bd="$tmp/steps"
+mkdir -p "$bd" "$SHARED_ROOT/dotfiles-shared/keys"
+# 偽ステップ: <SHARED_ROOT>/dotfiles-shared/keys/NN が "ok" なら一致。引数なしは "ok" を書き、実行を記録する。
+mkstep() {
+	cat >"$bd/$1" <<'STEP'
+#!/usr/bin/env bash
+nn="$(basename "$0" | cut -c1-2)"
+key="$SHARED_ROOT/dotfiles-shared/keys/$nn"
+if [ "${1:-}" = "--check" ]; then
+	[ "$(cat "$key" 2>/dev/null)" = ok ]
+	exit
+fi
+echo "$nn $DOTFILES_SRC ${GITHUB_TOKEN:-}" >>"$SHARED_ROOT/ran"
+mkdir -p "$(dirname "$key")"
+echo ok >"$key"
+STEP
+}
+mkstep 10-a.sh
+mkstep 20-b.sh
+# 対象外のファイル
+echo 'exit 9' >"$bd/lib.sh"
+echo 'exit 9' >"$bd/run-all.sh"
+echo 'exit 9' >"$bd/5-x.sh"
+export BOOTSTRAP_DIR="$bd" DOTFILES_SRC="$tmp/src"
+RUN="$REPO/bootstrap/run-all.sh"
+
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: 1 本でも食い違えば 1"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "0" "$rc" "run-all --check: 全部一致なら 0"
+[ ! -e "$SHARED_ROOT/ran" ] || fail "run-all --check: ステップを実行してしまった"
+
+# GITHUB_TOKEN は 20 にだけ渡す
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20"
+GITHUB_TOKEN=tok bash "$RUN" >/dev/null
+assert_eq "10 $tmp/src 
+20 $tmp/src tok" "$(cat "$SHARED_ROOT/ran")" "run-all: GITHUB_TOKEN は 20 にだけ渡す"
+rm -f "$SHARED_ROOT/ran"
+
+# (f) 食い違うステップだけを流し、DOTFILES_STATE_COMMIT があれば state を書く
+rm "$SHARED_ROOT/dotfiles-shared/keys/20"
+GITHUB_TOKEN=tok DOTFILES_STATE_COMMIT=abc123 bash "$RUN" >/dev/null
+assert_eq "20 $tmp/src tok" "$(cat "$SHARED_ROOT/ran")" "run-all: 食い違う 20 だけを流す"
+assert_eq "abc123" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: state に commit を書く"
+
+# commit が空（force）なら state を書かない
+rm "$SHARED_ROOT/dotfiles-shared/state" "$SHARED_ROOT/dotfiles-shared/keys/20"
+DOTFILES_STATE_COMMIT='' bash "$RUN" >/dev/null
+[ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: commit が空なのに state を書いた"
+echo "PASS: run-all: DOTFILES_STATE_COMMIT が空なら state を書かない"
+
+# (A1) 先頭のステップが失敗しても後続を流し、終了コードは 1。state は下げないよう、流す前に進めておく
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
+# shellcheck disable=SC2016
+printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 3\n' >"$bd/10-a.sh"
+rc=0
+DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "1" "$rc" "run-all: ステップ失敗で 1"
+assert_eq "20 $tmp/src " "$(cat "$SHARED_ROOT/ran")" "run-all: 10 が失敗しても 20 を流す"
+assert_eq "zzz" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 一部が失敗しても、出したかもしれない版のコミットを state に残す"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: 失敗したステップは食い違いのまま残る"
+
+# 実行後の --check が通らない（キーの書き忘れ）ステップも失敗扱い
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
+# shellcheck disable=SC2016
+printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 0\n' >"$bd/10-a.sh"
+rc=0
+DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "1" "$rc" "run-all: 実行後も食い違えば 1"
+
+# (L1) 判定のあとに state が変わっていたら、何も流さず state も変えずに 4
+mkstep 10-a.sh
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran"
+state_write "$SHARED_ROOT/dotfiles-shared/state" newer
+rc=0
+out="$(DOTFILES_STATE_COMMIT=older DOTFILES_STATE_SEEN=base bash "$RUN" 2>&1)" || rc=$?
+assert_eq "4" "$rc" "run-all: 判定後に state が変わっていたら 4"
+[ ! -e "$SHARED_ROOT/ran" ] || fail "run-all: 判定が古いのにステップを流した"
+assert_eq "newer" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 判定が古いときは state を変えない"
+assert_contains "$out" "ほかのユーザ" "run-all: 判定が古い理由を出す"
+# state が無いと見ていた（SEEN 空）のに state が出来ていても 4
+rc=0
+DOTFILES_STATE_COMMIT=older bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "4" "$rc" "run-all: state が無いと判定したのに出来ていたら 4"
+# force（COMMIT 空）は state を見ない
+rc=0
+DOTFILES_STATE_COMMIT='' DOTFILES_STATE_SEEN=base bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "run-all: COMMIT が空なら state を照合しない"
+assert_eq "newer" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: COMMIT が空なら state を書かない"
+rm -f "$SHARED_ROOT/dotfiles-shared/state" "$SHARED_ROOT/ran"
+
+# (L2) 更新はロックで 1 本に絞る。待つ間にほかの更新が揃えたら、数え直して何も流さない
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20"
+(
+	shared_lock "$SHARED_ROOT/dotfiles-shared/lock"
+	: >"$tmp/lockheld"
+	sleep 2
+	echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+	echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+) &
+holder=$!
+while [ ! -e "$tmp/lockheld" ]; do sleep 0.1; done
+rc=0
+out="$(DOTFILES_STATE_COMMIT=c1 bash "$RUN" 2>&1)" || rc=$?
+wait "$holder"
+assert_eq "0" "$rc" "run-all: ロックを待ってから流す"
+assert_contains "$out" "待ちます" "run-all: ロック待ちを案内する"
+[ ! -e "$SHARED_ROOT/ran" ] || fail "run-all: 待つ間に揃ったのにステップを流した"
+rm -f "$tmp/lockheld"
+
+# (A2) --check の 1 は食い違い、それ以外の非 0 はステップの異常。どちらも不一致として数え、異常は終了コードを出す
+mkstep 10-a.sh
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+printf '#!/usr/bin/env bash\nexit 7\n' >"$bd/20-b.sh"
+rc=0
+out="$(bash "$RUN" --check 2>&1)" || rc=$?
+assert_eq "1" "$rc" "run-all --check: ステップの異常は不一致として 1"
+assert_contains "$out" "20-b.sh" "run-all --check: 異常のステップ名を警告する"
+assert_contains "$out" "7" "run-all --check: 異常の終了コードを警告する"
+mkstep 20-b.sh
+
+# ---- 消し残し（pending/NN）: キーが一致していても流し直し、まだ使用中なら印を置き直す ----
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+rm -f "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
+mkdir -p "$SHARED_ROOT/dotfiles-shared/pending"
+: >"$SHARED_ROOT/dotfiles-shared/pending/20"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "3" "$rc" "run-all --check: キーが一致していて消し残しだけがあれば 3"
+rm "$SHARED_ROOT/dotfiles-shared/keys/10"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: 消し残しとキーの食い違いが両方あれば 1"
+echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+# 20 は本物の gc_defer で「まだ使用中」を記録する
+cat >"$bd/20-b.sh" <<STEP
+#!/usr/bin/env bash
+. "$REPO/bootstrap/lib.sh"
+[ "\${1:-}" = "--check" ] && exit 0
+echo 20 >>"\$SHARED_ROOT/ran"
+[ -e "\$SHARED_ROOT/still-busy" ] && gc_defer
+exit 0
+STEP
+: >"$SHARED_ROOT/still-busy"
+DOTFILES_STATE_COMMIT=p1 bash "$RUN" >/dev/null 2>&1 || fail "run-all: 消し残しの流し直しが失敗扱いになった"
+assert_eq "20" "$(cat "$SHARED_ROOT/ran")" "run-all: 消し残しのあるステップだけを流し直す"
+[ -e "$SHARED_ROOT/dotfiles-shared/pending/20" ] || fail "run-all: まだ使用中なのに消し残しの印が消えた"
+assert_eq "p1" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 使用中で残しても失敗ではなく state を書く"
+rm -f "$SHARED_ROOT/still-busy" "$SHARED_ROOT/ran"
+bash "$RUN" >/dev/null 2>&1 || fail "run-all: 2 回目の流し直しが失敗"
+[ ! -e "$SHARED_ROOT/dotfiles-shared/pending/20" ] || fail "run-all: 使い終わったのに消し残しの印が残った"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "0" "$rc" "run-all --check: 消し終われば 0"
+mkstep 20-b.sh
+
+# 非 root で BOOTSTRAP_ALLOW_NONROOT 無しは拒否（--check は root 不要）
+if [ "$(id -u)" -ne 0 ]; then
+	rc=0
+	BOOTSTRAP_ALLOW_NONROOT='' bash "$RUN" >/dev/null 2>&1 || rc=$?
+	assert_eq "1" "$rc" "run-all: 非 root は実行を拒否する"
+fi
+unset BOOTSTRAP_DIR BOOTSTRAP_ALLOW_NONROOT
+
+# ---- run-all.sh: ステップは root の HOME で動き、SSH_AUTH_SOCK を持たない ----
+hd="$tmp/hstep"
+mkdir -p "$hd"
+cat >"$hd/10-env.sh" <<'STEP'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--check" ]; then
+	[ -f "$SHARED_ROOT/envseen" ]
+	exit
+fi
+echo "HOME=$HOME SOCK=${SSH_AUTH_SOCK:-unset}" >"$SHARED_ROOT/envseen"
+STEP
+chmod +x "$hd/10-env.sh"
+rm -f "$SHARED_ROOT/envseen"
+BOOTSTRAP_ALLOW_NONROOT=1 HOME="$tmp/callerhome" SSH_AUTH_SOCK=/tmp/agent.sock BOOTSTRAP_ROOT_HOME="$tmp/roothome" BOOTSTRAP_DIR="$hd" bash "$REPO/bootstrap/run-all.sh" >"$tmp/envout" 2>&1 || fail "run-all (env) が失敗" "$(cat "$tmp/envout")"
+assert_eq "HOME=$tmp/roothome SOCK=unset" "$(cat "$SHARED_ROOT/envseen")" "run-all: ステップは root の HOME で動き、SSH_AUTH_SOCK を持たない"
+rm -f "$SHARED_ROOT/envseen"
+BOOTSTRAP_ALLOW_NONROOT=1 HOME="$tmp/callerhome" SSH_AUTH_SOCK=/tmp/agent.sock BOOTSTRAP_DIR="$hd" bash "$REPO/bootstrap/run-all.sh" >/dev/null 2>&1 || fail "run-all (env, hook なし) が失敗"
+assert_eq "HOME=$tmp/callerhome SOCK=unset" "$(cat "$SHARED_ROOT/envseen")" "run-all: root でなく hook も無ければ HOME は変えないが、SSH_AUTH_SOCK は外す"
+rm -f "$SHARED_ROOT/envseen"
+
+# ---- shared_store_trigger ----
+# DOTFILES_SRC は git リポジトリ。bootstrap/run-all.sh は偽（--check の結果を FAKE_CHECK_RC で決める）。
+src="$tmp/repo"
+g init -q --bare -b main "$tmp/origin.git"
+g clone -q "$tmp/origin.git" "$src" 2>/dev/null
+mkdir -p "$src/bootstrap"
+cat >"$src/bootstrap/run-all.sh" <<'FAKE'
+#!/usr/bin/env bash
+[ "${1:-}" = "--check" ] && exit "${FAKE_CHECK_RC:-0}"
+exit 0
+FAKE
+echo 1 >"$src/f"
+g -C "$src" add -A
+g -C "$src" commit -q -m c1
+g -C "$src" push -q origin HEAD:main 2>/dev/null
+g -C "$src" fetch -q origin 2>/dev/null
+head="$(g -C "$src" rev-parse HEAD)"
+export DOTFILES_SRC="$src" SHARED_ROOT="$tmp/opt2"
+
+calls="$tmp/sudo.calls"
+SUDO_N_RC=0
+SUDO_RC=0
+# 偽 sudo: 呼び出しの引数と、環境変数で渡った値を記録する。
+sudo() {
+	if [ "$1 ${2:-}" = "-n true" ]; then
+		echo "PROBE: -n true" >>"$calls.probe"
+		return "$SUDO_N_RC"
+	fi
+	{
+		echo "ARGS: $*"
+		echo "ENV: token=${GITHUB_TOKEN:-} force=${DOTFILES_SHARED_FORCE:-} commit=${DOTFILES_STATE_COMMIT:-} seen=${DOTFILES_STATE_SEEN:-} aqua=${AQUA_BIN:-} root=${SHARED_ROOT:-} src=${DOTFILES_SRC:-}"
+	} >>"$calls"
+	# SUDO_RCS があれば呼ぶたびに先頭から 1 つずつ使う（4 で判定し直す流れを試す）。
+	if [ -n "${SUDO_RCS:-}" ]; then
+		local n
+		n="$(grep -c '^ARGS' "$calls")"
+		# shellcheck disable=SC2086  # 空白区切りの一覧を分ける
+		set -- $SUDO_RCS
+		shift $((n - 1))
+		return "${1:-0}"
+	fi
+	return "$SUDO_RC"
+}
+gh() { [ "$1 $2" = "auth token" ] && echo SECRET_TOKEN; }
+# shellcheck disable=SC2329  # trigger の command -v aqua が見つける偽物
+aqua() { :; }
+trig() {
+	rm -f "$calls" "$calls.probe"
+	local rc=0
+	shared_store_trigger </dev/null 2>&1 || rc=$?
+	echo "rc=$rc"
+}
+
+# (a) 一致 → sudo を呼ばない
+out="$(FAKE_CHECK_RC=0 trig)"
+assert_contains "$out" "rc=0" "trigger (a): 終了コード 0"
+[ ! -e "$calls" ] || fail "trigger (a): sudo を呼んだ"
+echo "PASS: trigger (a): 一致なら sudo を呼ばない"
+
+# (b) 食い違い + stale → 呼ばない・警告
+g -C "$src" reset -q --hard HEAD
+echo 2 >"$src/f"
+g -C "$src" commit -q -am c2 # origin/main に無い
+out="$(FAKE_CHECK_RC=1 trig)"
+[ ! -e "$calls" ] || fail "trigger (b): sudo を呼んだ"
+assert_contains "$out" "DOTFILES_SHARED_FORCE=1" "trigger (b): stale は警告して force の案内を出す"
+assert_contains "$out" "rc=0" "trigger (b): 終了コード 0"
+g -C "$src" reset -q --hard "$head"
+
+# (c)(e) 食い違い + ok → 呼ぶ。state commit を渡す。token は argv に出ない。
+out="$(FAKE_CHECK_RC=1 trig)"
+assert_contains "$out" "rc=0" "trigger (c): 終了コード 0"
+[ -e "$calls" ] || fail "trigger (c): sudo を呼んでいない"
+c="$(cat "$calls")"
+assert_contains "$c" "commit=$head" "trigger (e): ok は DOTFILES_STATE_COMMIT を渡す"
+assert_contains "$c" "force= " "trigger (e): ok は DOTFILES_SHARED_FORCE を渡さない"
+assert_contains "$c" "token=SECRET_TOKEN" "trigger (c): GITHUB_TOKEN を環境変数で渡す"
+assert_contains "$c" "root=$tmp/opt2" "trigger (c): SHARED_ROOT を渡す"
+assert_contains "$c" "--preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES_SHARED_FORCE,DOTFILES_STATE_COMMIT,DOTFILES_STATE_SEEN,SHARED_ROOT" "trigger (c): --preserve-env を使う"
+assert_contains "$c" "seen= " "trigger (c): state が無ければ SEEN は空"
+assert_contains "$c" "bash $src/bootstrap/run-all.sh" "trigger (c): run-all.sh を bash で呼ぶ"
+assert_not_contains "$(grep '^ARGS' "$calls")" "SECRET_TOKEN" "trigger (c): token が argv に出ない"
+assert_not_contains "$out" "SECRET_TOKEN" "trigger (c): token を表示しない"
+
+# 設定済みの GITHUB_TOKEN は gh auth token より優先する
+out="$(FAKE_CHECK_RC=1 GITHUB_TOKEN=PRESET_TOKEN trig)"
+c="$(cat "$calls")"
+assert_contains "$c" "token=PRESET_TOKEN" "trigger: 設定済みの GITHUB_TOKEN を保つ"
+assert_not_contains "$c" "SECRET_TOKEN" "trigger: 設定済みなら gh auth token を使わない"
+
+# 初回の apply: aqua が PATH に無くても ~/.local/bin のものを AQUA_BIN に渡す
+unset -f aqua
+mkdir -p "$tmp/fresh/.local/bin"
+printf '#!/bin/sh\n' >"$tmp/fresh/.local/bin/aqua"
+chmod +x "$tmp/fresh/.local/bin/aqua"
+out="$(FAKE_CHECK_RC=1 HOME="$tmp/fresh" PATH="/usr/bin:/bin" trig)"
+assert_contains "$(cat "$calls")" "aqua=$tmp/fresh/.local/bin/aqua " "trigger: PATH に無い ~/.local/bin/aqua を AQUA_BIN に渡す"
+# shellcheck disable=SC2329
+aqua() { :; }
+
+# (e) force → DOTFILES_SHARED_FORCE=1、state commit 無し
+g -C "$src" reset -q --hard HEAD
+echo 3 >"$src/f"
+g -C "$src" commit -q -am c3
+out="$(FAKE_CHECK_RC=1 DOTFILES_SHARED_FORCE=1 trig)"
+c="$(cat "$calls")"
+assert_contains "$c" "force=1 commit= " "trigger (e): force は FORCE=1 を渡し state commit を渡さない"
+g -C "$src" reset -q --hard "$head"
+
+# (i) 判定に使った state を SEEN で渡す。run-all が 4（判定が古い）なら 1 度だけ判定し直す
+mkdir -p "$tmp/opt2/dotfiles-shared"
+state_write "$tmp/opt2/dotfiles-shared/state" "$head"
+out="$(FAKE_CHECK_RC=1 trig)"
+assert_contains "$(cat "$calls")" "seen=$head " "trigger (i): 判定に使った state を SEEN で渡す"
+out="$(FAKE_CHECK_RC=1 SUDO_RCS="4 0" trig)"
+assert_eq "2" "$(grep -c '^ARGS' "$calls")" "trigger (i): 4 なら判定し直してもう 1 度流す"
+assert_contains "$out" "判定し直します" "trigger (i): 判定し直す旨を出す"
+assert_contains "$out" "rc=0" "trigger (i): 終了コード 0"
+out="$(FAKE_CHECK_RC=1 SUDO_RCS="4 4 0" trig)"
+assert_eq "2" "$(grep -c '^ARGS' "$calls")" "trigger (i): やり直しは 1 度だけ"
+assert_contains "$out" "次の apply" "trigger (i): 2 度目も古ければ次の apply へ回す"
+assert_contains "$out" "rc=0" "trigger (i): 2 度目も古くても終了コード 0"
+rm -f "$tmp/opt2/dotfiles-shared/state"
+
+# (d) sudo -n 失敗 + TTY 無し → 呼ばない・警告・0
+SUDO_N_RC=1
+out="$(FAKE_CHECK_RC=1 trig)"
+[ ! -e "$calls" ] || fail "trigger (d): sudo を呼んだ"
+assert_contains "$out" "rc=0" "trigger (d): 終了コード 0"
+assert_contains "$out" "sudo" "trigger (d): sudo を使えない旨を警告する"
+SUDO_N_RC=0
+
+# sudo が断られても 0
+SUDO_RC=1
+out="$(FAKE_CHECK_RC=1 trig)"
+assert_contains "$out" "rc=0" "trigger: sudo を断られても終了コード 0"
+SUDO_RC=0
+
+# (g) 消し残しだけ（--check が 3）: sudo -n が通るなら sudo -n で流す
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): 終了コード 0"
+assert_contains "$(cat "$calls")" "ARGS: -n --preserve-env=" "trigger (g): 消し残しだけなら sudo -n で流す"
+assert_contains "$out" "消し残しを掃除します" "trigger (g): 掃除の案内を出す"
+# sudo -n が通らなければ、TTY があってもパスワードを聞かず、案内 1 行で 0
+SUDO_N_RC=1
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): sudo -n 失敗でも終了コード 0"
+[ ! -e "$calls" ] || fail "trigger (g): 消し残しだけなのに sudo を呼んだ"
+assert_contains "$out" "使用中で残した古い版" "trigger (g): 見送りを 1 行で案内する"
+assert_eq "1" "$(printf '%s\n' "$out" | grep -c -v '^rc=' || true)" "trigger (g): 案内は 1 行だけ"
+SUDO_N_RC=0
+# sudo -n で流して失敗しても 0、警告ではなく案内
+SUDO_RC=1
+out="$(FAKE_CHECK_RC=3 trig)"
+assert_contains "$out" "rc=0" "trigger (g): 掃除の失敗でも終了コード 0"
+SUDO_RC=0
+
+# (h) DOTFILES_SHARED_SKIP=1: 食い違いでも消し残しでも sudo を呼ばず、案内 1 行で 0
+for r in 1 3; do
+	out="$(FAKE_CHECK_RC=$r DOTFILES_SHARED_SKIP=1 trig)"
+	assert_contains "$out" "rc=0" "trigger (h): SKIP で終了コード 0 (--check $r)"
+	[ ! -e "$calls" ] && [ ! -e "$calls.probe" ] || fail "trigger (h): SKIP なのに sudo を呼んだ (--check $r)"
+	assert_contains "$out" "DOTFILES_SHARED_SKIP=1" "trigger (h): SKIP の案内を出す (--check $r)"
+	assert_eq "1" "$(printf '%s\n' "$out" | grep -c -v '^rc=' || true)" "trigger (h): 案内は 1 行だけ (--check $r)"
+done
+
+# --check が 1 以外で失敗（スクリプト自体のエラー）でも 0、sudo 無し
+out="$(FAKE_CHECK_RC=2 trig)"
+assert_contains "$out" "rc=0" "trigger: --check の異常でも終了コード 0"
+[ ! -e "$calls" ] || fail "trigger: --check 異常で sudo を呼んだ"
+
+echo "ALL PASS"

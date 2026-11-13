@@ -55,6 +55,7 @@ ssh cloudsa
 | 整形 | **`shfmt` の既定（`-i 0` = タブ）** | フラグ無しで回せる。詳細は [shell-lint-cheatsheet.md](shell-lint-cheatsheet.md#このリポジトリの整形規約) |
 | Bedrock 用 AWS プロファイル | **既定を持たず `~/.env` から解決** | 公開リポジトリにアカウント名を焼かない。意図しないアカウントを触らない |
 | 環境固有の機能 | **揃えない** | work の AWS MCP / Grafana / EKS、こちらの superpowers / ghostty / 個人ツールなど。共有コアの外に置く |
+| AI CLI（claude / codex / codegraph）の版 | **マシンで 1 つ（それぞれの `aqua.yaml` のピン）** | 共有ストアの導入で、同じマシンの全ユーザが同じ版を使う。こちらと work は別の repo なので、ピンの版は Renovate の更新タイミングで一時的にずれてよい。Kiro CLI は両方 `registry.yaml` の local 定義（Linux のみ）で、macOS だけこちらが公式インストーラ |
 | Claude Code の設定の置き場 | **揃えない** | work は policy 層（`managed-settings.json`）へまとめて置く。こちらの policy 層は sudo が要るうえ「忘れても破れない禁止事項」の場所なので、機能設定（`awsAuthRefresh` など）は `private_dot_claude/modify_settings.json.tmpl` のユーザ層に置く |
 
 **どちらの向きにも持ち込まないもの**: work へは個人リポジトリの名前や URL を、こちらへは
@@ -131,8 +132,10 @@ done | sort -rn
 | `executable_aws-auth-ensure` / `executable_claude-bedrock` | `awsAuthRefresh` の設定の置き場を指すコメント（上の「揃えると決めたこと」） |
 | `private_dot_claude/hooks/executable_pr-refresh-check.sh` | hook の登録場所を指すコメント（work は policy 層、こちらは `modify_settings.json.tmpl`） |
 | `private_dot_claude/hooks/executable_worktree-enter-reminder.sh` | **こちらが新しい（2026-11-12）。** 解いたパスが `git worktree list` に載る worktree と一致したときだけ示し、引用符・`cd`・`||` などで確実に解けない入力は一覧確認へ回す（work 側は、引用符付きのパスや `cd other && git worktree add wt`、`printf` の中の記述で、実在する別のディレクトリへの EnterWorktree を指示する）。work へ配る側。ほかに登録場所を指すコメントの差分がある。こちらの「worktree を作ったらセッションごと移る」の指示は policy の `CLAUDE.md` ではなく `private_dot_claude/modify_CLAUDE.md` に置いた |
-| `executable_difit` | 実体の場所。work は root が置く `/opt/npm-global/current/bin/difit`、こちらは fnm の `aliases/default` の下（複数ユーザ化を入れるまで） |
-| `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` | work は共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するため `AQUA_GLOBAL_CONFIG` を export する。こちらは公式インストーラの実体なので要らない（複数ユーザ化を入れるまで） |
+| `executable_difit` | 共有側の実体 `/opt/npm-global/current/bin/difit` を使うところは work と同じ。こちらは印のキー `/opt/dotfiles-shared/keys/23` も在るときだけ共有側を使う（`env.sh` と同じ条件）。こちらは共有側が揃っていない間（ユーザ単位の fallback）のため、無いときは fnm の `aliases/default` の下を見る。work へ配るときはこの fallback を外してよい |
+| `bootstrap/23-shared-npm.sh` | **こちらが新しい（2026-11-10）。** (1) `mv -T` を `swap_symlink` に置き換え（macOS は BSD の `ln -sfhn`）。(2) `readlink -f` を使わず、npm の bin の実体は `pwd -P` で解決する（macOS の `/var` -> `/private/var` を含む）。(3) 組は `$SHARED_ROOT/npm-global/<key>` の中で完成させ、失敗したらその組を消して `current` とキーに触れない。(4) npm のキャッシュは一時ディレクトリで、終わったら消す。(5) 古い組の掃除は 1 つ前を残し、それ以前は `running_from_any` / `running_matching` / `running_exact`（`current/bin/<コマンド>` のリンクのパス）/ `ps` の引数で動作中を見て、動いていれば次回に回す。(6) key は node のピン（`aqua.yaml` の `nodejs/node@...`）と `NPM_GLOBALS` から決める（`--check` で見られる）。(7) node/npm は呼び出しユーザの `AQUA_BIN` で共有 aqua の設定から引く。`NPM_GLOBALS` は **こちらは `difit` と `cline` だけ**。work の `@drawio/mcp`（こちらの drawio は Claude Code のプラグイン経由で npm の CLI は使わない）、`@mermaid-js/mermaid-cli`（使わない）、`agent-browser`（こちらは `aqua.yaml` の `vercel-labs/agent-browser` で入れる）は持ち込まない |
+| `.chezmoiscripts/run_after_30-node-default.sh.tmpl` | **こちらが新しい（2026-11-10）。** 共有側が揃っている間は fnm の既定の Node（`default` / `lts-latest` の指す版とその alias）を一度だけ消す（動いていれば次回。macOS の `ps` が出すリンクのパス `fnm_multishells/` / `aliases/` も見る。他の版はプロジェクト用に残す）。揃っていない間は work と違い、従来どおり fnm の LTS と `NPM_GLOBALS` をユーザ単位で入れる（`~/.cache/dotfiles/node-user.key` のマーカーを成功時だけ進める）。work は共有側が常にある前提 |
+| `executable_claude-bedrock` / `executable_codex-bedrock` / `executable_codex-wrapper` / `dot_local/libexec/codex-dispatch/executable_codex` の `AQUA_GLOBAL_CONFIG` | **こちらが新しい（2026-11-10）。** どちらも共有 aqua ストアの claude / codex を aqua-proxy 経由で起動するので `AQUA_GLOBAL_CONFIG` を export する点は揃った。こちらは共有側が揃っていない間（sudo を使えなかったときのホーム aqua）も動くよう、`.chezmoitemplates/aqua-shared-env` と同じ判定（共有ストアが揃い、ホームの pkgs が共有側への symlink のときだけ共有側の設定、それ以外はホームの設定）を 4 本に同じブロックで持ち、`AQUA_ROOT_DIR` / `AQUA_POLICY_CONFIG` も渡す。work は共有側が常にある前提の 1 行（ホームの設定を既定にする）。work へ配るときはこのブロックに置き換えてよい |
 | `executable_claude-bedrock` | **こちらが正しい（2026-11-09）。** work の Haiku の既定が `global.anthropic.claude-haiku-5-5[1m}`（`]` が `}`）になっている。work へ配る側 |
 
 ## 経緯
@@ -185,9 +188,22 @@ work の `docs/claude-settings.md` に足された「popup へ来るのはログ
 | `claude-bedrock` の既定モデル | 5-5 系へ。work の Haiku の誤記（`[1m}`）は直して取り込んだ |
 | herdr integration の `run_after_`（8937733） | apply のたびにフックを入れ直し、herdr 本体の更新に追従 |
 | `git-commit` / `gh-pr-create` スキル（7cf1373） | そのまま |
-| Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` の custom manager。CodeArtifact・自前 workflow・`/opt` 向けの manager（Kiro / Rust / agmsg / uv tool）は取り込まない |
+| Renovate（f762ad7 / 8602da7 の一部） | minor / patch を 1 本の PR にまとめる・月曜だけ新規 PR・`NPM_GLOBALS` / `UV_TOOLS` / `RUST_VERSION` / `AGMSG_VERSION`（`AGMSG_COMMIT` を `currentDigest` として一緒に上げる）の custom manager。CodeArtifact・自前 workflow・Kiro の manager は取り込まない |
 
 取り込まなかったもの: `/opt` へ寄せる複数ユーザ化（共有 aqua ストア、`/opt/npm-global` / `/opt/uv` /
-`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`）は、Mac での設計を
+`/opt/rustup` / `/opt/agmsg`、`bootstrap/` 一式、各ラッパーの `AQUA_GLOBAL_CONFIG`。のち 2026-11-10 の共有ストア導入で `aqua` 系と `/opt/npm-global`（`bootstrap/23-shared-npm.sh`）、`/opt/uv`（`bootstrap/24-shared-uv.sh`）、`/opt/rustup`（`bootstrap/25-shared-rust.sh`。work は `--profile default`、こちらは `minimal` に現行のコンポーネントを足し、`RUSTUP_HOME` / `CARGO_HOME` がホームの `~/.local/share` 配下なので、掃除もそこを対象にする）、`/opt/tenv`（`bootstrap/21-shared-tenv.sh`。work は `/opt/tenv` を `TENV_ROOT` として共有し、各ユーザが `~/.tenv` の版のディレクトリへ terraform を symlink する。こちらも同じ形で、`SHARED_ROOT` 基準・`--check` とキー・失敗時に前の版を残す・一覧に無い版は動いていなければ消す点が違う。版は `tenv-versions.txt`）、`/opt/agmsg`（`bootstrap/22-shared-agmsg.sh`。work との違いは、`SHARED_ROOT` 基準・`--check` とキー・取得した commit が違えば `current` を動かさない・1 つ前の版を残し動いている版は消さない・`swap_symlink` で付け替える点。ユーザ側は `run_after_40` が共有の `install.sh` を流し、共有側が無い間は従来の `setup.sh`）は取り込んだ。uv の `UV_TOOLS` は work の AWS MCP サーバー（`mcp-proxy-for-aws-cli` / `awslabs.aws-pricing-mcp-server`）を入れず、ansible と graphifyy だけ。work は Python を `/opt/uv/python` に直接入れるが、こちらは組（`<key>`）で切り替えるのでツールを組の中へ、Python は組の外の固定の場所へ置く）は、Mac での設計を
 別に詰めてから入れる。Splunk / `tunnel` / Grafana / gcx / deploy の CI / dnf-automatic / EC2 /
 sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので対象外。
+
+2026-11-10 に、work が先に入れていた `/opt` の共有ストアを、こちらにも入れた（上の 2026-11-09 で「Mac での設計を別に詰めてから」とした分）。aqua（`/opt/aquaproj-aqua`）・tenv・agmsg・npm の CLI・uv・Rust を `bootstrap/NN-*.sh` のステップにし、各ユーザの `chezmoi apply`（`run_after_15-shared-store`）が食い違いを見つけたときだけ sudo で `bootstrap/run-all.sh` を流す。work との違いは次のとおり。
+
+| 違い | 中身 |
+| --- | --- |
+| 起動の仕方 | work は手で `sudo bootstrap/run-all.sh`。こちらは apply のたびに `--check`（root 不要）で調べ、食い違うときだけ sudo。非対話で sudo を使えなければ警告だけで apply は止めない |
+| ダウングレード防止 | `/opt/dotfiles-shared/state` に版を出したかもしれない最も新しいコミットを置き、`HEAD` が `origin/main` に含まれ、かつ state の子孫のときだけ更新する（`bootstrap/guard.sh`。`DOTFILES_SHARED_FORCE=1` で無視）。更新は `/opt/dotfiles-shared/lock` の flock で 1 本に絞り、ロックを取ってから state が判定時のままかを確かめ、ステップを流す前に state を進める（2026-11-13、PR #124 の codex レビューで同時 apply と部分失敗の巻き戻しを指摘されて追加） |
+| キー | 各ステップはピンのハッシュを `/opt/dotfiles-shared/keys/NN` に書き、`--check` はこれと比べる |
+| 古い版 | 1 つ前を残し、どのユーザのプロセスでも使用中のものは消さない（Linux `/proc/*/exe`、macOS `ps`）。消し残しは `pending/NN` で次の apply に回す |
+| macOS | bash 3.2 / BSD コマンドで動かし、所有者は `root:wheel`。Kiro CLI だけ `/Applications` の公式インストーラ |
+| 自己更新 | Claude Code / Codex / CodeGraph / Kiro の自己更新を止め、版は Renovate が上げる |
+
+通しの検証は `tests/docker/run.sh`（Ubuntu 24.04 で 2 ユーザ。[shared-store-cheatsheet.md](shared-store-cheatsheet.md#2-ユーザでの通し検証docker)）。その中で次を直した: 初回の apply で `~/.local/bin/aqua` が PATH に無く共有側が作られない、arm64 の Linux で amd64 の aqua を取得する、`aqua-checksums.json` に arm64 Linux の rustup-init が無い、root の npm が `/dev/null` を user / global の両方の設定にして止まる、使用中で残した古い版がピンが変わるまで消えない、Linux arm64 で Chrome for Testing の取得が apply を止める、`fnm env` が作る空のディレクトリを apply のたびに「削除」する。macOS の 2 ユーザでの確認は手で行う。
