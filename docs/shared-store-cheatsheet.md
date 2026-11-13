@@ -294,9 +294,8 @@ Claude Code / Codex / CodeGraph / Kiro CLI（Linux）の実体は、共有 aqua 
 `dot_config/aquaproj-aqua/aqua.yaml` の「AI エージェントの CLI と周辺ツール」にピンがあり、Kiro だけ local registry（`registry.yaml`、Linux のみ）の定義。
 macOS の Kiro CLI は公式インストーラの `/Applications/Kiro CLI.app` のまま。
 
-ユーザ側（`run_after_40-ai-assistants.sh.tmpl`、毎回実行）は取得せず、次だけを行う。
+ユーザ側（`run_after_40-ai-assistants.sh.tmpl`、毎回実行）は取得せず、登録だけを行う。
 
-- ホームに残った公式インストーラの実体を掃除する（`.chezmoitemplates/ai-cleanup.sh` の `ai_cleanup_home`）。そのコマンドを aqua が提供しているとき（`aqua which <cmd>` が aqua の `pkgs` 配下の実在するファイルを返すとき。共有側でもホームのフォールバックでもよい）だけ消す。aqua が提供しなければ何も消さない。`~/.local/bin` のリンクは、aqua が提供していれば動作中でも外す（動いているプロセスは実体を開いたまま、新しい起動は aqua へ向かう）。本体のリンクのほか、`~/.local/bin` のうち実体の場所（`~/.local/share/claude/` / `~/.codex/packages/` / `~/.codegraph/`）を指すリンクは全て外す（公式インストーラは `codex-code-mode-host` などの補助コマンドのリンクも置くため）。実体のディレクトリは、動作中でないときだけ消す。動作中とは、実行ファイルが実体の下にある（`running_from_any` / `running_matching`）か、実行ファイルのパスがそのコマンドのリンク（`~/.local/bin/claude` / `codex` / `codegraph`、`~/.agents/bin/codex`）と完全に一致する（`running_exact`。macOS の `ps` はリンクで起動したプロセスをリンクのパスで出す）こと。動作中なら実体は次の apply で消す。方針を入れる前から動いている Claude Code は自動更新で `~/.local/bin/claude` を作り直すことがあるが、次の apply が片付ける。設定・認証・履歴には触れない。
 - 登録（`codegraph install --yes` / `graphify install` / agmsg / Kiro のシェル統合の解除）。時間のかかるものは `~/.cache/dotfiles/ai-<名前>.key` のマーカーで、キーが変わったときだけ流す。ステップは途中のコマンドが 1 つでも失敗するか前提（npm / uv / codegraph）が欠けると非 0 で終わり、そのときマーカーは進めない（agmsg は `curl -o` で落としてから実行する）。codegraph の登録のキーには `aqua.yaml` のピンの版を含み、版が上がると流し直す。
 
 自己更新は止める: Claude Code は managed settings の `env.DISABLE_AUTOUPDATER`、Codex は `bootstrap/31-codex-policy.sh` が置く管理者設定の `check_for_update_on_startup = false`、CodeGraph / Kiro は `env.sh` の `CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`。
@@ -311,7 +310,7 @@ macOS の Kiro CLI は公式インストーラの `/Applications/Kiro CLI.app` �
 
 `--check` は、キーが一致し、置き場所のファイルがソースと同一のときだけ 0。管理者設定は各ユーザの `~/.codex/config.toml` より優先される。
 
-経緯: 以前は claude / codex / codegraph / kiro を公式インストーラで各ユーザのホームへ入れ、本体が自己更新していた。共有 aqua へ移し、掃除は「aqua が提供しているときだけ」に絞った（共有側が無く、ホームの aqua も入れられていない間に公式の実体を消して使えなくなるのを避ける）。
+経緯: 以前は claude / codex / codegraph / kiro を公式インストーラで各ユーザのホームへ入れ、本体が自己更新していた。共有 aqua へ移し、掃除は「aqua が提供しているときだけ」に絞った（共有側が無く、ホームの aqua も入れられていない間に公式の実体を消して使えなくなるのを避ける）。移行中はユーザ側が、ホームに残った公式インストーラの実体（`~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions`、`~/.local/bin` のリンク、Linux の `~/.local/bin/kiro-cli*`）を `.chezmoitemplates/ai-cleanup.sh` で消していた。全マシンの移行が済んだので、2026-11-13 にこの掃除を外した。
 
 ## 2 ユーザでの通し検証（docker）
 

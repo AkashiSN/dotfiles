@@ -353,17 +353,12 @@ yazi 内で `.` を押せば一時的にトグルできる。
 `.chezmoiscripts/run_after_40-ai-assistants.sh.tmpl` が `chezmoi apply` のたびに整える。
 claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる（共有ストア `/opt/aquaproj-aqua`、
 揃っていない間はホームの aqua。`dot_config/aquaproj-aqua/aqua.yaml` の「AI エージェントの CLI と周辺ツール」）。
-このスクリプトは取得せず、ホームに残った公式インストーラの実体（`~/.local/bin/claude` と
-`~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions`、`~/.local/bin/kiro-cli*`）を、
-**aqua が提供しているコマンドの分だけ**消す（`.chezmoitemplates/ai-cleanup.sh`。`~/.local/bin` のリンクは、aqua が提供していれば動作中でも外す
-（動いているプロセスは開いた実体を持ち続け、新しい起動は aqua へ向かう）。`codex-code-mode-host` など、実体の場所を指す補助コマンドのリンクも外す。**実体のディレクトリを消すのは動作中でないときだけ**で、
-動作中とは、実行ファイルがその実体の下にある、または実行ファイルのパスがリンク（`~/.local/bin/claude`、`~/.local/bin/codex`、
-`~/.agents/bin/codex`、`~/.local/bin/codegraph`）と完全に一致するプロセスがあること。macOS の `ps` はリンクで起動したプロセスを
-リンクのパスで出すため後者も見る。動作中なら実体は次の apply に回す。設定・認証・履歴は消さない）。自己更新は止めてある（Claude Code は managed settings の
+このスクリプトは取得せず、ユーザ単位の登録（MCP・スキル・agmsg など）だけを行う。自己更新は止めてある（Claude Code は managed settings の
 `env.DISABLE_AUTOUPDATER`、Codex は `/etc/codex/managed_config.toml`、CodeGraph / Kiro は `env.sh` の
 `CODEGRAPH_NO_UPDATE_CHECK` / `KIRO_NO_AUTO_UPDATE`）。版を上げるときは `aqua.yaml` のピンを変える（Renovate）。
 **macOS の Kiro CLI だけ**は aqua の定義が Linux のみのため、公式インストーラ（`/Applications/Kiro CLI.app`）のまま。
-なお、方針を入れる前から動いている Claude Code は自動更新が効いて `~/.local/bin/claude` を作り直すことがある。次の apply が再び片付ける。
+経緯: 公式インストーラでホームに入れていた頃の実体（`~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions` など）は、
+共有 aqua への移行中は `.chezmoitemplates/ai-cleanup.sh` が片付けていた。全マシンの移行が済んだので、2026-11-13 にこの掃除を外した。
 時間のかかる取得（agmsg、graphify）は `~/.cache/dotfiles/ai-*.key` のマーカーで、
 版・再導入マーカーが変わったときだけ流す。
 
