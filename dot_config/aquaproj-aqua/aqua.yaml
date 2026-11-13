@@ -12,32 +12,32 @@ checksum:
     - linux
 registries:
   - type: standard
-    ref: v4.575.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.585.0 # renovate: depName=aquaproj/aqua-registry
   - name: local
     type: local
     path: registry.yaml
 packages:
   # --- 言語ランタイム / バージョンマネージャ ---
-  - name: golang/go@go1.27.2
-  - name: denoland/deno@v2.9.7
-  - name: nodejs/node@v26.13.0 # npm の CLI (difit / cline) の実行用。共有 aqua に 1 つだけ置く
+  - name: golang/go@go1.27.4
+  - name: denoland/deno@v2.9.8
+  - name: nodejs/node@v26.13.1 # npm の CLI (difit / cline) の実行用。共有 aqua に 1 つだけ置く
   - name: Schniz/fnm@v1.39.0 # node version manager
-  - name: astral-sh/uv@0.13.1 # python
+  - name: astral-sh/uv@0.13.8 # python
   - name: rust-lang/rustup@1.29.0 # rust toolchain installer (toolchain の版は bootstrap/25-shared-rust.sh の RUST_VERSION)
   - name: tofuutils/tenv@v4.15.1 # terraform / opentofu
   # --- git / リポジトリ ---
-  - name: cli/cli@v2.102.0 # gh
+  - name: cli/cli@v2.104.0 # gh
     # 初回(クリーン環境)は attestation 検証に必要な gh 認証がまだ無いため、
     # この bootstrap タグだけ先に検証なしで入れてから gh auth login する。
     tags:
       - bootstrap
-  - name: x-motemen/ghq@v1.11.2
+  - name: x-motemen/ghq@v1.12.0
   - name: gitui-org/gitui@v0.28.1 # git TUI (herdr の popup から差分確認・ステージング)
   # --- shell: plugin manager / prompt / env / fuzzy finder / agent multiplexer / file manager ---
   - name: rossmacarthur/sheldon@0.8.5 # zsh plugin manager
   - name: starship/starship@v1.27.0 # prompt
-  - name: direnv/direnv@v2.37.1
-  - name: junegunn/fzf@v0.74.5
+  - name: direnv/direnv@v2.38.2
+  - name: junegunn/fzf@v0.75.0
   - name: peco/peco@v0.6.0
   - name: herdrdev/herdr@v0.9.5 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
   - name: sxyazi/yazi@v26.9.1 # プレビュー付きファイラ (herdr の popup から起動)
@@ -45,15 +45,15 @@ packages:
   # markdown ビューア (ブラウザ)。mermaid / 全文検索 / live reload が要るとき用。
   # pkg/browser 経由で xdg-open を呼ぶため、SSH 先では $BROWSER=portfwd-open が効き
   # 手元 PC のブラウザで開く。
-  - name: k1LoW/mo@v1.6.9
+  - name: k1LoW/mo@v1.8.0
   # --- editor: neovim + 検索バックエンド (fzf-lua) / linter / formatter ---
   - name: neovim/neovim@v0.12.6
   - name: BurntSushi/ripgrep@15.2.0
-  - name: sharkdp/fd@v10.5.0
+  - name: sharkdp/fd@v10.5.2
   # treesitter パーサーのビルドに必要 (tree-sitter-manager.nvim)
-  - name: tree-sitter/tree-sitter@v0.27.1
+  - name: tree-sitter/tree-sitter@v0.27.2
   # python linter / formatter 兼 LSP。mason の pypi installer は python3-venv を要求するため aqua で入れる
-  - name: astral-sh/ruff@0.17.1
+  - name: astral-sh/ruff@0.17.5
   # shell script の linter / formatter。nvim では bashls が PATH 上の shellcheck を自動で
   # 拾って診断に出す(mason の ensure_installed には含めない)。shfmt は CLI として使う。
   - name: koalaman/shellcheck@v0.11.0
@@ -62,32 +62,32 @@ packages:
   - name: 1password/cli@v2.31.1 # op
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入 / port で導入)
-  - name: aws/aws-cli@2.38.1
-  - name: kubernetes/kubernetes/kubectl@v1.37.1
+  - name: aws/aws-cli@2.40.2
+  - name: kubernetes/kubernetes/kubectl@v1.37.2
   - name: helm/helm@v4.3.1 # kubernetes package manager
-  - name: terraform-linters/tflint@v0.64.0 # terraform linter (validate が見ない書き方の問題を拾う)
+  - name: terraform-linters/tflint@v0.66.0 # terraform linter (validate が見ない書き方の問題を拾う)
   # --- network / data utilities ---
-  - name: cloudflare/cloudflared@2026.10.1
+  - name: cloudflare/cloudflared@2026.11.0
   - name: jqlang/jq@jq-1.8.2
-  - name: mikefarah/yq@v4.54.1
+  - name: mikefarah/yq@v4.54.3
   # --- AI エージェントの CLI と周辺ツール ---
   # 本体の自己更新は使わない。版は Renovate が上げる。更新確認・自動更新は次で止める:
   #   Claude Code: managed settings（run_after_42）の env.DISABLE_AUTOUPDATER
   #   Codex: bootstrap/codex/managed_config.toml の check_for_update_on_startup
   #   CodeGraph / Kiro CLI: ~/.config/shell/env.sh の CODEGRAPH_NO_UPDATE_CHECK / KIRO_NO_AUTO_UPDATE
   # 各ユーザ側の設定（MCP 登録など）は run_after_40-ai-assistants が行う。
-  - name: anthropics/claude-code@v2.1.321 # Claude Code
-  - name: openai/codex@rust-v0.167.0 # OpenAI Codex CLI
+  - name: anthropics/claude-code@v2.1.323 # Claude Code
+  - name: openai/codex@rust-v0.167.2 # OpenAI Codex CLI
   - name: colbymchenry/codegraph@v1.6.2 # コードの知識グラフを MCP でエージェントに渡す
   # Kiro CLI は Linux のみ（定義は local registry の registry.yaml）。macOS は /Applications の公式インストーラ。
-  - name: kiro.dev/kiro-cli@3.1.0
+  - name: kiro.dev/kiro-cli@3.3.0
     registry: local
   # --- AI エージェント補助 ---
   # AI エージェント向けブラウザ自動化 CLI (Rust 製・CDP 直結。Node/Playwright 不要)。
   # ブラウザ本体 (Chrome for Testing) は 41-agent-browser が別途取得する。
-  - name: vercel-labs/agent-browser@v0.39.1
+  - name: vercel-labs/agent-browser@v0.43.0
   # --- local registry (standard registry に無いもの) ---
-  - name: yt-dlp/yt-dlp@2026.08.19 # media downloader
+  - name: yt-dlp/yt-dlp@2026.10.26 # media downloader
     registry: local
   - name: wez/atomicparsley@20221229.172126.d813aa6 # yt-dlp 用メタデータ書込
     registry: local

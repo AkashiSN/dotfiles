@@ -43,7 +43,7 @@ UV_TOOLS="$UV_TOOLS ansible==8.7.0"
 # graphify（PyPI 上のパッケージ名は graphifyy、コマンド名は graphify）。SQL / HCL のパーサーは
 # 必須依存ではなく extra なので明示する（terraform extra が tree-sitter-hcl を連れてくる）。
 # 各ユーザの claude への登録（graphify install）は run_after_40-ai-assistants が行う。
-UV_TOOLS="$UV_TOOLS graphifyy[sql,terraform]==0.9.70"
+UV_TOOLS="$UV_TOOLS graphifyy[sql,terraform]==0.9.108"
 
 py_version() { tr -d '[:space:]' <"$DOTFILES_SRC/dot_config/uv/dot_python-version"; }
 

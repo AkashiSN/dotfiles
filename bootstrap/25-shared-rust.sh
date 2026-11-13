@@ -32,7 +32,7 @@ CARGO_ROOT="$SHARED_ROOT/cargo"
 KEYFILE="$SHARED_ROOT/dotfiles-shared/keys/25"
 AQUA_STORE="$SHARED_ROOT/aquaproj-aqua"
 
-RUST_VERSION="1.99.1"
+RUST_VERSION="1.100.0"
 # minimal に足すコンポーネント（rustup の default プロファイルのうち minimal に無いもの）。
 RUST_COMPONENTS="clippy rustfmt rust-docs"
 # 入れたあとに toolchain の bin に実行ファイルがあるか確かめるもの。

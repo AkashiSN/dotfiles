@@ -16,8 +16,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib.sh
 . "$here/lib.sh"
 
-AGMSG_VERSION="1.5.0"
-AGMSG_COMMIT="c487be269c1973aeb01ca831806eb3f65ff3366d"
+AGMSG_VERSION="1.7.2"
+AGMSG_COMMIT="831d7196a6c4ed3f4ce76a8a58e749262c1d4abe"
 
 SHARED_ROOT="${SHARED_ROOT:-/opt}"
 ROOT="$SHARED_ROOT/agmsg"
