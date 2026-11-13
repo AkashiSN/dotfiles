@@ -37,6 +37,10 @@ agmsg の PR は、版と commit の両方が変わっているか確かめて�
   同じブランチへ push する（まとめた PR でも同じ）。作るのは `aqua.yaml` の `checksum.supported_envs`
   （darwin / linux）の分だけ。Windows では aqua を使わないため、registry の Windows 版の定義が
   配布物と合わなくても（direnv v2.38 の `.exe` など）止まらない。
+- チェックサムのコミットは CI 用の GitHub App のトークンで push する（Variable `CI_BOT_CLIENT_ID`、
+  Secret `CI_BOT_APP_PRIVATE_KEY`。App の権限は Contents の read/write で、このリポジトリだけにインストール）。
+  `GITHUB_TOKEN` で push すると、そのコミットに対する次の実行が「Approve workflow run」で止まるため。
+  App の秘密鍵を作り直したら Secret も入れ替える。
 
 ## 版を止める・外す
 

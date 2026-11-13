@@ -1,6 +1,10 @@
 # Renovate が aqua.yaml の版を上げても aqua-checksums.json は自動更新されない。
 # この workflow が PR ブランチで `aqua update-checksum` を回し、aqua.yaml の checksum.supported_envs の
 # 環境分のチェックサムを再生成して同じ PR ブランチへコミットを push する(検証を常時維持)。
+#
+# push は GitHub App（Variable CI_BOT_CLIENT_ID / Secret CI_BOT_APP_PRIVATE_KEY）のトークンで行う。
+# GITHUB_TOKEN（github-actions[bot]）で push したコミットでは、次の workflow の実行が承認待ちで止まる。
+# App が push したコミットなら、Renovate のコミットと同じく承認なしで次の実行が始まる。
 name: update aqua-checksums.json
 
 on:
@@ -12,14 +16,23 @@ permissions: {}
 
 jobs:
   update-checksum:
+    # fork からの PR には Secret が渡らず App のトークンを作れないため、同じリポジトリのブランチだけで動かす。
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
-      contents: write # PR ブランチへチェックサム更新コミットを push するため
+      contents: read # checkout 用。push は App のトークンで行う
     steps:
+      - uses: actions/create-github-app-token@v3.3.0
+        id: app-token
+        with:
+          client-id: ${{ vars.CI_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
       - uses: actions/checkout@v7
         with:
           # PR のソースブランチ(Renovate ブランチは同一リポジトリ)を出して push し戻す。
           ref: ${{ github.head_ref }}
+          persist-credentials: false
       # update-checksum-action は aqua 本体を入れないので先に導入する。
       - uses: aquaproj/aqua-installer@v4.1.0
         with:
@@ -29,7 +42,9 @@ jobs:
       # aqua.yaml はリポジトリ直下ではなくこのディレクトリにある。
       # 各 OS/Arch のアセットを取得してハッシュする。対象の環境は aqua.yaml の checksum.supported_envs
       # （darwin / linux）で、prune で対象外の環境の行は消える。
+      # github_token はアセットの取得とコミットの push の両方に使われる。
       - uses: aquaproj/update-checksum-action@v0.2.7
         with:
           working_directory: dot_config/aquaproj-aqua
           prune: "true"
+          github_token: ${{ steps.app-token.outputs.token }}
