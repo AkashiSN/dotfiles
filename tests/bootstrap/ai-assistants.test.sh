@@ -36,6 +36,8 @@ mkhome() {
 	ln -s "$h/.local/share/claude/versions/9.9.9" "$h/.local/bin/claude"
 	ln -s "$h/.codex/packages/standalone/releases/1" "$h/.codex/packages/standalone/current"
 	ln -s "$h/.codex/packages/standalone/current/bin/codex" "$h/.local/bin/codex"
+	ln -s "$h/.codex/packages/standalone/current/bin/codex-code-mode-host" "$h/.local/bin/codex-code-mode-host"
+	ln -s "$h/somewhere-else/tool" "$h/.local/bin/other-tool"
 	: >"$h/.codex/config.toml"
 	: >"$h/.codex/sessions/keep"
 	: >"$h/.codegraph/telemetry.json"
@@ -59,11 +61,13 @@ h="$tmp/h2"
 mkhome "$h"
 PROVIDED="claude codex codegraph kiro-cli" ai_cleanup_home "$h" >/dev/null
 for p in .local/bin/claude .local/share/claude .local/state/claude .cache/claude \
-	.local/bin/codex .codex/packages .local/bin/codegraph .codegraph/versions .codegraph/current \
+	.local/bin/codex .local/bin/codex-code-mode-host .codex/packages .local/bin/codegraph .codegraph/versions .codegraph/current \
 	.local/bin/kiro-cli .local/bin/kiro-cli-chat .local/bin/kiro-cli-term; do
 	{ [ ! -e "$h/$p" ] && [ ! -L "$h/$p" ]; } || fail "提供あり: $p が残った"
 done
 echo "PASS: 提供あり: 公式インストーラの実体を消す"
+[ -L "$h/.local/bin/other-tool" ] || fail "提供あり: インストーラと関係ないリンクまで外した"
+echo "PASS: 補助コマンドのリンクも外し、関係ないリンクは残す"
 for p in .claude/settings.json .codex/config.toml .codex/sessions/keep .codegraph/telemetry.json; do
 	[ -e "$h/$p" ] || fail "提供あり: 設定・認証の $p まで消した"
 done
@@ -74,7 +78,7 @@ h="$tmp/h3"
 mkhome "$h"
 PROVIDED="claude" ai_cleanup_home "$h" >/dev/null
 [ ! -L "$h/.local/bin/claude" ] || fail "claude のリンクが残った"
-[ -L "$h/.local/bin/codex" ] && [ -d "$h/.codex/packages" ] || fail "提供されない codex を消した"
+[ -L "$h/.local/bin/codex" ] && [ -L "$h/.local/bin/codex-code-mode-host" ] && [ -d "$h/.codex/packages" ] || fail "提供されない codex を消した"
 [ -L "$h/.local/bin/codegraph" ] && [ -e "$h/.local/bin/kiro-cli" ] || fail "提供されない codegraph / kiro を消した"
 echo "PASS: 提供されたものだけ消す"
 
@@ -82,7 +86,7 @@ echo "PASS: 提供されたものだけ消す"
 h="$tmp/h4"
 mkhome "$h"
 out="$(PROVIDED="claude codex codegraph" BUSY="$h/.local/share/claude/versions $h/.codex/packages $h/.codegraph/versions" ai_cleanup_home "$h" 2>&1)"
-for p in .local/bin/claude .local/bin/codex .local/bin/codegraph; do
+for p in .local/bin/claude .local/bin/codex .local/bin/codex-code-mode-host .local/bin/codegraph; do
 	{ [ ! -e "$h/$p" ] && [ ! -L "$h/$p" ]; } || fail "動作中: $p のリンクを外していない"
 done
 [ -d "$h/.local/share/claude/versions/9.9.9" ] && [ -d "$h/.codex/packages/standalone/releases/1" ] &&
