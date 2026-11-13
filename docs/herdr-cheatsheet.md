@@ -328,8 +328,13 @@ yazi 内で `.` を押せば一時的にトグルできる。
   - codex : `~/.codex/herdr-agent-state.sh` + `~/.codex/hooks.json` + `config.toml` に `hooks = true`
 - 例外は **claude の `~/.claude/settings.json` への `SessionStart` hook 追記**。これは chezmoi 管理ファイル
   （`private_dot_claude/modify_settings.json.tmpl`）と衝突するため、hook エントリを**ソース側に焼き込んでいる**
-  （パスは `{{ .chezmoi.homeDir }}` でテンプレート化）。ソースは herdr 出力と byte 一致（キー順そのまま・
-  末尾改行なし）にしてあり、install は冪等に上書きするだけなのでドリフトしない。
+  （パスは `{{ .chezmoi.homeDir }}` でテンプレート化）。エントリの中身（matcher `^(startup|resume|clear|compact|fork)$`・
+  command・timeout）は herdr の integration（claude v11）が書くものと同じにしてある。同じ中身があれば install は
+  書き換えず、modify_ は JSON の中身で比べるので、herdr が 1 行で書いた形のままでも差分は出ない。
+  herdr の更新で integration の版が上がり、`chezmoi status` で `~/.claude/settings.json` が `MM` になったら、
+  `chezmoi diff ~/.claude/settings.json` で herdr が書いた中身を見てソース側を合わせる
+  （食い違うと、apply のたびに chezmoi と install が互いに書き戻す）。
+  経緯: integration v11 で matcher が `*` から上の正規表現に変わり、ソースが `*` のままだったため書き戻しが起きていた（2026-11-13 に修正）。
 
 | コマンド | 動作 |
 | --- | --- |
