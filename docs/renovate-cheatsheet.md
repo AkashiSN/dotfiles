@@ -34,7 +34,9 @@ agmsg の PR は、版と commit の両方が変わっているか確かめて�
 - **新しい PR を作るのは月曜 0〜8 時台（Asia/Tokyo）だけ。** 既に開いている PR の rebase や
   追加の更新の積み増しは毎回の実行で行う。
 - aqua.yaml を変えた PR では `update-aqua-checksum.yaml` が `aqua-checksums.json` を作り直して
-  同じブランチへ push する（まとめた PR でも同じ）。
+  同じブランチへ push する（まとめた PR でも同じ）。作るのは `aqua.yaml` の `checksum.supported_envs`
+  （darwin / linux）の分だけ。Windows では aqua を使わないため、registry の Windows 版の定義が
+  配布物と合わなくても（direnv v2.38 の `.exe` など）止まらない。
 
 ## 版を止める・外す
 

@@ -1,6 +1,6 @@
 # Renovate が aqua.yaml の版を上げても aqua-checksums.json は自動更新されない。
-# この workflow が PR ブランチで `aqua update-checksum` を回し、全プラットフォーム分の
-# チェックサムを再生成して同じ PR ブランチへコミットを push する(検証を常時維持)。
+# この workflow が PR ブランチで `aqua update-checksum` を回し、aqua.yaml の checksum.supported_envs の
+# 環境分のチェックサムを再生成して同じ PR ブランチへコミットを push する(検証を常時維持)。
 name: update aqua-checksums.json
 
 on:
@@ -27,7 +27,8 @@ jobs:
         env:
           AQUA_GITHUB_TOKEN: ${{ github.token }}
       # aqua.yaml はリポジトリ直下ではなくこのディレクトリにある。
-      # -deep で各 OS/Arch のアセットを取得してハッシュするため checksum は全環境分揃う。
+      # 各 OS/Arch のアセットを取得してハッシュする。対象の環境は aqua.yaml の checksum.supported_envs
+      # （darwin / linux）で、prune で対象外の環境の行は消える。
       - uses: aquaproj/update-checksum-action@v0.2.7
         with:
           working_directory: dot_config/aquaproj-aqua
