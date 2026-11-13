@@ -14,7 +14,7 @@ set -eu
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.invalid
 export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.invalid
-unset DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT
+unset DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT DOTFILES_STATE_SEEN
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -78,7 +78,7 @@ DOTFILES_STATE_COMMIT='' bash "$RUN" >/dev/null
 [ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: commit が空なのに state を書いた"
 echo "PASS: run-all: DOTFILES_STATE_COMMIT が空なら state を書かない"
 
-# (A1) 先頭のステップが失敗しても後続を流し、state は書かず、終了コードは 1
+# (A1) 先頭のステップが失敗しても後続を流し、終了コードは 1。state は下げないよう、流す前に進めておく
 rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 3\n' >"$bd/10-a.sh"
@@ -86,17 +86,58 @@ rc=0
 DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
 assert_eq "1" "$rc" "run-all: ステップ失敗で 1"
 assert_eq "20 $tmp/src " "$(cat "$SHARED_ROOT/ran")" "run-all: 10 が失敗しても 20 を流す"
-[ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: 失敗したのに state を書いた"
-echo "PASS: run-all: 失敗があれば state を書かない"
+assert_eq "zzz" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 一部が失敗しても、出したかもしれない版のコミットを state に残す"
+rc=0
+bash "$RUN" --check || rc=$?
+assert_eq "1" "$rc" "run-all --check: 失敗したステップは食い違いのまま残る"
 
-# 実行後の --check が通らない（キーの書き忘れ）ステップも失敗扱いで、state を書かない
-rm -f "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran"
+# 実行後の --check が通らない（キーの書き忘れ）ステップも失敗扱い
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran" "$SHARED_ROOT/dotfiles-shared/state"
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env bash\n[ "${1:-}" = --check ] && exit 1\nexit 0\n' >"$bd/10-a.sh"
 rc=0
 DOTFILES_STATE_COMMIT=zzz bash "$RUN" >/dev/null 2>&1 || rc=$?
 assert_eq "1" "$rc" "run-all: 実行後も食い違えば 1"
-[ ! -e "$SHARED_ROOT/dotfiles-shared/state" ] || fail "run-all: 食い違ったまま state を書いた"
+
+# (L1) 判定のあとに state が変わっていたら、何も流さず state も変えずに 4
+mkstep 10-a.sh
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20" "$SHARED_ROOT/ran"
+state_write "$SHARED_ROOT/dotfiles-shared/state" newer
+rc=0
+out="$(DOTFILES_STATE_COMMIT=older DOTFILES_STATE_SEEN=base bash "$RUN" 2>&1)" || rc=$?
+assert_eq "4" "$rc" "run-all: 判定後に state が変わっていたら 4"
+[ ! -e "$SHARED_ROOT/ran" ] || fail "run-all: 判定が古いのにステップを流した"
+assert_eq "newer" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: 判定が古いときは state を変えない"
+assert_contains "$out" "ほかのユーザ" "run-all: 判定が古い理由を出す"
+# state が無いと見ていた（SEEN 空）のに state が出来ていても 4
+rc=0
+DOTFILES_STATE_COMMIT=older bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "4" "$rc" "run-all: state が無いと判定したのに出来ていたら 4"
+# force（COMMIT 空）は state を見ない
+rc=0
+DOTFILES_STATE_COMMIT='' DOTFILES_STATE_SEEN=base bash "$RUN" >/dev/null 2>&1 || rc=$?
+assert_eq "0" "$rc" "run-all: COMMIT が空なら state を照合しない"
+assert_eq "newer" "$(state_commit "$SHARED_ROOT/dotfiles-shared/state")" "run-all: COMMIT が空なら state を書かない"
+rm -f "$SHARED_ROOT/dotfiles-shared/state" "$SHARED_ROOT/ran"
+
+# (L2) 更新はロックで 1 本に絞る。待つ間にほかの更新が揃えたら、数え直して何も流さない
+rm -f "$SHARED_ROOT/dotfiles-shared/keys/10" "$SHARED_ROOT/dotfiles-shared/keys/20"
+(
+	shared_lock "$SHARED_ROOT/dotfiles-shared/lock"
+	: >"$tmp/lockheld"
+	sleep 2
+	echo ok >"$SHARED_ROOT/dotfiles-shared/keys/10"
+	echo ok >"$SHARED_ROOT/dotfiles-shared/keys/20"
+) &
+holder=$!
+while [ ! -e "$tmp/lockheld" ]; do sleep 0.1; done
+rc=0
+out="$(DOTFILES_STATE_COMMIT=c1 bash "$RUN" 2>&1)" || rc=$?
+wait "$holder"
+assert_eq "0" "$rc" "run-all: ロックを待ってから流す"
+assert_contains "$out" "待ちます" "run-all: ロック待ちを案内する"
+[ ! -e "$SHARED_ROOT/ran" ] || fail "run-all: 待つ間に揃ったのにステップを流した"
+rm -f "$tmp/lockheld"
 
 # (A2) --check の 1 は食い違い、それ以外の非 0 はステップの異常。どちらも不一致として数え、異常は終了コードを出す
 mkstep 10-a.sh
@@ -204,8 +245,17 @@ sudo() {
 	fi
 	{
 		echo "ARGS: $*"
-		echo "ENV: token=${GITHUB_TOKEN:-} force=${DOTFILES_SHARED_FORCE:-} commit=${DOTFILES_STATE_COMMIT:-} aqua=${AQUA_BIN:-} root=${SHARED_ROOT:-} src=${DOTFILES_SRC:-}"
+		echo "ENV: token=${GITHUB_TOKEN:-} force=${DOTFILES_SHARED_FORCE:-} commit=${DOTFILES_STATE_COMMIT:-} seen=${DOTFILES_STATE_SEEN:-} aqua=${AQUA_BIN:-} root=${SHARED_ROOT:-} src=${DOTFILES_SRC:-}"
 	} >>"$calls"
+	# SUDO_RCS があれば呼ぶたびに先頭から 1 つずつ使う（4 で判定し直す流れを試す）。
+	if [ -n "${SUDO_RCS:-}" ]; then
+		local n
+		n="$(grep -c '^ARGS' "$calls")"
+		# shellcheck disable=SC2086  # 空白区切りの一覧を分ける
+		set -- $SUDO_RCS
+		shift $((n - 1))
+		return "${1:-0}"
+	fi
 	return "$SUDO_RC"
 }
 gh() { [ "$1 $2" = "auth token" ] && echo SECRET_TOKEN; }
@@ -243,7 +293,8 @@ assert_contains "$c" "commit=$head" "trigger (e): ok は DOTFILES_STATE_COMMIT �
 assert_contains "$c" "force= " "trigger (e): ok は DOTFILES_SHARED_FORCE を渡さない"
 assert_contains "$c" "token=SECRET_TOKEN" "trigger (c): GITHUB_TOKEN を環境変数で渡す"
 assert_contains "$c" "root=$tmp/opt2" "trigger (c): SHARED_ROOT を渡す"
-assert_contains "$c" "--preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES_SHARED_FORCE,DOTFILES_STATE_COMMIT,SHARED_ROOT" "trigger (c): --preserve-env を使う"
+assert_contains "$c" "--preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES_SHARED_FORCE,DOTFILES_STATE_COMMIT,DOTFILES_STATE_SEEN,SHARED_ROOT" "trigger (c): --preserve-env を使う"
+assert_contains "$c" "seen= " "trigger (c): state が無ければ SEEN は空"
 assert_contains "$c" "bash $src/bootstrap/run-all.sh" "trigger (c): run-all.sh を bash で呼ぶ"
 assert_not_contains "$(grep '^ARGS' "$calls")" "SECRET_TOKEN" "trigger (c): token が argv に出ない"
 assert_not_contains "$out" "SECRET_TOKEN" "trigger (c): token を表示しない"
@@ -272,6 +323,21 @@ out="$(FAKE_CHECK_RC=1 DOTFILES_SHARED_FORCE=1 trig)"
 c="$(cat "$calls")"
 assert_contains "$c" "force=1 commit= " "trigger (e): force は FORCE=1 を渡し state commit を渡さない"
 g -C "$src" reset -q --hard "$head"
+
+# (i) 判定に使った state を SEEN で渡す。run-all が 4（判定が古い）なら 1 度だけ判定し直す
+mkdir -p "$tmp/opt2/dotfiles-shared"
+state_write "$tmp/opt2/dotfiles-shared/state" "$head"
+out="$(FAKE_CHECK_RC=1 trig)"
+assert_contains "$(cat "$calls")" "seen=$head " "trigger (i): 判定に使った state を SEEN で渡す"
+out="$(FAKE_CHECK_RC=1 SUDO_RCS="4 0" trig)"
+assert_eq "2" "$(grep -c '^ARGS' "$calls")" "trigger (i): 4 なら判定し直してもう 1 度流す"
+assert_contains "$out" "判定し直します" "trigger (i): 判定し直す旨を出す"
+assert_contains "$out" "rc=0" "trigger (i): 終了コード 0"
+out="$(FAKE_CHECK_RC=1 SUDO_RCS="4 4 0" trig)"
+assert_eq "2" "$(grep -c '^ARGS' "$calls")" "trigger (i): やり直しは 1 度だけ"
+assert_contains "$out" "次の apply" "trigger (i): 2 度目も古ければ次の apply へ回す"
+assert_contains "$out" "rc=0" "trigger (i): 2 度目も古くても終了コード 0"
+rm -f "$tmp/opt2/dotfiles-shared/state"
 
 # (d) sudo -n 失敗 + TTY 無し → 呼ばない・警告・0
 SUDO_N_RC=1

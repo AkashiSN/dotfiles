@@ -80,9 +80,8 @@ sudo dseditgroup -o delete brew                     # グループ自体を消�
 - **署名と 1Password**: `git.signingkey` が空なら署名の設定（`gpg.ssh.program = op-ssh-sign`）は出ない。1Password を使わないユーザは空のままにする。`run_onchange_after_50-macos` の `op-ssh-sign` / ssh-agent のシンボリックリンクは、実体があるときだけ作る。
 - **portfwd のポート 55999 は固定**: `portfwd serve` は `127.0.0.1:55999` で listen する（`PORTFWD_PORT` で変更可）。2 人が同時にログインしていると、後から起動した側の bind が失敗して LaunchAgent が再起動を繰り返す。リモート側の `RemoteForward` も 55999 固定なので、同時に使うなら片方のユーザは portfwd を使わない（plist を除外する）か、`PORTFWD_PORT` と ssh config の両方を変える。
 - **portfwd の launchd 登録**: `launchctl bootstrap gui/<uid>` は、そのユーザの GUI セッションが無いと失敗する。`risa` は GUI ログインした状態で apply する。
-- **`/tmp` の固定名**: `run_onchange_before_10-install-packages` の aqua / ffmpeg の一時ファイル（Linux と Intel Mac の経路）が `/tmp/aqua.tar.gz` などの固定名。同時に 2 人が走らせると衝突するが、apply を同時に実行しなければ起きない。Apple Silicon の macOS は通らない。
 - **Homebrew グループ追加後の再ログイン**: [Homebrew](#homebrew-apple-silicon-の共有) を参照。
-- **共有の対象外（計画 2）**: aqua は `/opt/aquaproj-aqua` の共有ストアに移った（[shared-store-cheatsheet.md](shared-store-cheatsheet.md)）。npm / uv / rust も共有に移った。AI CLI は未対応で、今は各ユーザの `$HOME` 配下に入る。
+- **共有の対象外（計画 2）**: aqua は `/opt/aquaproj-aqua` の共有ストアに移った（[shared-store-cheatsheet.md](shared-store-cheatsheet.md)）。npm / uv / rust も共有に移った。AI CLI（Claude Code / Codex / CodeGraph、Linux の Kiro）も共有 aqua に入る。macOS の Kiro だけは `/Applications` の公式インストーラで入れる（[shared-store-cheatsheet.md](shared-store-cheatsheet.md#ai-エージェントの-cliaquayaml-と-run_after_40-ai-assistantsshtmpl)）。
 - **終了案内**: `run_once_after_90-final-notice` はログインシェルが zsh でないときの `usermod`（Linux 用）と `direnv allow ~` だけを案内する。macOS の新規ユーザは既定が zsh で、案内は出ない。
 
 ## テスト

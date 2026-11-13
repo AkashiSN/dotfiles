@@ -38,6 +38,30 @@ gc_defer() {
 	mkdir -p "$dir" && : >"$dir/$nn"
 }
 
+# shared_lock <file>
+# 共有ストアの更新を全ユーザで 1 本に絞る排他ロックを取る。取れるまで待つ（待つときは 1 行案内する）。
+# ロックは fd 9 に開いた <file> の flock で、このシェルが終わる（fd 9 が閉じる）と外れる。異常終了でも残らない。
+# ステップなどの子プロセスへ fd 9 を渡さないよう、呼び出し側は子を 9>&- で起動する。
+# flock(1) が無い macOS は /usr/bin/perl の flock を fd 9 に掛ける（ロックは開いたファイルに付くので、
+# perl が終わってもこのシェルが fd 9 を開いている間は保たれる）。
+shared_lock() {
+	mkdir -p "$(dirname "$1")"
+	exec 9>>"$1"
+	_flock_fd9 -n && return 0
+	note "ほかの共有ストアの更新が終わるのを待ちます ($1)"
+	_flock_fd9
+}
+
+# _flock_fd9 [-n]: fd 9 に排他の flock を掛ける。-n なら待たず、取れなければ 1。
+_flock_fd9() {
+	if command -v flock >/dev/null 2>&1; then
+		flock ${1:+"$1"} 9
+	else
+		# shellcheck disable=SC2016
+		perl -MFcntl=:flock -e 'open(my $f, ">&=", 9) or exit 2; flock($f, LOCK_EX | ($ARGV[0] ? LOCK_NB : 0)) or exit 1' -- "${1:-}"
+	fi
+}
+
 # shared_aqua_current
 # 共有 aqua ストアが DOTFILES_SRC のピンで揃っているか（config が在り、20-shared-aqua.sh --check が
 # 通る）。揃っていれば 0。共有 aqua からツールを引くステップ（21 / 23 / 24 / 25）が、20 が失敗した
@@ -60,9 +84,15 @@ swap_symlink() {
 	fi
 	case "$(uname -s)" in
 	Darwin)
-		# -h: <link> が既存の symlink ならその先ではなく symlink 自体を置き換える。
-		# PATH 先頭に GNU ln があっても BSD 版を使う。
-		/bin/ln -sfhn "$target" "$link"
+		# 一時リンクを作って rename で置き換える（ln -sfh は消してから作るので、間にリンクが無い瞬間がある）。
+		# mv -h: <link> がディレクトリへの symlink でも、その中へ移さず symlink 自体を置き換える。
+		# mv -h の無い古い macOS では ln -sfh で置き換える。PATH 先頭に GNU 版があっても BSD 版を使う。
+		tmp="${link}.swap.$$"
+		/bin/ln -sfhn "$target" "$tmp" || return 1
+		if ! /bin/mv -fh "$tmp" "$link" 2>/dev/null; then
+			/bin/rm -f "$tmp"
+			/bin/ln -sfhn "$target" "$link"
+		fi
 		;;
 	*)
 		tmp="${link}.swap.$$"

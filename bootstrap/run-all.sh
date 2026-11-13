@@ -4,8 +4,9 @@
 #   run-all.sh --check   各ステップの --check を流す（root 不要、何も書かない）。
 #                        全ステップが一致なら 0、1 本でもキーが不一致（か --check の異常）なら 1、
 #                        キーは全て一致で消し残し（pending/NN）だけがあるなら 3。
-#   run-all.sh           （root）不一致のステップだけを番号順に流す。1 本が失敗しても後続は流し、
-#                        失敗があれば state を書かずに 1 で終わる。
+#   run-all.sh           （root）共有ストアのロックを取ってから、不一致のステップだけを番号順に流す。
+#                        1 本が失敗しても後続は流し、失敗があれば 1 で終わる。
+#                        呼び出し側の判定のあとに state が変わっていたら、何もせず 4 で終わる。
 #
 # ステップの約束:
 #   - ファイル名は bootstrap/NN-*.sh（NN は 2 桁）。run-all.sh / lib.sh / guard.sh は対象外。
@@ -21,7 +22,15 @@
 #
 # git はここでは実行しない。root が利用者のリポジトリへ git を向けると「dubious ownership」で
 # 拒否されるため、ダウングレード判定（shared_guard）は呼び出したユーザ側で済ませ、結果を
-# DOTFILES_STATE_COMMIT（ok のときの HEAD）で受け取る。空なら state を書かない（force など）。
+# DOTFILES_STATE_COMMIT（ok のときの HEAD）と DOTFILES_STATE_SEEN（判定に使った state のコミット。
+# state が無ければ空）で受け取る。DOTFILES_STATE_COMMIT が空なら state を見ず、書かない（force など）。
+#
+# 更新は $SHARED_ROOT/dotfiles-shared/lock の排他ロックで全ユーザ 1 本に絞る。ロックを取ってから
+# 食い違いを数え直し、state が DOTFILES_STATE_SEEN のままかを確かめる（sudo の認証待ちの間に
+# ほかのユーザが更新していたら、その判定は古い）。変わっていれば 4 で終わり、呼び出し側が判定し直す。
+# state はステップを流す前に DOTFILES_STATE_COMMIT へ進める。state は「共有側にこのコミットの版が
+# 出ているかもしれない」下限で、途中のステップが失敗しても下げない（古い checkout が新しい版を
+# 巻き戻せないようにする）。失敗したステップは食い違いのまま残り、次の apply で流し直す。
 #
 # テスト用の上書き: SHARED_ROOT（既定 /opt）/ BOOTSTRAP_DIR（ステップの置き場）/
 # BOOTSTRAP_ALLOW_NONROOT=1（root 確認を省く）/ BOOTSTRAP_ROOT_HOME（ステップに渡す HOME）。
@@ -77,26 +86,31 @@ step_pending() {
 # 不一致のステップを mismatched に集める。--check の 1 は食い違い、それ以外の非 0 は異常。
 # --check が 0 でも消し残しがあれば、掃除をやり直すため不一致として数える。
 # key_mismatch はキーの不一致（か --check の異常）が 1 本でもあれば 1。消し残しだけなら 0 のまま。
-mismatched=()
-key_mismatch=0
-for f in "${steps[@]}"; do
-	rc=0
-	bash "$f" --check >/dev/null || rc=$?
-	case "$rc" in
-	0) step_pending "$f" && mismatched+=("$f") ;;
-	1)
-		mismatched+=("$f")
-		key_mismatch=1
-		;;
-	*)
-		warn "$(basename "$f") の --check が異常終了しました (終了コード $rc)。不一致として扱います"
-		mismatched+=("$f")
-		key_mismatch=1
-		;;
-	esac
-done
+collect_mismatched() {
+	local f rc
+	mismatched=()
+	key_mismatch=0
+	for f in "${steps[@]}"; do
+		rc=0
+		bash "$f" --check >/dev/null 9>&- || rc=$?
+		case "$rc" in
+		0) step_pending "$f" && mismatched+=("$f") ;;
+		1)
+			mismatched+=("$f")
+			key_mismatch=1
+			;;
+		*)
+			warn "$(basename "$f") の --check が異常終了しました (終了コード $rc)。不一致として扱います"
+			mismatched+=("$f")
+			key_mismatch=1
+			;;
+		esac
+	done
+	return 0
+}
 
 if [ "$mode" = check ]; then
+	collect_mismatched
 	[ "${#mismatched[@]}" -eq 0 ] && exit 0
 	[ "$key_mismatch" -eq 1 ] && exit 1
 	exit 3
@@ -127,6 +141,22 @@ fi
 [ -z "$root_home" ] || export HOME="$root_home"
 unset SSH_AUTH_SOCK
 
+STATE="$SHARED_ROOT/dotfiles-shared/state"
+shared_lock "$SHARED_ROOT/dotfiles-shared/lock"
+
+if [ -n "${DOTFILES_STATE_COMMIT:-}" ] && [ "$(state_commit "$STATE")" != "${DOTFILES_STATE_SEEN:-}" ]; then
+	warn "判定のあとに、ほかのユーザが共有ストアを更新しました（state: ${DOTFILES_STATE_SEEN:-なし} → $(state_commit "$STATE")）。この判定では更新しません"
+	exit 4
+fi
+
+# ロックを待つ間にほかの更新が同じ版を揃えたかもしれないので、数え直す。
+collect_mismatched
+[ "${#mismatched[@]}" -gt 0 ] || exit 0
+
+if [ -n "${DOTFILES_STATE_COMMIT:-}" ]; then
+	state_write "$STATE" "$DOTFILES_STATE_COMMIT"
+fi
+
 failed=0
 for f in ${mismatched[@]+"${mismatched[@]}"}; do
 	name="$(basename "$f")"
@@ -134,9 +164,9 @@ for f in ${mismatched[@]+"${mismatched[@]}"}; do
 	rm -f "$PENDING/${name%%-*}"
 	rc=0
 	if [ "${name%%-*}" = 20 ] && [ -n "$gh_token" ]; then
-		GITHUB_TOKEN="$gh_token" bash "$f" || rc=$?
+		GITHUB_TOKEN="$gh_token" bash "$f" 9>&- || rc=$?
 	else
-		bash "$f" || rc=$?
+		bash "$f" 9>&- || rc=$?
 	fi
 	if [ "$rc" -ne 0 ]; then
 		warn "$name が失敗しました。後続のステップは続けます"
@@ -144,15 +174,11 @@ for f in ${mismatched[@]+"${mismatched[@]}"}; do
 		continue
 	fi
 	# 揃えたあとの --check が通らなければ、キーを書き忘れている。
-	if ! bash "$f" --check >/dev/null; then
+	if ! bash "$f" --check >/dev/null 9>&-; then
 		warn "$name は実行後も食い違っています（キーを書いていません）"
 		failed=1
 	fi
 done
 
-# 1 本でも失敗したら state は進めず、次の apply でやり直す。
+# 失敗したステップは食い違いのまま残るので、次の apply でやり直す。
 [ "$failed" -eq 0 ] || exit 1
-
-if [ -n "${DOTFILES_STATE_COMMIT:-}" ]; then
-	state_write "$SHARED_ROOT/dotfiles-shared/state" "$DOTFILES_STATE_COMMIT"
-fi

@@ -6,7 +6,8 @@
 
 | パス | 内容 |
 | --- | --- |
-| `/opt/dotfiles-shared/state` | 共有側を最後に更新したコミット（`commit=` / `updated_by=` / `updated_at=` の 3 行） |
+| `/opt/dotfiles-shared/state` | 共有側に版を出したかもしれない最も新しいコミット（`commit=` / `updated_by=` / `updated_at=` の 3 行）。ステップを流す前に書く |
+| `/opt/dotfiles-shared/lock` | 更新を全ユーザで 1 本に絞る排他ロック（`flock`。無ければ `/usr/bin/perl` の flock）。中身は空で、更新を終えたプロセスが閉じると外れる |
 | `/opt/dotfiles-shared/keys/<NN>` | ステップ `bootstrap/NN-*.sh` が揃えたときのピンのキー（`pins_key` の 12 桁） |
 | `/opt/dotfiles-shared/pending/<NN>` | ステップ `NN` が使用中のため消し残したものがある印（次の apply で流し直す） |
 | `bootstrap/NN-*.sh` | 共有側の 1 領域を揃えるステップ（番号順に実行） |
@@ -20,7 +21,7 @@
 
 1. `bootstrap/run-all.sh --check` を呼び出したユーザの権限で流す。全ステップが一致なら何もせず終わる（sudo を呼ばない）。
 2. 食い違いがあれば、ダウングレード判定 `shared_guard` を同じユーザの権限で行う。`stale` なら警告だけ出して終わる。
-3. `ok` / `force` なら sudo を呼ぶ。`sudo --preserve-env=... bash bootstrap/run-all.sh` で、食い違うステップだけを番号順に揃える。
+3. `ok` / `force` なら sudo を呼ぶ。`sudo --preserve-env=... bash bootstrap/run-all.sh` で、食い違うステップだけを番号順に揃える。`run-all.sh` はロック（`/opt/dotfiles-shared/lock`）を取ってから食い違いを数え直し、`state` が 2. で判定したときのままか確かめる。sudo の認証やロックを待つ間にほかのユーザが更新していたら、何もせず 4 で終わり、`shared_store_trigger` が 1 度だけ 1. から判定し直す（2 度目も変わっていれば次の apply に回す）。
 4. 食い違いが消し残し（`pending/<NN>`）だけ（`--check` が 3）なら急がない。`sudo -n` が通るときだけ `sudo -n` で流し、通らなければパスワードを聞かず案内を 1 行出して終わる。
 
 どの場合も `chezmoi apply` は止まらない（常に終了コード 0）。
@@ -37,7 +38,9 @@ root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_T
 
 ## ダウングレード防止（guard）
 
-共有側を更新してよいのは、`HEAD` が `origin/main` に含まれ、かつ `state` のコミットが `HEAD` の祖先（または `state` が無い）のとき。更新したら `state` に `HEAD` を書く。git は root で動かさず（所有者違いで拒否されるため）、呼び出したユーザ側で判定して結果を `DOTFILES_STATE_COMMIT` で渡す。
+共有側を更新してよいのは、`HEAD` が `origin/main` に含まれ、かつ `state` のコミットが `HEAD` の祖先（または `state` が無い）のとき。git は root で動かさず（所有者違いで拒否されるため）、呼び出したユーザ側で判定して、結果を `DOTFILES_STATE_COMMIT`（`HEAD`）と `DOTFILES_STATE_SEEN`（判定に使った `state` のコミット。無ければ空）で渡す。
+
+`run-all.sh` はロックを取ったあと、`state` が `DOTFILES_STATE_SEEN` と同じときだけ進む（違えば 4）。ステップを流す前に `state` を `HEAD` へ進め、途中のステップが失敗しても下げない。`state` は「共有側にこのコミットの版が出ているかもしれない」下限で、一部だけ新しい版になった共有側を、古い checkout が `behind-state` で巻き戻せないようにする。失敗したステップは食い違いのまま残り、同じコミット以降の apply が流し直す。
 
 | 理由 | 意味 |
 | --- | --- |
@@ -52,10 +55,10 @@ root の aqua へは、呼び出したユーザの `gh auth token` を `GITHUB_T
 
 ```sh
 bash bootstrap/run-all.sh --check; echo $?    # 0: 一致 / 1: キーの食い違い / 3: 消し残しだけ（root 不要、何も書かない）
-sudo bash bootstrap/run-all.sh                 # 食い違うステップだけを揃える
+sudo bash bootstrap/run-all.sh                 # 食い違うステップだけを揃える（1: ステップの失敗 / 4: 判定後に state が変わった）
 ```
 
-`sudo` で直接流すと git 判定は行わず `state` も書かない（`DOTFILES_STATE_COMMIT` が空のため）。`GITHUB_TOKEN` / `AQUA_BIN` が必要なステップは、`sudo --preserve-env=GITHUB_TOKEN,AQUA_BIN,DOTFILES_SRC` を付けて、環境変数を export したうえで流す。
+`sudo` で直接流すと git 判定は行わず `state` も見ず書かない（`DOTFILES_STATE_COMMIT` が空のため）。ロックは取るので、ほかのユーザの apply が更新している間は待つ。`GITHUB_TOKEN` / `AQUA_BIN` が必要なステップは、`sudo --preserve-env=GITHUB_TOKEN,AQUA_BIN,DOTFILES_SRC` を付けて、環境変数を export したうえで流す。
 
 ## ステップの約束（`bootstrap/NN-*.sh`）
 
@@ -63,7 +66,8 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 - 引数なし: root で共有側を揃える（冪等）。揃えたら `$SHARED_ROOT/dotfiles-shared/keys/NN` に `pins_key` の結果を書く。`--check` はこのキーとソースから計算したキーを比べる。
 - 環境変数: `DOTFILES_SRC` / `AQUA_BIN` / `SHARED_ROOT` / `DOTFILES_SHARED_FORCE`。`GITHUB_TOKEN` は `run-all.sh` が `20`（共有 aqua）にだけ渡し、他のステップ（`--check` を含む）からは外す。
 - 共有 aqua からツールを引くステップ（21 / 23 / 24 / 25）は、最初に `bootstrap/lib.sh` の `shared_aqua_current`（`20-shared-aqua.sh --check`）で共有 aqua がピンと揃っているかを見る。揃っていなければ理由を出して非 0 で終わる（20 が失敗した回は、後続がそろって「飛ばした」と出る）。
-- ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば `state` を書かず、終了コード 1 で終わる（次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
+- ステップが失敗しても `run-all.sh` は後続を流す。失敗が 1 本でもあれば終了コード 1 で終わる（`state` は流す前に進めてあり、そのまま。失敗したステップは食い違いのまま残り、次の apply でやり直す）。実行後の `--check` が通らないステップ（キーの書き忘れ）も失敗として扱う。
+- `run-all.sh` はステップ（と `--check`）をロックの fd を閉じて起動する。ステップが残したプロセスがロックを持ち続けないようにするため。
 - 古い版を使用中のため消せなかったステップは、`bootstrap/lib.sh` の `gc_defer` で `/opt/dotfiles-shared/pending/<NN>` を置く。`run-all.sh --check` はキーが全て一致していてもこれがあれば 3 を返す（キーの食い違いもあれば 1）。次の apply（どのユーザのものでもよい。ダウングレード判定は通常どおり）で、`sudo -n` が通るときだけそのステップを流し直して使い終わったものを消す。パスワードは聞かない（通らなければ案内を 1 行出すだけで、キーの食い違いで sudo を通した apply か、資格情報がキャッシュされている間の apply で掃除される）。`run-all.sh` はステップを流す前に印を外し、まだ使用中ならステップが置き直す（失敗ではない）。
 - ステップの `--check` の終了コードは 1 だけが食い違い。それ以外の非 0 はステップ自身の異常として終了コードつきで警告し、不一致として数える。
 
@@ -91,6 +95,9 @@ sudo bash bootstrap/run-all.sh                 # 食い違うステップだけ�
 `.../aquaproj-aqua/pkgs/github_release/...` を含むパスでも照合する。`aqua.yaml` に名前が出てこない
 パッケージ（依存や github_release 以外の種別）には触らない。`cli/cli`（gh）の版も全て残す（aqua は
 attestation の検証に自分で固定した版の gh を入れて使うため、消すと次の apply でまた取得し直す）。
+`/opt/npm-global/<key>/bin/*`（npm の CLI のラッパー。node を絶対パスで exec する）のどれかが指している版も、
+動いていなくても残す（23 は 1 つ前の組も残すので、その組が指す 1 つ前の node も残る。組が消えたあと、次に 20 を流したときに消える）。
+いまの `nodejs/node` は `pkgs/http/nodejs.org/...` に入るのでこの掃除の対象外だが、github_release になっても壊さないための守り。
 
 ユーザ側（`run_after_20-aqua-verify.sh.tmpl`、毎回実行）は、共有側（`config/aqua.yaml`）が在るときだけ
 ホームの `pkgs` / `bin` を symlink にする。実ディレクトリなら `<dir>.old.<時刻>` へ退避し、

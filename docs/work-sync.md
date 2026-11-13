@@ -200,7 +200,7 @@ sshd / `create-slides` / `drawio` スキル / Windows は work 固有なので�
 | 違い | 中身 |
 | --- | --- |
 | 起動の仕方 | work は手で `sudo bootstrap/run-all.sh`。こちらは apply のたびに `--check`（root 不要）で調べ、食い違うときだけ sudo。非対話で sudo を使えなければ警告だけで apply は止めない |
-| ダウングレード防止 | `/opt/dotfiles-shared/state` に最後に揃えたコミットを置き、`HEAD` が `origin/main` に含まれ、かつ state の子孫のときだけ更新する（`bootstrap/guard.sh`。`DOTFILES_SHARED_FORCE=1` で無視） |
+| ダウングレード防止 | `/opt/dotfiles-shared/state` に版を出したかもしれない最も新しいコミットを置き、`HEAD` が `origin/main` に含まれ、かつ state の子孫のときだけ更新する（`bootstrap/guard.sh`。`DOTFILES_SHARED_FORCE=1` で無視）。更新は `/opt/dotfiles-shared/lock` の flock で 1 本に絞り、ロックを取ってから state が判定時のままかを確かめ、ステップを流す前に state を進める（2026-11-13、PR #124 の codex レビューで同時 apply と部分失敗の巻き戻しを指摘されて追加） |
 | キー | 各ステップはピンのハッシュを `/opt/dotfiles-shared/keys/NN` に書き、`--check` はこれと比べる |
 | 古い版 | 1 つ前を残し、どのユーザのプロセスでも使用中のものは消さない（Linux `/proc/*/exe`、macOS `ps`）。消し残しは `pending/NN` で次の apply に回す |
 | macOS | bash 3.2 / BSD コマンドで動かし、所有者は `root:wheel`。Kiro CLI だけ `/Applications` の公式インストーラ |

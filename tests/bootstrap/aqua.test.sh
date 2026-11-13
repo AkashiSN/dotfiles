@@ -216,4 +216,17 @@ keep cli/cli/v1.0.0 "aqua 内部の gh"
 keep cli/cli/v2.0.1 "aqua 内部の gh"
 echo "PASS: cli/cli（gh）の版は消さない"
 
+# npm の CLI（23）のラッパーが絶対パスで指す版は、動いていなくても消さない
+setup_cfg '  - name: acme/node@v2.0.0'
+mkgc acme/node/v1.0.0 acme/node/v2.0.0 acme/node/v0.9.0
+mkdir -p "$SHARED_ROOT/npm-global/old/bin"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$gh/acme/node/v1.0.0/x/node" >"$SHARED_ROOT/npm-global/old/bin/difit"
+rungc
+keep acme/node/v1.0.0 "npm のラッパーが参照"
+gone acme/node/v0.9.0
+rm -rf "$SHARED_ROOT/npm-global"
+rungc
+gone acme/node/v1.0.0
+echo "PASS: npm のラッパーが参照する版は残し、参照が消えたら消す"
+
 echo "ALL PASS"

@@ -8,8 +8,20 @@
 
 # shared_store_trigger
 # 常に 0 を返す。共有ストアの都合で apply を止めない。
+# sudo の認証やロックを待つ間にほかのユーザが共有側を更新すると、run-all.sh は何もせず 4 で終わる。
+# そのときは 1 度だけ判定からやり直す。
 shared_store_trigger() {
-	local src="${DOTFILES_SRC:?}" root="${SHARED_ROOT:-/opt}" rc=0 verdict state pending_only=0 nflag=""
+	_shared_store_trigger_once && return 0
+	note "判定のあとにほかのユーザが共有ストアを更新したため、判定し直します"
+	_shared_store_trigger_once && return 0
+	note "共有ストアの更新が続いているため見送りました。次の apply で判定し直します"
+	return 0
+}
+
+# _shared_store_trigger_once
+# 判定から sudo までを 1 回流す。run-all.sh が 4（判定が古い）で終わったときだけ 1、ほかは 0。
+_shared_store_trigger_once() {
+	local src="${DOTFILES_SRC:?}" root="${SHARED_ROOT:-/opt}" rc=0 verdict state seen pending_only=0 nflag=""
 
 	# 一致していれば sudo を呼ばず終わる。1 がキーの食い違い、3 が消し残し（使用中で残した古い版）だけ、
 	# それ以外は判定の異常。
@@ -31,7 +43,10 @@ shared_store_trigger() {
 
 	# git は root で動かすと dubious ownership で拒否されるため、利用者のこの権限で判定する。
 	# ok なら HEAD を state へ書かせる。force は state を書かせない。
+	# 判定に使う state を先に読み、run-all.sh がロックを取ってから同じかを確かめる。判定より前に
+	# 読むので、間で state が進めば run-all.sh 側で食い違い、古い判定のまま更新することはない。
 	state="$root/dotfiles-shared/state"
+	seen="$(state_commit "$state")"
 	rc=0
 	verdict="$(shared_guard "$src" "$state")" || rc=$?
 	if [ "$rc" -ne 0 ]; then
@@ -74,13 +89,18 @@ shared_store_trigger() {
 	if [ "$verdict" = force ]; then
 		DOTFILES_SHARED_FORCE=1
 		DOTFILES_STATE_COMMIT=
+		DOTFILES_STATE_SEEN=
 	else
 		DOTFILES_SHARED_FORCE=
 		DOTFILES_STATE_COMMIT="$(git -C "$src" rev-parse HEAD)"
+		DOTFILES_STATE_SEEN="$seen"
 	fi
-	export DOTFILES_SRC AQUA_BIN GITHUB_TOKEN SHARED_ROOT DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT
-	if ! sudo ${nflag:+-n} --preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES_SHARED_FORCE,DOTFILES_STATE_COMMIT,SHARED_ROOT \
-		bash "$src/bootstrap/run-all.sh"; then
+	export DOTFILES_SRC AQUA_BIN GITHUB_TOKEN SHARED_ROOT DOTFILES_SHARED_FORCE DOTFILES_STATE_COMMIT DOTFILES_STATE_SEEN
+	rc=0
+	sudo ${nflag:+-n} --preserve-env=DOTFILES_SRC,AQUA_BIN,GITHUB_TOKEN,DOTFILES_SHARED_FORCE,DOTFILES_STATE_COMMIT,DOTFILES_STATE_SEEN,SHARED_ROOT \
+		bash "$src/bootstrap/run-all.sh" || rc=$?
+	[ "$rc" -ne 4 ] || return 1
+	if [ "$rc" -ne 0 ]; then
 		if [ "$pending_only" -eq 1 ]; then
 			note "共有ストアの消し残しの掃除に失敗しました。次の apply で再試行します"
 		else

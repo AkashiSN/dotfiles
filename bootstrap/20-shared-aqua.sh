@@ -152,6 +152,13 @@ gc_old_versions() {
 			*"$x") continue 2 ;;
 			esac
 		done
+		# npm の CLI（23）のラッパーは node を絶対パスで exec する。23 は 1 つ前の組も残すので、
+		# どれかの組のラッパーが指している版は、動いていなくても消さない（消すと current の CLI が
+		# 起動できなくなる）。参照する組が消えたあと、次に 20 を流したときに消える。
+		if grep -qsF -- "$d/" "$SHARED_ROOT"/npm-global/*/bin/* 2>/dev/null; then
+			note "npm の CLI が参照しているため残します: $d"
+			continue
+		fi
 		if running_from_any "$d" || running_matching "/aquaproj-aqua/pkgs/github_release/$host/$o/$r/${d##*/}/"; then
 			note "使用中のため残します: $d"
 			gc_defer

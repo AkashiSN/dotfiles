@@ -26,6 +26,61 @@ fi
 assert_contains "$(cat "$tmp/err")" "$tmp/realdir" "swap_symlink: 実ディレクトリは stderr に理由を出して失敗"
 [ -d "$tmp/realdir" ] && [ ! -L "$tmp/realdir" ] || fail "swap_symlink: 実ディレクトリが壊れた"
 
+# 差し替え中もリンクが消える瞬間が無い（読み手が ENOENT を見ない）
+mkdir "$tmp/c" "$tmp/d"
+swap_symlink "$tmp/c" "$tmp/alink"
+(
+	i=0
+	while [ "$i" -lt 300 ]; do
+		swap_symlink "$tmp/d" "$tmp/alink"
+		swap_symlink "$tmp/c" "$tmp/alink"
+		i=$((i + 1))
+	done
+) &
+swapper=$!
+missing=0
+while kill -0 "$swapper" 2>/dev/null; do
+	[ -L "$tmp/alink" ] || missing=$((missing + 1))
+done
+wait "$swapper"
+assert_eq "0" "$missing" "swap_symlink: 差し替え中にリンクが消えない"
+for f in "$tmp"/*swap* "$tmp/c"/* "$tmp/d"/*; do
+	[ -e "$f" ] || [ -L "$f" ] || continue
+	fail "swap_symlink: 一時リンクが残った: $f"
+done
+echo "PASS: swap_symlink: 一時リンクを残さない"
+
+# --- shared_lock ---
+# 別のシェルがロックを持つ間は待ち、外れたら取れる。
+lockf="$tmp/lockdir/lock"
+(
+	shared_lock "$lockf"
+	: >"$tmp/held"
+	sleep 2
+) &
+holder=$!
+while [ ! -e "$tmp/held" ]; do sleep 0.1; done
+start=$(date +%s)
+out="$(
+	shared_lock "$lockf" 2>&1
+	echo got
+)"
+end=$(date +%s)
+wait "$holder"
+assert_contains "$out" "got" "shared_lock: 外れたら取れる"
+assert_contains "$out" "待ちます" "shared_lock: 待つときは案内する"
+[ $((end - start)) -ge 1 ] || fail "shared_lock: 持たれている間に取れてしまった"
+# 持ち主が異常終了してもロックは残らない
+(
+	bash -c '. "$1"; shared_lock "$2"; kill -9 $$' _ "$REPO/bootstrap/lib.sh" "$lockf" || true
+) >/dev/null 2>&1
+out="$(
+	shared_lock "$lockf" 2>&1
+	echo got
+)"
+assert_eq "got" "$out" "shared_lock: 持ち主が死んだら待たずに取れる"
+echo "PASS: shared_lock"
+
 # --- running_from_any ---
 mkdir "$tmp/run"
 cp /bin/sleep "$tmp/run/sleep"
