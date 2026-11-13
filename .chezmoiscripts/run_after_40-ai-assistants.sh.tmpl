@@ -185,8 +185,10 @@ once_step codegraph "$cg_key" register_codegraph
 # grep/Read への割り込みは codegraph prompt-hook と二重になるため入れていない。
 # グラフ本体と git フックはリポジトリごとに手動で入れる(`/graphify .` / `graphify hook install`)。
 # 共有の uv の bin は env.sh と同じ条件で PATH に足す（ここは env.sh を読まない）。
-if [ -d /opt/uv/bin ] && [ -f /opt/dotfiles-shared/keys/24 ]; then
-	export PATH="/opt/uv/bin:$PATH"
+SHARED_UV=/opt/uv
+SHARED_UV_KEY=/opt/dotfiles-shared/keys/24
+if [ -d "$SHARED_UV/bin" ] && [ -f "$SHARED_UV_KEY" ]; then
+	export PATH="$SHARED_UV/bin:$PATH"
 fi
 register_graphify() {
 	if ! command -v graphify >/dev/null 2>&1; then

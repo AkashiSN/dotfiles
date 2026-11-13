@@ -67,6 +67,19 @@ _ai_unlink() {
 	rm -f "$p"
 }
 
+# _ai_unlink_into <bin_dir> <実体の場所の部分文字列>
+# <bin_dir> の symlink のうち、指す先に部分文字列を含むものを全て外す。公式インストーラは本体のほかに
+# 補助のコマンド（codex の codex-code-mode-host など）のリンクも置くため、本体の名前だけでは外し漏れる。
+_ai_unlink_into() {
+	local dir="$1" sub="$2" l
+	for l in "$dir"/*; do
+		[ -L "$l" ] || continue
+		case "$(readlink "$l")" in
+		*"$sub"*) _ai_unlink "$l" "$sub" ;;
+		esac
+	done
+}
+
 # _ai_rmdir <path>: 在れば再帰的に消す。
 _ai_rmdir() {
 	[ -e "$1" ] || [ -L "$1" ] || return 0
@@ -84,6 +97,7 @@ ai_cleanup_home() {
 
 	if ai_provided claude; then
 		_ai_unlink "$home/.local/bin/claude" "/.local/share/claude/"
+		_ai_unlink_into "$home/.local/bin" "/.local/share/claude/"
 		if _ai_busy "$home/.local/share/claude/versions" "$home/.local/bin/claude"; then
 			note "古い claude が動いているため ~/.local/share/claude は次の chezmoi apply で消します"
 		else
@@ -95,6 +109,7 @@ ai_cleanup_home() {
 
 	if ai_provided codex; then
 		_ai_unlink "$home/.local/bin/codex" "/.codex/packages/"
+		_ai_unlink_into "$home/.local/bin" "/.codex/packages/"
 		if _ai_busy "$home/.codex/packages" "$home/.local/bin/codex" "$home/.agents/bin/codex"; then
 			note "古い codex が動いているため ~/.codex/packages は次の chezmoi apply で消します"
 		else
@@ -104,6 +119,7 @@ ai_cleanup_home() {
 
 	if ai_provided codegraph; then
 		_ai_unlink "$home/.local/bin/codegraph" "/.codegraph/"
+		_ai_unlink_into "$home/.local/bin" "/.codegraph/"
 		if _ai_busy "$home/.codegraph/versions" "$home/.local/bin/codegraph"; then
 			note "古い codegraph が動いているため ~/.codegraph/versions は次の chezmoi apply で消します"
 		else

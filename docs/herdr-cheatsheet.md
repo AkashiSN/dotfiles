@@ -351,7 +351,7 @@ claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる�
 このスクリプトは取得せず、ホームに残った公式インストーラの実体（`~/.local/bin/claude` と
 `~/.local/share/claude`、`~/.codex/packages`、`~/.codegraph/versions`、`~/.local/bin/kiro-cli*`）を、
 **aqua が提供しているコマンドの分だけ**消す（`.chezmoitemplates/ai-cleanup.sh`。`~/.local/bin` のリンクは、aqua が提供していれば動作中でも外す
-（動いているプロセスは開いた実体を持ち続け、新しい起動は aqua へ向かう）。**実体のディレクトリを消すのは動作中でないときだけ**で、
+（動いているプロセスは開いた実体を持ち続け、新しい起動は aqua へ向かう）。`codex-code-mode-host` など、実体の場所を指す補助コマンドのリンクも外す。**実体のディレクトリを消すのは動作中でないときだけ**で、
 動作中とは、実行ファイルがその実体の下にある、または実行ファイルのパスがリンク（`~/.local/bin/claude`、`~/.local/bin/codex`、
 `~/.agents/bin/codex`、`~/.local/bin/codegraph`）と完全に一致するプロセスがあること。macOS の `ps` はリンクで起動したプロセスを
 リンクのパスで出すため後者も見る。動作中なら実体は次の apply に回す。設定・認証・履歴は消さない）。自己更新は止めてある（Claude Code は managed settings の
