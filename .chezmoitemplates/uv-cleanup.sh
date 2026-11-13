@@ -63,7 +63,8 @@ _uv_busy() {
 # uv_cleanup_home <uv_data> <local_bin> <python_version> <tool...>
 # 共有へ移した <tool>（uv tool list の正規化名。ディレクトリ名と同じ）の実体と ~/.local/bin の symlink を消す。
 # 残ったツール（ユーザが自分で入れたもの）が無ければ、既定の Python（<python_version>。移したツールが使っていた版）
-# と、それを指す python3 などの symlink も消す。ユーザが自分で入れた別の版の Python は残す。
+# と、それを指す python3 などの symlink も消す。ほかの版は _uv_cleanup_other_pythons の基準で消し、
+# ユーザが自分で ~/.local/bin へ出した版（python3.14 など）は残す。
 # ホームの uv の Python やツールが動いている間は何も消さず、次の apply へ回す。
 uv_cleanup_home() {
 	local data="$1" lbin="$2" pyver="$3" tool p
@@ -93,5 +94,57 @@ uv_cleanup_home() {
 		fi
 		note "共有の Python を使うため削除: $p"
 		rm -rf "$p"
+	done
+	_uv_cleanup_other_pythons "$data/python" "$lbin"
+}
+
+# _uv_link_target_dir <link> <python_dir>: <link> が <python_dir> の下の版のディレクトリを指していれば、
+# その版のディレクトリ（<python_dir>/cpython-...）を出す。
+_uv_link_target_dir() {
+	local link="$1" pydir="$2" p
+	for p in "$pydir"/cpython-*; do
+		[ -d "$p" ] && [ ! -L "$p" ] || continue
+		if _uv_link_into "$link" "$p"; then
+			printf '%s\n' "$p"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# _uv_cleanup_other_pythons <python_dir> <local_bin>: 既定の版以外のホームの Python を掃除する。
+# - ~/.local/bin の python / python3 が指す版は、ユーザ単位の導入の --default が置いた既定の版
+#   （dot_python-version を上げる前の版など）。共有の python3 より PATH の前に来て隠すので、リンクごと消す。
+# - ~/.local/bin のどのリンクからも指されていない版は、移したツールの依存などで入ったもの。消す
+#   （プロジェクトが求めれば uv が取り直す）。
+# - それ以外のリンク（python3.14 など）が指す版は、ユーザが自分で PATH へ出したものとして残す。
+_uv_cleanup_other_pythons() {
+	local pydir="$1" lbin="$2" link name p keep="" l
+	for name in python python3; do
+		link="$lbin/$name"
+		[ -L "$link" ] || continue
+		p="$(_uv_link_target_dir "$link" "$pydir")" || continue
+		_uv_remove_links_into "$lbin" "$p"
+		note "共有の Python を使うため削除: $p"
+		rm -rf "$p"
+	done
+	for link in "$lbin"/*; do
+		[ -L "$link" ] || continue
+		p="$(_uv_link_target_dir "$link" "$pydir")" || continue
+		keep="$keep
+$p"
+	done
+	for p in "$pydir"/cpython-*; do
+		[ -d "$p" ] && [ ! -L "$p" ] || continue
+		if printf '%s\n' "$keep" | grep -qxF "$p"; then
+			continue
+		fi
+		note "共有の Python を使うため削除: $p"
+		rm -rf "$p"
+	done
+	# 版ごとのリンク（cpython-<版>-<os>-<arch>-none など）のうち、実体が消えて宙に浮いたものを消す。
+	for l in "$pydir"/cpython-*; do
+		[ -L "$l" ] && [ ! -e "$l" ] || continue
+		rm -f "$l"
 	done
 }

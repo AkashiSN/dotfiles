@@ -376,7 +376,31 @@ run35 >/dev/null || fail "(d) 失敗"
 [ ! -e "$d/python/cpython-3.13.5-x" ] && [ ! -L "$d/python/cpython-3.13-x" ] && [ ! -L "$home/.local/bin/python3" ] || fail "ツールが無いのに既定の Python が残った"
 [ -d "$d/python/cpython-3.14.0-x" ] && [ -L "$home/.local/bin/python3.14" ] || fail "既定の版でない Python（と symlink）まで消した"
 [ -L "$home/.local/bin/other" ] || fail "(d) 無関係な symlink を消した"
-echo "PASS: 残るツールが無ければ既定の版の Python と python3 のリンクだけ消す（別の版は残す）"
+echo "PASS: 残るツールが無ければ既定の版の Python と python3 のリンクを消す（ユーザが出した別の版は残す）"
+# (d2) dot_python-version を上げる前の既定の版（python / python3 / python3.12 が指す）と、
+# どのリンクからも指されない版は消す。ユーザが出した版（python3.14）は残す。
+mkdir -p "$d/python/cpython-3.12.9-x/bin" "$d/python/cpython-3.11.2-x/bin"
+: >"$d/python/cpython-3.12.9-x/bin/python3"
+: >"$d/python/cpython-3.11.2-x/bin/python3"
+ln -sfn cpython-3.12.9-x "$d/python/cpython-3.12-x"
+ln -sfn cpython-3.11.2-x "$d/python/cpython-3.11-x"
+for n in python python3 python3.12; do
+	ln -sf "$d/python/cpython-3.12.9-x/bin/python3" "$home/.local/bin/$n"
+done
+run35 >/dev/null || fail "(d2) 失敗"
+[ ! -e "$d/python/cpython-3.12.9-x" ] && [ ! -L "$d/python/cpython-3.12-x" ] || fail "(d2) python3 が指す前の既定の版が残った"
+for n in python python3 python3.12; do
+	[ ! -L "$home/.local/bin/$n" ] || fail "(d2) 前の既定の版を指す $n のリンクが残った"
+done
+[ ! -e "$d/python/cpython-3.11.2-x" ] && [ ! -L "$d/python/cpython-3.11-x" ] || fail "(d2) どのリンクからも指されない版が残った"
+[ -d "$d/python/cpython-3.14.0-x" ] && [ -L "$home/.local/bin/python3.14" ] || fail "(d2) ユーザが出した版まで消した"
+[ -L "$home/.local/bin/other" ] || fail "(d2) 無関係な symlink を消した"
+echo "PASS: 前の既定の版とリンクの無い版は消し、ユーザが出した版は残す"
+# (d3) ホームにツールが残っている間は、別の版の Python にも触らない
+mkdir -p "$d/tools/mytool/bin" "$d/python/cpython-3.11.2-x/bin"
+run35 >/dev/null || fail "(d3) 失敗"
+[ -d "$d/python/cpython-3.11.2-x" ] || fail "(d3) ツールが残っているのに別の版を消した"
+rm -rf "$d/tools/mytool"
 # 共有側のキーだけ無ければ揃っていない扱い
 rm "$tmp/shared/keys/24"
 rm -rf "$d"
