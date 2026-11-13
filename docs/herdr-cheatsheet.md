@@ -545,6 +545,8 @@ kiro-cli _ local-state shell-integrations.enabled  # → false（再注入され
 ```
 
 インライン補完は失われるが、`kiro-cli chat` などは従来どおり使える。
+Linux の kiro-cli（aqua で入れる 3.x）はシェル統合そのものを持たず、`integrations uninstall` に `dotfiles` が無い。
+apply は `kiro-cli integrations uninstall --help` に `dotfiles` があるときだけ外す（macOS の Kiro CLI.app など）。
 
 `HERDR_LOG` でクライアント／サーバのログレベルを上げられる（既定は `herdr=info`）:
 

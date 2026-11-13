@@ -79,8 +79,13 @@ fi
 # そのホスト宛の ssh が丸ごと固まる(docs/herdr-cheatsheet.md)。uninstall は
 # local-state の shell-integrations.enabled=false も立てるので、rc へ再注入されても
 # pre ブロックは何もしない。冪等なので毎回実行してよい。
+# Linux の kiro-cli（aqua の 3.x）はシェル統合を持たず、uninstall に dotfiles が無い（呼ぶとエラーを出す）。
+# uninstall の一覧に dotfiles があるときだけ外す（pipefail 下で grep -q が先に閉じても誤らないよう、一覧は変数に受ける）。
 if command -v kiro-cli >/dev/null 2>&1; then
-	kiro-cli integrations uninstall -s dotfiles || true
+	kiro_uninstall_help="$(kiro-cli integrations uninstall --help 2>/dev/null || true)"
+	if printf '%s\n' "$kiro_uninstall_help" | grep -E '^[[:space:]]+dotfiles([[:space:]]|$)' >/dev/null; then
+		kiro-cli integrations uninstall -s dotfiles || true
+	fi
 fi
 
 # --- Cline CLI ---
