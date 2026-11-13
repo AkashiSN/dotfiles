@@ -206,6 +206,17 @@ case " ${FAKE_FAIL:-} " in *" $(basename "$0"):${1:-} "*) exit 1 ;; esac
 FAKE
 	chmod +x "$stubs/$c"
 done
+# kiro-cli: uninstall の --help は KIRO_NO_DOTFILES=1 のとき dotfiles を出さない（Linux の 3.x と同じ）。
+cat >"$stubs/kiro-cli" <<'FAKE'
+#!/usr/bin/env bash
+if [ "$*" = "integrations uninstall --help" ]; then
+	echo "Commands:"
+	[ "${KIRO_NO_DOTFILES:-}" = 1 ] || echo "  dotfiles               "
+	echo "  kiro-command-router  "
+	exit 0
+fi
+echo "kiro-cli $*" >>"$CALLS"
+FAKE
 cat >"$stubs/aqua" <<'FAKE'
 #!/usr/bin/env bash
 echo "aqua $*" >>"$CALLS"
@@ -240,6 +251,10 @@ assert_not_contains "$c" "setup.sh" "2 回目: agmsg を取り直さない"
 assert_not_contains "$c" "codegraph install" "2 回目: codegraph 登録を省く"
 assert_contains "$c" "kiro-cli integrations uninstall" "2 回目も kiro の統合解除は流す（冪等で軽い）"
 echo "PASS: 通し実行とマーカーによる省略"
+# uninstall に dotfiles が無い kiro-cli（Linux の 3.x）では、統合解除を呼ばずエラーも出さない
+out="$(KIRO_NO_DOTFILES=1 run40)" || fail "dotfiles の無い kiro で run_after_40 が失敗" "$out"
+assert_not_contains "$(cat "$CALLS")" "kiro-cli integrations uninstall" "dotfiles の無い kiro では統合解除を呼ばない"
+echo "PASS: dotfiles の無い kiro-cli では統合解除を飛ばす"
 
 # ---- 途中のコマンドが失敗して最後が成功しても、マーカーを進めない ----
 rm -rf "$tmp/runhome/.cache/dotfiles"
