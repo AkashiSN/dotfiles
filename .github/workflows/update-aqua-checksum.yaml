@@ -34,9 +34,9 @@ jobs:
           ref: ${{ github.head_ref }}
           persist-credentials: false
       # update-checksum-action は aqua 本体を入れないので先に導入する。
-      - uses: aquaproj/aqua-installer@v4.1.0
+      - uses: aquaproj/aqua-installer@v4.1.1
         with:
-          aqua_version: v2.64.0
+          aqua_version: v2.66.1
         env:
           AQUA_GITHUB_TOKEN: ${{ github.token }}
       # aqua.yaml はリポジトリ直下ではなくこのディレクトリにある。
