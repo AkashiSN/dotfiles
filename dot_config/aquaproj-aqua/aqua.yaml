@@ -5,6 +5,11 @@
 checksum:
   enabled: true
   require_checksum: true
+  # 使う OS（macOS / Linux）の分だけチェックサムを持つ。Windows では aqua を使わない
+  # （.chezmoiignore で .config を展開しない）ので、registry の Windows 版の定義の誤りで止まらないようにする。
+  supported_envs:
+    - darwin
+    - linux
 registries:
   - type: standard
     ref: v4.575.0 # renovate: depName=aquaproj/aqua-registry
