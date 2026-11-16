@@ -12,7 +12,7 @@ checksum:
     - linux
 registries:
   - type: standard
-    ref: v4.585.0 # renovate: depName=aquaproj/aqua-registry
+    ref: v4.587.0 # renovate: depName=aquaproj/aqua-registry
   - name: local
     type: local
     path: registry.yaml
@@ -62,9 +62,9 @@ packages:
   - name: 1password/cli@v2.31.1 # op
   # --- cloud ---
   # macOS は .pkg 形式のため展開に unar が必要 (10-install-packages の brew で導入 / port で導入)
-  - name: aws/aws-cli@2.40.2
+  - name: aws/aws-cli@2.40.3
   - name: kubernetes/kubernetes/kubectl@v1.37.2
-  - name: helm/helm@v4.3.1 # kubernetes package manager
+  - name: helm/helm@v4.3.2 # kubernetes package manager
   - name: terraform-linters/tflint@v0.66.0 # terraform linter (validate が見ない書き方の問題を拾う)
   # --- network / data utilities ---
   - name: cloudflare/cloudflared@2026.11.0
@@ -76,8 +76,8 @@ packages:
   #   Codex: bootstrap/codex/managed_config.toml の check_for_update_on_startup
   #   CodeGraph / Kiro CLI: ~/.config/shell/env.sh の CODEGRAPH_NO_UPDATE_CHECK / KIRO_NO_AUTO_UPDATE
   # 各ユーザ側の設定（MCP 登録など）は run_after_40-ai-assistants が行う。
-  - name: anthropics/claude-code@v2.1.323 # Claude Code
-  - name: openai/codex@rust-v0.167.2 # OpenAI Codex CLI
+  - name: anthropics/claude-code@v2.1.325 # Claude Code
+  - name: openai/codex@rust-v0.169.0 # OpenAI Codex CLI
   - name: colbymchenry/codegraph@v1.6.2 # コードの知識グラフを MCP でエージェントに渡す
   # Kiro CLI は Linux のみ（定義は local registry の registry.yaml）。macOS は /Applications の公式インストーラ。
   - name: kiro.dev/kiro-cli@3.3.0

@@ -36,33 +36,33 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-darwin-arm64.tar.gz",
-      "checksum": "89A467EC2EFB5B34BD9BAD1A99D9C29EDA804DE03DE5E2F65D787B72B1502361",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-darwin-arm64.tar.gz",
+      "checksum": "B0DC23F2D8C3EF55B2B22F03EF204E98B06B22B6C51A15B66D263B13442C4E03",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-darwin-x64.tar.gz",
-      "checksum": "0C08C4D786C101237F33E3E1FCAF193D8AFE479AE4A9CD2DB20F645815393B7A",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-darwin-x64.tar.gz",
+      "checksum": "EA9D1CF6CC3284450208F0E7045849022B6DA558000D6F0699D96515F0FD2A0D",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-linux-arm64-musl.tar.gz",
-      "checksum": "4EA5C26BE8713CF3F0E4797A58FD99ED5EC09C2A6E62F68CC2BDFFCEBA55E7B4",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-linux-arm64-musl.tar.gz",
+      "checksum": "E2E584D57C80DE163B4F31F8DD82109CCE1C3F7DCF9B542CDDC705AD21D98737",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-linux-arm64.tar.gz",
-      "checksum": "808FA9C71CAF7EBED9383D3E38BEE6E7DD2FA80877AC12C6C27438786295099E",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-linux-arm64.tar.gz",
+      "checksum": "2ABE2BEA8B802190A303F335B0FD09F95EB775457E99DF5A4778B09DFAB6BBD6",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-linux-x64-musl.tar.gz",
-      "checksum": "98521F31423E718F7351738E5C342D88D61D2C59F2C7A469B88C281CCC05196A",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-linux-x64-musl.tar.gz",
+      "checksum": "BA798CBED37B7B108CC5898DEE27320321EB7E4717081B7EA611C907D2BAB3FF",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/anthropics/claude-code/v2.1.323/claude-linux-x64.tar.gz",
-      "checksum": "522255678548859B9799B7B098C03A3AA286C9A9EDE01957E35F4713CCC43631",
+      "id": "github_release/github.com/anthropics/claude-code/v2.1.325/claude-linux-x64.tar.gz",
+      "checksum": "9686B0FB1EEFBD7F2CC1F53F932516C29CD605E9D976223323A6C6E9A4C9C7FE",
       "algorithm": "sha256"
     },
     {
@@ -401,23 +401,23 @@
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/openai/codex/rust-v0.167.2/codex-package-aarch64-apple-darwin.tar.gz",
-      "checksum": "E791290651BCE41938FB160B5DE2BD9FF8BCF3401CA3E236C73F485FCA4BE1BB",
+      "id": "github_release/github.com/openai/codex/rust-v0.169.0/codex-package-aarch64-apple-darwin.tar.gz",
+      "checksum": "8A232260DF7A12C5E83E0B4B7659E1C8D9259B41942517BC0068D8AB55C36461",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/openai/codex/rust-v0.167.2/codex-package-aarch64-unknown-linux-musl.tar.gz",
-      "checksum": "56B08C1214E062A5B61684BACB5033C4372A01062A47C87C49A32BE83AF70695",
+      "id": "github_release/github.com/openai/codex/rust-v0.169.0/codex-package-aarch64-unknown-linux-musl.tar.gz",
+      "checksum": "C8D0B4AB2A97C595B70B10412D36D0D5464DCEF1E1D3246B073D48017CDF5A4F",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/openai/codex/rust-v0.167.2/codex-package-x86_64-apple-darwin.tar.gz",
-      "checksum": "D0C2FF50BF7366AB89D8213A498EEAD05CA01515098B290FB37A9B8DCAD3E054",
+      "id": "github_release/github.com/openai/codex/rust-v0.169.0/codex-package-x86_64-apple-darwin.tar.gz",
+      "checksum": "0A3C392235B4712409495CED02BBE0662CE7A038232766D1C1C34AF74E905C2F",
       "algorithm": "sha256"
     },
     {
-      "id": "github_release/github.com/openai/codex/rust-v0.167.2/codex-package-x86_64-unknown-linux-musl.tar.gz",
-      "checksum": "3D77BE1748D35A4BB0E7F8752CDE3B11890C63338E8C599F01EAFA4A59E17B3D",
+      "id": "github_release/github.com/openai/codex/rust-v0.169.0/codex-package-x86_64-unknown-linux-musl.tar.gz",
+      "checksum": "3B8ED091149CC63A59046B9F094BCFA21CDB4DDA15EDE441CE369BCEE4A71BA0",
       "algorithm": "sha256"
     },
     {
@@ -661,18 +661,18 @@
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/AWSCLIV2-2.40.2.pkg",
-      "checksum": "3B03319491C8CEE675CF71310A43BFC48EE61C9D706DDBF5B6716D3A8C25D393",
+      "id": "http/awscli.amazonaws.com/AWSCLIV2-2.40.3.pkg",
+      "checksum": "BE032742FF205F7F2D7C189010BBB1F3891D0A67BE0B1DF0FE9D3E7F5FC5AD30",
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/awscli-exe-linux-aarch64-2.40.2.zip",
-      "checksum": "EF8B0AB093D7924CAA6FD7BBC6581B92C56332EB20B4062305CE6CF63DA1F440",
+      "id": "http/awscli.amazonaws.com/awscli-exe-linux-aarch64-2.40.3.zip",
+      "checksum": "4C5F080C6C294EB0DA77734C4520F5B5089CF45A4EE757CA34DDF7F9E512E66A",
       "algorithm": "sha256"
     },
     {
-      "id": "http/awscli.amazonaws.com/awscli-exe-linux-x86_64-2.40.2.zip",
-      "checksum": "A9AC0D635E97FAB65E234AE1519FA6BD2B02D72120BF965A8FF6EAF7611F1833",
+      "id": "http/awscli.amazonaws.com/awscli-exe-linux-x86_64-2.40.3.zip",
+      "checksum": "4770C06C4ECFC8BA94B60D89E6C7018AB7EA2CF5341B1EF05F6F93C5D6E8B705",
       "algorithm": "sha256"
     },
     {
@@ -716,23 +716,23 @@
       "algorithm": "sha256"
     },
     {
-      "id": "http/get.helm.sh/helm-v4.3.1-darwin-amd64.tar.gz",
-      "checksum": "34BEC4EBA761BA5C16D1965EE6B8F5B0ABE5993974A802274E2A4F0418893D89",
+      "id": "http/get.helm.sh/helm-v4.3.2-darwin-amd64.tar.gz",
+      "checksum": "9E0068E9AE18C441D27388190EE7F53AE65EBA44BFE910B40BDAC44C4B51FA71",
       "algorithm": "sha256"
     },
     {
-      "id": "http/get.helm.sh/helm-v4.3.1-darwin-arm64.tar.gz",
-      "checksum": "6B4E61C8CD27D99E5A801E63FF25DD5C70B36875C2CD659D3E9CE6B76FC23198",
+      "id": "http/get.helm.sh/helm-v4.3.2-darwin-arm64.tar.gz",
+      "checksum": "6F3421DE3A8CC2AC578C8CFB33B8EDDE290DDE2871BC1BAB12E24F2E5CAEAA90",
       "algorithm": "sha256"
     },
     {
-      "id": "http/get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz",
-      "checksum": "0403A88AE20913D11B10A2467B50087721FEA7581736DA6B9D3992F5357FE54B",
+      "id": "http/get.helm.sh/helm-v4.3.2-linux-amd64.tar.gz",
+      "checksum": "D1C0278D46BEAB79582D7E50F5B3DC206944BA8E577CDE618513FD07DAA53983",
       "algorithm": "sha256"
     },
     {
-      "id": "http/get.helm.sh/helm-v4.3.1-linux-arm64.tar.gz",
-      "checksum": "8CF8F66ECBC252AC8F7F06CCA68ABA88508DDFDE3A6A34FEB1678AD1694B4F88",
+      "id": "http/get.helm.sh/helm-v4.3.2-linux-arm64.tar.gz",
+      "checksum": "DF31CB61680EF728F82C770E5280DD565617BEE6B039D37E85C677288BE4BBB0",
       "algorithm": "sha256"
     },
     {
@@ -816,8 +816,8 @@
       "algorithm": "sha256"
     },
     {
-      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.585.0/registry.yaml",
-      "checksum": "0FB3F31B7AF2CFF8BC0B7971133448060B47FA0DACF320EB4300B081917C4D35",
+      "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.587.0/registry.yaml",
+      "checksum": "729309DB5E7562072096CFB1EA4B8DE7A6DC41A9A9D57F2923784EEFD422F330",
       "algorithm": "sha256"
     }
   ]
