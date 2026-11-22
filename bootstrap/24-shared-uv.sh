@@ -39,7 +39,7 @@ AQUA_STORE="$SHARED_ROOT/aquaproj-aqua"
 # extra は <pkg>[extra,...]==<version>。
 UV_TOOLS=""
 # Ansible。
-UV_TOOLS="$UV_TOOLS ansible==8.7.0"
+UV_TOOLS="$UV_TOOLS ansible==15.0.0"
 # graphify（PyPI 上のパッケージ名は graphifyy、コマンド名は graphify）。SQL / HCL のパーサーは
 # 必須依存ではなく extra なので明示する（terraform extra が tree-sitter-hcl を連れてくる）。
 # 各ユーザの claude への登録（graphify install）は run_after_40-ai-assistants が行う。
