@@ -40,6 +40,10 @@ packages:
   - name: junegunn/fzf@v0.75.0
   - name: peco/peco@v0.6.0
   - name: herdrdev/herdr@v0.9.5 # 複数 AI コーディングエージェントを束ねる端末マルチプレクサ
+  # herdr のモバイルアプリが SSH で話すランタイム。端末版 herdr とはサーバが別。
+  # `hc` も公開するため local registry の定義を使う。
+  - name: herdrdev/herdr-core@v0.1.22
+    registry: local
   - name: sxyazi/yazi@v26.9.1 # プレビュー付きファイラ (herdr の popup から起動)
   - name: charmbracelet/glow@v3.0.0 # markdown ビューア TUI (herdr の popup から起動)
   # markdown ビューア (ブラウザ)。mermaid / 全文検索 / live reload が要るとき用。
