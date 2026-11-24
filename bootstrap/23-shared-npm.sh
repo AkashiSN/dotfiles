@@ -30,7 +30,7 @@ NPM_GLOBALS=""
 # ブラウザで差分を読む diff ビューア（herdr の <prefix> d から herdr-difit 経由で起動）。
 NPM_GLOBALS="$NPM_GLOBALS difit@5.0.12"
 # Cline CLI。VS Code 拡張と同じエージェントを端末で動かす。公式の配布は npm だけ。
-NPM_GLOBALS="$NPM_GLOBALS cline@3.0.74"
+NPM_GLOBALS="$NPM_GLOBALS cline@3.0.75"
 
 # キーは node のピン（aqua.yaml の nodejs/node@... の行）と NPM_GLOBALS から決める。
 src_key() {
