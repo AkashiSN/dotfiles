@@ -786,6 +786,26 @@
       "algorithm": "sha256"
     },
     {
+      "id": "http/releases.herdr.dev/core/0.1.22/herdr-core-linux-aarch64.tar.gz",
+      "checksum": "98757985245D45F8D73DD85E68B139B7F167C28488BB89EDD9834C3F5A5CF4CF",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/releases.herdr.dev/core/0.1.22/herdr-core-linux-x86_64.tar.gz",
+      "checksum": "3054EC3992CE80C5715D721CAA9DCEFA6056721D15DC113F4750AFCE763BA5DF",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/releases.herdr.dev/core/0.1.22/herdr-core-macos-aarch64.tar.gz",
+      "checksum": "90798DAADEFA8D126B90EF0BCDBE9C7DDA9C6CFBF011A247065AB5DA348F350E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "http/releases.herdr.dev/core/0.1.22/herdr-core-macos-x86_64.tar.gz",
+      "checksum": "35144041969E870DDB4EDCD2FD08FD26DFE5CEE7D18E6B48ADB276F90A48AA19",
+      "algorithm": "sha256"
+    },
+    {
       "id": "http/static.rust-lang.org/rustup/archive/1.29.0/aarch64-apple-darwin/rustup-init",
       "checksum": "AEB4105778CA1BD3C6B0E75768F581C656633CD51368FA61289B6A71696AC7E1",
       "algorithm": "sha256"

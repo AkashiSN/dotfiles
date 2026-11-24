@@ -4,7 +4,7 @@
 [herdr](https://github.com/herdrdev/herdr) の起動・キーバインド・設定挙動のリファレンス。
 単一の Rust バイナリで、tmux 級の永続セッション + エージェント状態検知 + socket API を提供する。
 
-- **導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `herdrdev/herdr`）
+- **導入**: aqua で管理（`dot_config/aquaproj-aqua/aqua.yaml` の `herdrdev/herdr`）。モバイルアプリ用の herdr-core（`hc`）も同じく aqua（→「[モバイルアプリ（herdr-core / `hc`）](#モバイルアプリherdr-core--hc)」）
 - **設定ファイル**: `~/.config/herdr/config.toml`（chezmoi ソース = `dot_config/herdr/config.toml`）
 - **prefix キー**: `Ctrl-b`（herdr デフォルト。tmux の `Ctrl-a` とは別キー。以下 `<prefix>` と表記）
 - **テーマ**: Catppuccin（ghostty / nvim と統一）
@@ -378,6 +378,33 @@ claude / codex / codegraph / kiro（Linux）の実体は **aqua** が入れる�
 
 IME 候補ウィンドウの追従（`cjk_ime_agents`）には `cline` を含めてある（上の「設定挙動」）。
 エージェント状態 integration のフック（`herdr integration install`）は claude / codex のみ入れている。
+
+---
+
+## モバイルアプリ（herdr-core / `hc`）
+
+Herdr の iPhone / iPad / Android アプリは、SSH 先の **herdr-core**（コマンド `hc`）と話す。
+端末版の `herdr` とは**別のプログラムでサーバも別**なので、端末版だけ入っているホストは
+アプリから「herdr が入っていない」と判定される。端末版のペインで起動したエージェントは
+アプリに出てこない（逆も同じ）。
+
+- **導入**: aqua で管理（`aqua.yaml` の `herdrdev/herdr-core`、`registry: local`）。standard
+  registry の定義は `herdr-core` しか公開しないので、local registry（`registry.yaml`）で
+  同じ取得元を定義し直し、公式インストーラと同じく `hc` も公開している。
+- **更新**: `aqua.yaml` のピンを上げる（Renovate）。`hc update` は使わない（実体は共有ストア
+  `/opt/aquaproj-aqua` にあり、ユーザ権限では書き換えられない）。
+
+| コマンド | 動作 |
+| --- | --- |
+| `hc` | 端末を選んでアタッチ（一覧の先頭が新規作成） |
+| `hc run ...` | 生き続ける端末でプログラム / エージェントを起動 |
+| `hc ls` | 端末の一覧 |
+| `hc attach <名前>` | その端末へ入って操作を引き継ぐ（`Ctrl+\` で抜ける） |
+| `hc read <名前> --lines 100` | アタッチせずに出力を読む |
+
+PC とスマホで同じエージェントを触りたいときは、エージェントを `hc run` で起動し、PC では
+端末版 herdr のペインで `hc attach <名前>` する。端末版はこのとき画面分割として使うだけで、
+エージェント状態の検知や通知が hc 側のエージェントに効く保証はない（公式に記述が無く未検証）。
 
 ---
 
